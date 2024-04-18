@@ -135,6 +135,7 @@ def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray,
                         f"{largs.exp_id}/qualitative_retr_residual_nc"\
                         f"{largs.num_clusters}"
     qimgs_inds = []
+    print(save_figs, largs.qual_result_percent)
     if (not save_figs) or largs.qual_result_percent <= 0:
         qimgs_result = False
     if not qimgs_result:    # Saving query images
@@ -328,6 +329,8 @@ def main(largs: LocalArgs):
     vpr_dl = DataLoader(vpr_ds, largs.batch_size, pin_memory=True, 
                         shuffle=False)
 
+    plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
+
     print("--------------------- Results ---------------------")
     ts = time.strftime(f"%Y_%m_%d_%H_%M_%S")
     caching_directory = largs.prog.cache_dir
@@ -365,10 +368,6 @@ def main(largs: LocalArgs):
             plt_title = f"{plt_title} - {wandb_run.name}"
         plt.title(plt_title)
         plt.show()
-
-    print("------------ Plot Recalls Viz Start------------")
-    plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
-    print("------------ Plot Recalls Viz Finished------------")
 
     # Log to WandB
     if largs.prog.use_wandb:

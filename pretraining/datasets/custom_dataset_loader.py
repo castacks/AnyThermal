@@ -24,15 +24,36 @@ class Custom_MS2Dataset(Dataset):
     def __init__(self, data_dir):
         self.data_dir = data_dir
 
-        # Convention: For now, left images only for training
-        self.rgb_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "rgb", "img_left")))
-        self.thermal_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "thr", "img_left")))
-        self.lidar_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"proj_depth/_2021-08-06-10-59-33", "rgb", "depth_filtered")))
+        self.seq_list = ["_2021-08-06-10-59-33","_2021-08-06-11-23-45","_2021-08-06-11-37-46","_2021-08-06-16-19-00","_2021-08-06-16-45-28","_2021-08-06-16-59-13","_2021-08-06-17-21-04",
+                         "_2021-08-06-17-44-55","_2021-08-13-15-46-56","_2021-08-13-16-08-46","_2021-08-13-16-14-48","_2021-08-13-16-31-10","_2021-08-13-16-50-57","_2021-08-13-17-06-04",
+                         "_2021-08-13-21-18-04","_2021-08-13-21-36-10","_2021-08-13-21-58-13","_2021-08-13-22-03-03","_2021-08-13-22-16-02","_2021-08-13-22-36-41"]
 
-        for i in range(len(self.rgb_image_paths)):
-            self.rgb_image_paths[i] = os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "rgb", "img_left", self.rgb_image_paths[i])
-            self.thermal_image_paths[i] = os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "thr", "img_left", self.thermal_image_paths[i])
-            self.lidar_image_paths[i] = os.path.join(self.data_dir,"proj_depth/_2021-08-06-10-59-33","rgb", "depth_filtered", self.lidar_image_paths[i])
+        self.rgb_image_paths = []
+        self.thermal_image_paths = []
+        self.lidar_image_paths = []
+
+        for seq in self.seq_list[:5]:
+    
+            # Convention: For now, left images only for training
+            cur_seq_rgb_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data", seq, "rgb", "img_left")))
+            cur_seq_thermal_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data", seq, "thr", "img_left")))
+            cur_seq_lidar_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"proj_depth", seq, "rgb", "depth_filtered")))
+
+            for i in range(len(cur_seq_rgb_image_paths)):
+                self.rgb_image_paths.append(os.path.join(self.data_dir,"sync_data", seq, "rgb", "img_left", cur_seq_rgb_image_paths[i]))
+                self.thermal_image_paths.append(os.path.join(self.data_dir,"sync_data", seq, "thr", "img_left", cur_seq_thermal_image_paths[i]))
+                self.lidar_image_paths.append(os.path.join(self.data_dir,"proj_depth", seq, "rgb", "depth_filtered", cur_seq_lidar_image_paths[i]))
+
+            print(len(self.rgb_image_paths), len(self.thermal_image_paths), len(self.lidar_image_paths))
+        # Convention: For now, left images only for training
+        # self.rgb_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "rgb", "img_left")))
+        # self.thermal_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "thr", "img_left")))
+        # self.lidar_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"proj_depth/_2021-08-06-10-59-33", "rgb", "depth_filtered")))
+
+        # for i in range(len(self.rgb_image_paths)):
+        #     self.rgb_image_paths[i] = os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "rgb", "img_left", self.rgb_image_paths[i])
+        #     self.thermal_image_paths[i] = os.path.join(self.data_dir,"sync_data/_2021-08-06-10-59-33", "thr", "img_left", self.thermal_image_paths[i])
+        #     self.lidar_image_paths[i] = os.path.join(self.data_dir,"proj_depth/_2021-08-06-10-59-33","rgb", "depth_filtered", self.lidar_image_paths[i])
 
     def __len__(self):
         return len(self.rgb_image_paths)

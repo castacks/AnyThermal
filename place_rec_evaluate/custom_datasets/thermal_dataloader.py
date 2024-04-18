@@ -68,8 +68,8 @@ class Thermal_day_night_MS2(CustomDataset):
         self.split = split
         self.use_mixVPR = use_mixVPR
         self.use_SAM = use_SAM
-        # self.seq = "_2021-08-06-10-59-33"
-        self.seq = "_2021-08-06-11-23-45"
+        self.seq = "_2021-08-06-10-59-33"
+        # self.seq = "_2021-08-06-11-23-45"
         # self.seq = "_2021-08-06-11-23-45"
         print("seq: ",self.seq)
         # self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]

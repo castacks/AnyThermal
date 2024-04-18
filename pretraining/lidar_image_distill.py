@@ -19,7 +19,7 @@ parser.add_argument('--num_workers', default=1, type=int, help='Number of worker
 parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_lidar_global', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_lidar_global_bigger_dataset', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="similarity", type=str, help='Loss type: mse or similarity')
@@ -35,20 +35,9 @@ lidar_model.train()
 for param in rgb_model.parameters():
     param.requires_grad = False
 
-# # Load Dino feature extractor model
-# rgb_model = DinoV2ExtractFeatures("dinov2_vits14", 11,"token", device="cuda")
-# rgb_model.dino_model.eval()
-# lidar_model = DinoV2ExtractFeatures("dinov2_vits14", 11,"token", device="cuda")
-# lidar_model.dino_model.train()
-
-# # Freeze the RGB model, so that only the lidar model is trained
-# for param in rgb_model.dino_model.parameters():
-#     param.requires_grad = False
-
 # Fine-tune the lidar model
-# optimizer = optim.SGD(lidar_model.dino_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-optimizer = optim.SGD(lidar_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+optimizer = optim.Adam(lidar_model.blocks[:].parameters(), lr=args.learning_rate) #, weight_decay=args.weight_decay)
+# scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
 def loss_fn(outputs, targets):
     return F.mse_loss(outputs, targets)
@@ -81,15 +70,13 @@ def train():
             rgb_images1 = images['rgb1'].cuda()
             lidar_images1 = images['lidar1'].cuda()
 
-            # print(rgb_images1.shape, lidar_images1.shape)
             # Forward pass
             rgb_output1 = rgb_model(rgb_images1)
             lidar_output1 = lidar_model(lidar_images1)
-            # print(rgb_output1.shape, lidar_output1.shape)
+
             # Compute loss
             loss = loss_fn(lidar_output1, rgb_output1)
-            # print(loss)
-            # import pdb; pdb.set_trace()
+
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
@@ -100,7 +87,7 @@ def train():
                 print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
                 running_loss = 0.0
 
-        scheduler.step()
+        # scheduler.step()
 
         # Save the model
         torch.save({
