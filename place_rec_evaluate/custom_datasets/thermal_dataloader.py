@@ -55,12 +55,44 @@ mixVPR_transform = T.Compose([
     T.Resize((320,320))
 ])
 
+def sparse_to_dense(sparse, max_depth=100.):
+    ## invert
+    valid = sparse > 0.1
+    sparse[valid] = max_depth - sparse[valid]
+
+    ## dilate
+    custom_kernel = np.array(
+    [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0],
+    ], dtype=np.uint8)
+    sparse = cv2.dilate(sparse, custom_kernel)
+
+    ## close
+    custom_kernel = np.ones((5, 5), np.uint8)
+    sparse = cv2.morphologyEx(sparse, cv2.MORPH_CLOSE, custom_kernel)
+
+    ## fill
+    invalid = sparse < 0.1
+    custom_kernel = np.ones((7, 7), np.uint8)
+    dilated = cv2.dilate(sparse, custom_kernel)
+    sparse[invalid] = dilated[invalid]
+
+    ## invert
+    valid = sparse > 0.1
+    sparse[valid] = max_depth - sparse[valid]
+
+    return sparse
+
 
 class Thermal_day_night_MS2(CustomDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,datasets_folder='/ocean/projects/cis220039p/shared/datasets/MS2_full',dataset_name="sync_data",split="train",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
+    def __init__(self,args,datasets_folder='/storage2/datasets/ms2_full',dataset_name="sync_data",split="train",seq = "_2021-08-13-16-08-46",db_modality="rgb",q_modality="thr",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
         super().__init__()
 
         self.dataset_name = dataset_name
@@ -68,27 +100,47 @@ class Thermal_day_night_MS2(CustomDataset):
         self.split = split
         self.use_mixVPR = use_mixVPR
         self.use_SAM = use_SAM
-        self.seq = "_2021-08-06-10-59-33"
-        # self.seq = "_2021-08-06-11-23-45"
-        # self.seq = "_2021-08-06-11-23-45"
+        self.db_modality = db_modality
+        self.q_modality = q_modality
+        # self.seq = "_2021-08-06-10-59-33"
+        self.seq = seq
+        # self.seq = "_2021-08-06-17-44-55" #"_2021-08-06-11-37-46"
         print("seq: ",self.seq)
-        # self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
-        self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
-        # self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
-        # self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
-        # self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
-        self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
+        print("db_modality: ",self.db_modality)
+        print("q_modality: ",self.q_modality)
+        if self.db_modality == "rgb":
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
+        elif self.db_modality == "thr":
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
+        elif self.db_modality == "lidar":
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
+
+        if self.q_modality == "rgb":
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
+        elif self.q_modality == "thr":
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
+        elif self.q_modality == "lidar":
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
+    
         self.db_abs_paths = []
         self.q_abs_paths = []
 
-        for p in self.db_paths:
-            self.db_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left",p))
-            # self.db_abs_paths.append(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered",p))
-            # self.db_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left",p))
-        for q in self.q_paths:
-            # self.q_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left",q))
-            self.q_abs_paths.append(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered",q))
-            # self.q_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left",q))
+        for db_path in self.db_paths:
+            if self.db_modality == "rgb":
+                self.db_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left",db_path))
+            elif self.db_modality == "thr":
+                self.db_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left",db_path))
+            elif self.db_modality == "lidar":
+                self.db_abs_paths.append(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered",db_path))
+
+        for q_path in self.q_paths:
+            if self.q_modality == "rgb":
+                self.q_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left",q_path))
+            elif self.q_modality == "thr":
+                self.q_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left",q_path))
+            elif self.q_modality == "lidar":
+                self.q_abs_paths.append(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered",q_path))
+
         self.db_num = len(self.db_abs_paths)
         self.q_num = len(self.q_abs_paths)
 
@@ -151,60 +203,65 @@ class Thermal_day_night_MS2(CustomDataset):
                                                             radius= 25,
                                                             return_distance=True)            
 
-        # for i in range(len(self.soft_positives_per_query)):
-        #     print("query: ",self.soft_positives_per_query[i],self.q_paths[i])
-            # for j in range(len(self.soft_positives_per_query[i])):
-            #     print("database: ",self.db_paths[self.soft_positives_per_query[i][j]],self.dist[i][j])
-
     def __getitem__(self, index):
 
         if index>=self.database_num:
-            # # img = cv2.imread(self.images_paths[index])
-            # # img = base_transform(img)
-            # img = cv2.imread(self.images_paths[index])
-            # h  = img.shape[0]
-            # w = img.shape[1]
-            # img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            # img = base_transform(img)
+            if self.q_modality == "rgb":
+                img = cv2.imread(self.images_paths[index])
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+                h  = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
 
-            # thermal_image_path1 = self.images_paths[index]
-            # img = load_as_float_img(thermal_image_path1)
-            # img = process_one_image(img,type="hist_99")
-            # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-            # h = img.shape[0]
-            # w = img.shape[1]
-            # img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            # img = base_transform(img)
+            elif self.q_modality == "thr":
+                thermal_image_path1 = self.images_paths[index]
+                img = load_as_float_img(thermal_image_path1)
+                img = process_one_image(img,type="hist_99")
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+                h = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
 
-            lidar_image_path1 = self.images_paths[index]
-            img = cv2.imread(lidar_image_path1)
-            h = img.shape[0]
-            w = img.shape[1]
-            img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            img = base_transform(img)
+            elif self.q_modality == "lidar":
+                lidar_image_path1 = self.images_paths[index]
+                img = cv2.imread(lidar_image_path1)
+                img = sparse_to_dense(img)
+                h = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
 
         elif index<self.database_num:
-            thermal_image_path1 = self.images_paths[index]
-            img = load_as_float_img(thermal_image_path1)
-            img = process_one_image(img,type="hist_99")
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-            h = img.shape[0]
-            w = img.shape[1]
-            img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            img = base_transform(img)
 
-            # img = cv2.imread(self.images_paths[index])
-            # h  = img.shape[0]
-            # w = img.shape[1]
-            # img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            # img = base_transform(img)
+            if self.db_modality == "rgb":
+                img = cv2.imread(self.images_paths[index])
+                # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+                h  = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
 
-            # lidar_image_path1 = self.images_paths[index]
-            # img = cv2.imread(lidar_image_path1)
-            # h = img.shape[0]
-            # w = img.shape[1]
-            # img = cv2.resize(img, ((w//14)*14, (h//14)*14))
-            # img = base_transform(img)
+            elif self.db_modality == "thr":
+                thermal_image_path1 = self.images_paths[index]
+                img = load_as_float_img(thermal_image_path1)
+                img = process_one_image(img,type="hist_99")
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+                h = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
+
+            elif self.db_modality == "lidar":
+                lidar_image_path1 = self.images_paths[index]
+                img = cv2.imread(lidar_image_path1)
+                h = img.shape[0]
+                w = img.shape[1]
+                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                img = base_transform(img)
 
         return img, index
 

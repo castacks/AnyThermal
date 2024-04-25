@@ -42,6 +42,10 @@ class LocalArgs:
     bd_args: BaseDatasetArgs = base_dataset_args
     # Experiment identifier (None = don't use)
     exp_id: Union[str, None] = None
+    # Database modality
+    db_modality: Literal["rgb", "thr", "lidar"] = "rgb"
+    # Query modality
+    q_modality: Literal["rgb", "thr", "lidar"] = "thr"
     # Dino parameters
     # Model type
     model_type: Literal["dinov2_vits14", "dinov2_vitb14", 
@@ -91,7 +95,7 @@ class LocalArgs:
 def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray, 
             nqu_descs: np.ndarray, pos_per_qu: np.ndarray,
             vpr_dl:Union[None, DataLoader]=None, use_percentage=True, 
-            use_gpu: bool=True, save_figs:bool= True):
+            use_gpu: bool=False, save_figs:bool= True):
     """
         Calculate the recalls through similarity search (using cosine
         distances).
@@ -213,21 +217,35 @@ def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray,
             recalls[k] /= len(indices)  # As a percentage of queries
     return recalls
 
-def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True)-> Tuple[torch.Tensor, torch.Tensor]:
+def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: str="rgb",q_modality: str="thr")-> Tuple[torch.Tensor, torch.Tensor]:
 
-    # Load Dino feature extractor model
-    # dino_db = DinoV2ExtractFeatures(largs.model_type, largs.desc_layer,
-    #             largs.desc_facet,modality='rgb', device=device)
-    # dino_q = DinoV2ExtractFeatures(largs.model_type, largs.desc_layer,
-    #             largs.desc_facet,modality='thermal', device=device)
 
     dino_db = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
+    if db_modality == "thr":
+        print("Loading thermal weights for database model")
+        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+    elif db_modality == "lidar":
+        print("Loading lidar weights for database model")
+        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
+    else:
+        print("Loading rgb weights for database model")
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # print("Loading thermal weights for RGB model")
+
     dino_q = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
-    dino_db.load_state_dict(torch.load("/ocean/projects/cis220039p/jkarhade/MultiLoc/pretraining/checkpoints/checkpoints_thermal_global/thermal9.pth")["model_state_dict"])
-    dino_q.load_state_dict(torch.load("/ocean/projects/cis220039p/jkarhade/MultiLoc/pretraining/checkpoints/checkpoints_lidar_global/lidar9.pth")["model_state_dict"])
+    if q_modality == "thr":
+        print("Loading thermal weights for query model")
+        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+    elif q_modality == "lidar":
+        print("Loading lidar weights for query model")
+        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
+    else:
+        print("Loading rgb weights for query model")
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # print("Loading thermal weights for RGB model")
 
     if verbose:
-        print("Dino model loaded")
+        print("Dino models loaded")
 
     def extract_patch_descriptors_db(indices,allow_flip=False):
         print("allow flipping",allow_flip)
@@ -312,9 +330,9 @@ def main(largs: LocalArgs):
 
     # Load dataset
     if ds_name=="thermal_day_night":
-        vpr_ds = Thermal_day_night_MS2(largs.bd_args)
+        vpr_ds = Thermal_day_night_MS2(largs.bd_args,db_modality=largs.db_modality,q_modality=largs.q_modality)
     
-    db_vlads, qu_vlads = build_descriptors(largs, vpr_ds)
+    db_vlads, qu_vlads = build_descriptors(largs, vpr_ds, verbose=True,db_modality=largs.db_modality,q_modality=largs.q_modality)
     print("--------- Generated VLADs ---------")
     
     print("----- Calculating recalls through top-k matching -----")
@@ -329,7 +347,7 @@ def main(largs: LocalArgs):
     vpr_dl = DataLoader(vpr_ds, largs.batch_size, pin_memory=True, 
                         shuffle=False)
 
-    plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
+    # plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
 
     print("--------------------- Results ---------------------")
     ts = time.strftime(f"%Y_%m_%d_%H_%M_%S")

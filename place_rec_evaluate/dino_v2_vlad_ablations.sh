@@ -7,7 +7,7 @@
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing experiment cache
 # Cache directory (where images and model cache will be stored)
-cache_dir="/ocean/projects/cis220039p/jkarhade/data/vlvpr_cache" #"/home/jay/Documents/vl-vpr/cache" 
+cache_dir="/storage2/datasets/jkarhade/multiloc_cache" #"/home/jay/Documents/vl-vpr/cache" 
 # cache_dir="/scratch/avneesh.mishra/vl-vpr/cache"
 # Directory where the datasets are downloaded
 data_vg_dir="/ocean/projects/cis220039p/shared/datasets/vpr/datasets_vg"
@@ -25,6 +25,9 @@ datasets=("thermal_day_night")  #("mars_2500") #("hawkins_long_corridor" "VPAir"
 # Number of VLAD clusters
 # num_clusters=(256 128 64 32)
 num_clusters=(32)
+# Modalities
+db_modality="thr"
+q_modality="rgb"
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -89,6 +92,8 @@ for dataset in ${datasets[*]}; do
     python_cmd+=" --num-clusters $nc"
     python_cmd+=" --desc-layer $layer"
     python_cmd+=" --desc-facet $facet"
+    python_cmd+=" --db-modality $db_modality"
+    python_cmd+=" --q-modality $q_modality"
     if [ "$dataset" == "pitts30k" ]; then
         python_cmd+=" --sub-sample-db-vlad 4"
     fi
