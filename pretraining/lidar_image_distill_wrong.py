@@ -8,80 +8,66 @@ import torch.optim as optim
 import time
 import os
 import argparse
-import wandb
-
+import sys
 from datasets.custom_dataset_loader import Custom_MS2Dataset
 from utilities import DinoV2ExtractFeatures
+import wandb
 
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
-parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
 parser.add_argument('--epochs', default=5, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_ce/checkpoints_thermal_global_bigger', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_mse1/checkpoints_lidar_global', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
-parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
+parser.add_argument('--loss_type', default="mse", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
 args = parser.parse_args()
 print(args)
 
 #Initialize wandb
 if args.wandb_use:
-    wandb.init(project="multiloc", entity="jkarhade", name="thermal_image_distill")
+    wandb.init(project="multiloc", entity="jkarhade", name="lidar_image_distill")
 
 # Load models
 rgb_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
 rgb_model.eval()
-thermal_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
-thermal_model.eval()
+lidar_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
+lidar_model.train()
 
 temperature = 1
 embedding_dim = 384
 
-# Freeze the RGB model, so that only the thermal model is trained
+# layer_norm1 = nn.LayerNorm(embedding_dim).cuda()
+# layer_norm2 = nn.LayerNorm(embedding_dim).cuda()
+
 for param in rgb_model.parameters():
     param.requires_grad = False
 
-# Fine-tune the thermal model
-optimizer = optim.SGD(thermal_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+# Fine-tune the lidar model
+optimizer = optim.Adam(lidar_model.blocks[:].parameters(), lr=args.learning_rate) #, weight_decay=args.weight_decay)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
 def loss_fn_mse(outputs, targets):
     return F.mse_loss(outputs, targets)
 
-def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
-
-    # Normalize embeddings
-    teacher_embed = F.normalize(teacher_embed, dim=-1)
-    student_embed = F.normalize(student_embed, dim=-1)
-    
-    # Compute cosine similarity between embeddings
-    similarity = torch.matmul(teacher_embed, student_embed.T) / temperature
-    
-    # Generate mask to exclude similarity of same embeddings
-    mask = torch.eye(similarity.size(0), dtype=torch.bool).cuda()
-    
-    # Compute logits for positive and negative pairs
-    positive_pairs = torch.diag(similarity)  # similarity of same embeddings
-    negative_pairs = similarity[~mask].view(similarity.size(0), -1)  # similarity of different embeddings
-    # Compute log probabilities
-    logits = torch.cat([positive_pairs.unsqueeze(1), negative_pairs], dim=1)
-    # Apply log-softmax to logits
-    log_probs = F.log_softmax(logits, dim=1)
-    # Negative log probability of the true pairs (positive pairs)
-    loss = -log_probs[:, 0].mean()
-    
-    return loss
+# def loss_fn_cross_entropy(preds, targets, reduction='mean'):
+#     log_softmax = nn.LogSoftmax(dim=-1)
+#     loss = (-targets * log_softmax(preds)).sum(1)
+#     if reduction == "none":
+#         return loss
+#     elif reduction == "mean":
+#         return loss.mean()
 
 def train():
 
     # Load the dataset
     dataset = Custom_MS2Dataset(args.dataset_path)
 
-    train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     # Create the save directory if it doesn't exist
     if not os.path.exists(args.save_path):
@@ -90,8 +76,8 @@ def train():
     # Load the checkpoint if resuming training
     start_epoch = args.resume_epoch_num
     if args.resume:
-        checkpoint = torch.load(os.path.join(args.save_path, "thermal" +str(start_epoch) + '.pth'))
-        thermal_model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(os.path.join(args.save_path, "lidar" +str(start_epoch) + '.pth'))
+        lidar_model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         print("Resuming training from epoch {}".format(start_epoch))
@@ -102,26 +88,44 @@ def train():
         running_loss = 0.0
         for i, images in enumerate(train_dataloader):
             rgb_images1 = images['rgb1'].cuda()
-            thermal_images1 = images['thermal1'].cuda()
+            lidar_images1 = images['lidar1'].cuda()
 
             # Forward pass
             rgb_output1 = rgb_model(rgb_images1)
-            thermal_output1 = thermal_model(thermal_images1)
+            lidar_output1 = lidar_model(lidar_images1)
 
             # Compute loss
-            if args.loss_type == "mse":
-                loss = loss_fn_mse(thermal_output1, rgb_output1)
+            # if args.loss_type == "mse":
+            #     loss = loss_fn_mse(lidar_output1, rgb_output1)
 
-            elif args.loss_type == "ce":
-                loss = contrastive_loss(rgb_output1, thermal_output1)
+            # elif args.loss_type == "ce":
 
+            #     lidar_image_embeddings = layer_norm1(lidar_output1)
+            #     camera_image_embeddings = layer_norm2(rgb_output1)
+
+            #     logits = (lidar_image_embeddings @ camera_image_embeddings.T) / temperature
+            #     camera_similarity = camera_image_embeddings @ camera_image_embeddings.T
+            #     lidar_similarity = lidar_image_embeddings @ lidar_image_embeddings.T
+            #     targets = F.softmax(
+            #         (camera_similarity + lidar_similarity) / 2 * temperature, dim=-1
+            #     )
+
+            #     lidar_loss = loss_fn_cross_entropy(logits, targets, reduction='none')
+            #     camera_loss = loss_fn_cross_entropy(logits.T, targets.T, reduction='none')
+            #     loss =  (camera_loss + lidar_loss) / 2.0 
+            #     loss = loss.mean()
+
+            loss = loss_fn_mse(lidar_output1, rgb_output1)
+
+            # print(loss)
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
+            # Log to wandb
             if args.wandb_use:
-                wandb.log({"loss": loss.item()})
+                wandb.log({"loss": loss})
 
             running_loss += loss.item()
             if i % 10 == 9:
@@ -133,10 +137,10 @@ def train():
         # Save the model
         torch.save({
             'epoch': epoch,
-            'model_state_dict': thermal_model.state_dict(),
+            'model_state_dict': lidar_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss
-        }, os.path.join(args.save_path, "thermal" +str(epoch) + '.pth'))
+        }, os.path.join(args.save_path, "lidar" +str(epoch) + '.pth'))
 
         print("Epoch {} of {} took {:.3f}s".format(epoch, args.epochs, time.time() - start_time))
         print("  training loss (in-iteration): \t{:.6f}".format(loss))

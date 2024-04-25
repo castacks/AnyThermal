@@ -12,19 +12,27 @@ import sys
 from datasets.custom_dataset_loader import Custom_MS2Dataset
 from utilities import DinoV2ExtractFeatures
 
+import wandb
+
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
-parser.add_argument('--dataset_path', default='/ocean/projects/cis220039p/shared/datasets/MS2_full/', type=str, help='Path to the ImageNet dataset')
-parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training')
+parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
+parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
-parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train for')
+parser.add_argument('--epochs', default=5, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_lidar_global_bigger_dataset', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_ce/checkpoints_lidar_global_bigger_denser', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
-parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
-parser.add_argument('--loss_type', default="similarity", type=str, help='Loss type: mse or similarity')
+parser.add_argument('--resume_epoch_num', default=1, type=int, help='Epoch number to resume training from')
+parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
+parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
+
 args = parser.parse_args()
 print(args)
+
+#Initialize wandb
+if args.wandb_use:
+    wandb.init(project="multiloc", entity="jkarhade", name="lidar_image_distill")
 
 # Load models
 rgb_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
@@ -36,36 +44,66 @@ for param in rgb_model.parameters():
     param.requires_grad = False
 
 # Fine-tune the lidar model
-optimizer = optim.Adam(lidar_model.blocks[:].parameters(), lr=args.learning_rate) #, weight_decay=args.weight_decay)
-# scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+optimizer = optim.SGD(lidar_model.blocks[:].parameters(), lr=args.learning_rate) #, weight_decay=args.weight_decay)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
-def loss_fn(outputs, targets):
+def loss_fn_mse(outputs, targets):
     return F.mse_loss(outputs, targets)
+
+def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
+
+    # Normalize embeddings
+    teacher_embed = F.normalize(teacher_embed, dim=-1)
+    student_embed = F.normalize(student_embed, dim=-1)
+    
+    # Compute cosine similarity between embeddings
+    similarity = torch.matmul(teacher_embed, student_embed.T) / temperature
+    
+    # Generate mask to exclude similarity of same embeddings
+    mask = torch.eye(similarity.size(0), dtype=torch.bool).cuda()
+    
+    # Compute logits for positive and negative pairs
+    positive_pairs = torch.diag(similarity)  # similarity of same embeddings
+    negative_pairs = similarity[~mask].view(similarity.size(0), -1)  # similarity of different embeddings
+    
+    # Compute log probabilities
+    logits = torch.cat([positive_pairs.unsqueeze(1), negative_pairs], dim=1)
+    
+    # Apply log-softmax to logits
+    log_probs = F.log_softmax(logits, dim=1)
+    
+    # Negative log probability of the true pairs (positive pairs)
+    loss = -log_probs[:, 0].mean()
+    
+    return loss
 
 def train():
 
     # Load the dataset
     dataset = Custom_MS2Dataset(args.dataset_path)
 
-    train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Create the save directory if it doesn't exist
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
     
     # Load the checkpoint if resuming training
-    start_epoch = args.resume_epoch_num
+    start_epoch = args.resume_epoch_num-1
+    print(args.resume_epoch_num, start_epoch)
     if args.resume:
-        checkpoint = torch.load(os.path.join(args.save_path, "thermal" +str(start_epoch) + '.pth'))
+        checkpoint = torch.load(os.path.join(args.save_path, "lidar" +str(start_epoch) + '.pth'))
         lidar_model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
+        start_epoch = checkpoint['epoch'] #+ 1
         print("Resuming training from epoch {}".format(start_epoch))
     
     # Train the model
-    for epoch in range(start_epoch, args.epochs):
+    for epoch in range(args.resume_epoch_num, args.epochs):
+
         start_time = time.time()
         running_loss = 0.0
+
         for i, images in enumerate(train_dataloader):
             rgb_images1 = images['rgb1'].cuda()
             lidar_images1 = images['lidar1'].cuda()
@@ -75,19 +113,25 @@ def train():
             lidar_output1 = lidar_model(lidar_images1)
 
             # Compute loss
-            loss = loss_fn(lidar_output1, rgb_output1)
+            if args.loss_type == "mse":
+                loss = loss_fn_mse(lidar_output1, rgb_output1)
+            elif args.loss_type == "ce":
+                loss = contrastive_loss(rgb_output1, lidar_output1)
 
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
+            if args.wandb_use:
+                wandb.log({"loss": loss.item()})
+
             running_loss += loss.item()
             if i % 10 == 9:
-                print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
+                print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch, i, running_loss / 10))
                 running_loss = 0.0
 
-        # scheduler.step()
+        scheduler.step()
 
         # Save the model
         torch.save({
