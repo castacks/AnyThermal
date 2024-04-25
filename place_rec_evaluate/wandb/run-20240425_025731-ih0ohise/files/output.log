@@ -1,0 +1,79 @@
+Initialized WandB run: thr_lidar__2021-08-06-16-19-00
+--------- Generating VLADs ---------
+Dataset directory: /ocean/projects/cis220039p/shared/datasets/vpr/datasets_vg
+Dataset name: thermal_day_night, split: test
+seq:  _2021-08-06-16-19-00
+db_modality:  thr
+q_modality:  lidar
+Loading thermal weights for database model
+Using cache found in /home/jkarhade/.cache/torch/hub/facebookresearch_dinov2_main
+/home/jkarhade/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
+  warnings.warn("xFormers is not available (SwiGLU)")
+/home/jkarhade/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
+  warnings.warn("xFormers is not available (Attention)")
+/home/jkarhade/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
+  warnings.warn("xFormers is not available (Block)")
+Using cache found in /home/jkarhade/.cache/torch/hub/facebookresearch_dinov2_main
+  4%|████████▌                                                                                                                                                                                                 | 25/594 [00:00<00:11, 49.55it/s]
+Loading lidar weights for query model
+Dino models loaded
+Building VLADs for databases...
+
+
+
+
+
+ 95%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▏         | 565/594 [00:10<00:00, 53.59it/s]
+Full database descriptor shape: torch.Size([594, 384])
+Building VLADs for queries...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 594/594 [00:11<00:00, 52.97it/s]
+
+
+
+
+
+
+
+
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 594/594 [00:17<00:00, 34.51it/s]
+Full query descriptor shape: torch.Size([594, 384])
+--------- Generated VLADs ---------
+----- Calculating recalls through top-k matching -----
+------------ Recalls calculated ------------
+------------ Plot Recalls ------------
+--------------------- Results ---------------------
+Results:
+- Model-Type: dinov2_vits14
+- Desc-Layer: 11
+- Desc-Facet: value
+- Desc-Dim: 12
+- VLAD-Dim: 384
+- Num-Clusters: 32
+- Experiment-ID: ablations/thr_lidar__2021-08-06-16-19-00
+- DB-Name: thermal_day_night
+- Num-DB: 594
+- Num-QU: 594
+- Agg-Method: VLAD
+- Timestamp: 2024_04_25_02_58_02
+- Recalls:
+  - R@1: 0.88215
+  - R@2: 0.92424
+  - R@3: 0.94949
+  - R@4: 0.97475
+  - R@5: 0.98316
+  - R@6: 0.98990
+  - R@7: 0.98990
+  - R@8: 0.98990
+  - R@9: 0.99495
+  - R@10: 0.99663
+  - R@11: 0.99663
+  - R@12: 0.99832
+  - R@13: 0.99832
+  - R@14: 0.99832
+  - R@15: 0.99832
+  - R@16: 0.99832
+  - R@17: 1.00000
+  - R@18: 1.00000
+  - R@19: 1.00000
+  - R@20: 1.00000
+Saving result in: /storage2/datasets/jkarhade/multiloc_cache/experiments/ablations/thr_lidar__2021-08-06-16-19-00/results_2024_04_25_02_58_02.gz

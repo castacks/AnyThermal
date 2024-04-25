@@ -62,21 +62,12 @@ class ProgArgs:
         Core program arguments
     """
     # A directory for storing cache
-    cache_dir: Path = "/ocean/projects/cis220039p/jkarhade/data/vlvpr_cache"#f"/scratch/{user_name}/vl-vpr/cache"
-    """
-        Directory for cache storage. Values:
-        - Avneesh: f"/scratch/{user_name}/vl-vpr/cache"
-        - Jay: '/home/jay/Documents/vl-vpr'
-    """
-    # The directory where 'datasets-vg' are downloaded
-    data_vg_dir: Path = "/ocean/projects/cis220039p/shared/datasets/vpr/datasets_vg"#f"{lib_path}/datasets_vg/datasets"
-    """
-        Directory where the datasets are stored. Values:
-        - Avneesh: f"{lib_path}/datasets_vg/datasets"
-        - Jay: '/home/jay/Downloads/vl_vpr_datasets'
-    """
+    cache_dir: Path = "/storage2/datasets/jkarhade/multiloc_cache"
+    # The directory where 'datasets' are downloaded
+    data_dir: Path = "/storage2/datasets/ms2_full"
+    ms2_seq: str = "_2021-08-06-10-59-33"
     # Default dataset name for VPR
-    vg_dataset_name: Literal["thermal_day_night"] = "thermal_day_night"
+    dataset_name: Literal["thermal_day_night"] = "thermal_day_night"
     # Use wandb (False = No WandB)
     use_wandb: bool = False
     # WandB project name
@@ -106,10 +97,10 @@ caching_directory = _real_path(prog_args.cache_dir)
 """
 
 # Datasets directory
-datasets_dir = _real_path(prog_args.data_vg_dir)
+datasets_dir = _real_path(prog_args.data_dir)
 """
     The folder where all the VPR datasets are stored in the format of 
-    the `datasets-vg` repository. The format is usually of the form:\n
+    the `datasets` repository. The format is usually of the form:\n
     datasets\n
     └── st_lucia\n
         ├── images\n
@@ -123,7 +114,7 @@ datasets_dir = _real_path(prog_args.data_vg_dir)
 """
 
 # Dataset name
-dataset_name = prog_args.vg_dataset_name
+dataset_name = prog_args.dataset_name
 """
     Dataset name for VPR
     

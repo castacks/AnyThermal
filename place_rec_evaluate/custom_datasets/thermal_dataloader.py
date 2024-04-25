@@ -92,7 +92,7 @@ class Thermal_day_night_MS2(CustomDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,datasets_folder='/storage2/datasets/ms2_full',dataset_name="sync_data",split="train",seq = "_2021-08-13-16-08-46",db_modality="rgb",q_modality="thr",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
+    def __init__(self,args,seq,db_modality,q_modality,datasets_folder='/storage2/datasets/ms2_full',dataset_name="sync_data",split="train",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
         super().__init__()
 
         self.dataset_name = dataset_name
@@ -102,12 +102,12 @@ class Thermal_day_night_MS2(CustomDataset):
         self.use_SAM = use_SAM
         self.db_modality = db_modality
         self.q_modality = q_modality
-        # self.seq = "_2021-08-06-10-59-33"
         self.seq = seq
-        # self.seq = "_2021-08-06-17-44-55" #"_2021-08-06-11-37-46"
+
         print("seq: ",self.seq)
         print("db_modality: ",self.db_modality)
         print("q_modality: ",self.q_modality)
+
         if self.db_modality == "rgb":
             self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
         elif self.db_modality == "thr":
@@ -208,8 +208,8 @@ class Thermal_day_night_MS2(CustomDataset):
         if index>=self.database_num:
             if self.q_modality == "rgb":
                 img = cv2.imread(self.images_paths[index])
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+                # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
                 h  = img.shape[0]
                 w = img.shape[1]
                 img = cv2.resize(img, ((w//14)*14, (h//14)*14))
@@ -258,6 +258,7 @@ class Thermal_day_night_MS2(CustomDataset):
             elif self.db_modality == "lidar":
                 lidar_image_path1 = self.images_paths[index]
                 img = cv2.imread(lidar_image_path1)
+                img = sparse_to_dense(img)
                 h = img.shape[0]
                 w = img.shape[1]
                 img = cv2.resize(img, ((w//14)*14, (h//14)*14))

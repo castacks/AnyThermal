@@ -53,37 +53,15 @@ class LocalArgs:
     """
         Model for Dino-v2 to use as the base model.
     """
-    # Number of clusters for VLAD
-    num_clusters: int = 8
-    # Layer for extracting Dino feature (descriptors)
-    desc_layer: int = 11
-    # Facet for extracting descriptors
-    desc_facet: Literal["query", "key", "value", "token"] = "key"
-    # Dataset split for VPR (BaseDataset)
-    data_split: Literal["train", "test", "val"] = "test"
     # Sub-sample query images (RAM or VRAM constraints) (1 = off)
     sub_sample_qu: int = 1
     # Sub-sample database images (RAM or VRAM constraints) (1 = off)
     sub_sample_db: int = 1
-    # Sub-sample database images for VLAD clustering only
-    sub_sample_db_vlad: int = 1
-    """
-        Use sub-sampling for creating the VLAD cluster centers. Use
-        this to reduce the RAM usage during the clustering process.
-        Unlike `sub_sample_qu` and `sub_sample_db`, this is only used
-        for clustering and not for the actual VLAD computation.
-    """
     # Values for top-k (for monitoring)
     top_k_vals: List[int] = field(default_factory=lambda:\
                                 list(range(1, 21, 1)))
     # Show a matplotlib plot for recalls
     show_plot: bool = False
-    # Use hard or soft descriptor assignment for VLAD
-    vlad_assignment: Literal["hard", "soft"] = "hard"
-    # Softmax temperature for VLAD (soft assignment only)
-    vlad_soft_temp: float = 1.0
-    # Caching configuration
-    cache_vlad_descs: bool = False
 
     #retreival stuff
     batch_size: int = 1
@@ -229,8 +207,6 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
         dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for database model")
-        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
-        # print("Loading thermal weights for RGB model")
 
     dino_q = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
     if q_modality == "thr":
@@ -241,8 +217,6 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
         dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for query model")
-        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
-        # print("Loading thermal weights for RGB model")
 
     if verbose:
         print("Dino models loaded")
@@ -316,21 +290,22 @@ def main(largs: LocalArgs):
 
     if largs.prog.use_wandb:
         # Launch WandB
+        print(largs.prog.wandb_proj, largs.prog.wandb_entity, largs.prog.wandb_group, largs.prog.wandb_run_name)
         wandb_run = wandb.init(project=largs.prog.wandb_proj, 
-                entity=largs.prog.wandb_entity, config=largs,
+                entity=largs.prog.wandb_entity, # config=largs,
                 group=largs.prog.wandb_group, 
                 name=largs.prog.wandb_run_name)
         print(f"Initialized WandB run: {wandb_run.name}")
     
     print("--------- Generating VLADs ---------")
-    ds_dir = largs.prog.data_vg_dir
-    ds_name = largs.prog.vg_dataset_name
+    ds_dir = largs.prog.data_dir
+    ds_name = largs.prog.dataset_name
     print(f"Dataset directory: {ds_dir}")
-    print(f"Dataset name: {ds_name}, split: {largs.data_split}")
+    print(f"Dataset name: {ds_name}")
 
     # Load dataset
     if ds_name=="thermal_day_night":
-        vpr_ds = Thermal_day_night_MS2(largs.bd_args,db_modality=largs.db_modality,q_modality=largs.q_modality)
+        vpr_ds = Thermal_day_night_MS2(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
     
     db_vlads, qu_vlads = build_descriptors(largs, vpr_ds, verbose=True,db_modality=largs.db_modality,q_modality=largs.q_modality)
     print("--------- Generated VLADs ---------")
@@ -354,16 +329,13 @@ def main(largs: LocalArgs):
     caching_directory = largs.prog.cache_dir
     results = {
         "Model-Type": str(largs.model_type),
-        "Desc-Layer": str(largs.desc_layer),
-        "Desc-Facet": str(largs.desc_facet),
-        "Desc-Dim": str(db_vlads.shape[1]//largs.num_clusters),
-        "VLAD-Dim": str(db_vlads.shape[1]),
-        "Num-Clusters": str(largs.num_clusters),
+        "DB-Modality": str(largs.db_modality),
+        "Q-Modality": str(largs.q_modality),
         "Experiment-ID": str(largs.exp_id),
         "DB-Name": str(ds_name),
         "Num-DB": str(len(db_vlads)),
         "Num-QU": str(len(qu_vlads)),
-        "Agg-Method": "VLAD",
+        "Agg-Method": "CLS",
         "Timestamp": str(ts)
     }
     print("Results: ")

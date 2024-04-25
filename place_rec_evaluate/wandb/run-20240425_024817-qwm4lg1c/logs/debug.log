@@ -1,0 +1,44 @@
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Current SDK version is 0.16.3
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Configure stats pid to 2608
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Loading settings from /home/jkarhade/.config/wandb/settings
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Loading settings from /storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/wandb/settings
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'place_rec_evaluate/dino_v2_plot_qual.py', 'program_abspath': '/storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/dino_v2_plot_qual.py', 'program': 'dino_v2_plot_qual.py'}
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:_log_setup():526] Logging user logs to /storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/wandb/run-20240425_024817-qwm4lg1c/logs/debug.log
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:_log_setup():527] Logging internal logs to /storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/wandb/run-20240425_024817-qwm4lg1c/logs/debug-internal.log
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:init():566] calling init triggers
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:init():573] wandb.init called with sweep_config: {}
+config: {'prog': ProgArgs(cache_dir=PosixPath('/storage2/datasets/jkarhade/multiloc_cache'), data_vg_dir=PosixPath('/ocean/projects/cis220039p/shared/datasets/vpr/datasets_vg'), ms2_seq='_2021-08-06-16-19-00', vg_dataset_name='thermal_day_night', use_wandb=True, wandb_proj='MultiLoc', wandb_entity='jkarhade', wandb_group='thermal_day_night', wandb_run_name='rgb_lidar__2021-08-06-16-19-00', wandb_save_qual=False), 'bd_args': BaseDatasetArgs(resize=[480, 640], test_method='hard_resize', val_positive_dist_threshold=25), 'exp_id': 'ablations/rgb_lidar__2021-08-06-16-19-00', 'db_modality': 'rgb', 'q_modality': 'lidar', 'model_type': 'dinov2_vits14', 'num_clusters': 32, 'desc_layer': 11, 'desc_facet': 'value', 'data_split': 'test', 'sub_sample_qu': 1, 'sub_sample_db': 1, 'sub_sample_db_vlad': 1, 'top_k_vals': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], 'show_plot': False, 'vlad_assignment': 'hard', 'vlad_soft_temp': 1.0, 'cache_vlad_descs': False, 'batch_size': 1, 'qual_num_rets': 5, 'faiss_method': 'cosine', 'use_residual': False, 'qual_result_percent': 0.1}
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:init():616] starting backend
+2024-04-25 02:48:17,654 INFO    MainThread:2608 [wandb_init.py:init():620] setting up manager
+2024-04-25 02:48:17,658 INFO    MainThread:2608 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2024-04-25 02:48:17,659 INFO    MainThread:2608 [wandb_init.py:init():628] backend started and connected
+2024-04-25 02:48:17,666 INFO    MainThread:2608 [wandb_init.py:init():720] updated telemetry
+2024-04-25 02:48:17,680 INFO    MainThread:2608 [wandb_init.py:init():753] communicating run to backend with 90.0 second timeout
+2024-04-25 02:48:17,765 ERROR   MainThread:2608 [wandb_init.py:init():1204] error
+Traceback (most recent call last):
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/sdk/wandb_init.py", line 1176, in init
+    run = wi.init()
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/sdk/wandb_init.py", line 755, in init
+    run_init_handle = backend.interface.deliver_run(run)
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/sdk/interface/interface.py", line 717, in deliver_run
+    run_record = self._make_run(run)
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/sdk/interface/interface.py", line 139, in _make_run
+    self._make_config(data=config_dict, obj=proto_run.config)
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/sdk/interface/interface.py", line 121, in _make_config
+    update.value_json = json_dumps_safer(json_friendly(v)[0])
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/util.py", line 828, in json_dumps_safer
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
+  File "/usr/lib/python3.8/json/__init__.py", line 234, in dumps
+    return cls(
+  File "/usr/lib/python3.8/json/encoder.py", line 199, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "/usr/lib/python3.8/json/encoder.py", line 257, in iterencode
+    return _iterencode(o, 0)
+  File "/storage2/datasets/jkarhade/venv/multiloc/lib/python3.8/site-packages/wandb/util.py", line 779, in default
+    return json.JSONEncoder.default(self, obj)
+  File "/usr/lib/python3.8/json/encoder.py", line 179, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type PosixPath is not JSON serializable
+2024-04-25 02:48:18,813 WARNING MsgRouterThr:2608 [router.py:message_loop():77] message_loop has been closed

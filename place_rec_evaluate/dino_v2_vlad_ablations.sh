@@ -26,8 +26,10 @@ datasets=("thermal_day_night")  #("mars_2500") #("hawkins_long_corridor" "VPAir"
 # num_clusters=(256 128 64 32)
 num_clusters=(32)
 # Modalities
-db_modality="thr"
-q_modality="rgb"
+db_modality=("rgb")
+q_modality=("lidar")
+#Sequences
+seq_list=('_2021-08-06-10-59-33') # '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -36,8 +38,9 @@ export CUDA_VISIBLE_DEVICES=$gpu
 # wandb_project="Ablations"
 # wandb_group="DINO_V2_VLAD"
 
-wandb_entity="vpr-vl"
-wandb_project="Paper_Dino-v2_Ablations"
+wandb_entity="jkarhade"
+wandb_project="MultiLoc"
+wandb_group="ms2_eval"
 # wandb_project="Paper_Structured_Benchmarks"
 # wandb_project="Paper_Unstructured_Benchmarks"
 
@@ -72,6 +75,8 @@ for layer in ${layers[*]}; do
 for nc in ${num_clusters[*]}; do
 for facet in ${dino_facets[*]}; do
 for dataset in ${datasets[*]}; do
+for db_modality in ${db_modality[*]}; do
+for seq in ${seq_list[*]}; do
     # Header
     echo -ne "\e[1;93m"
     echo -n "--- => Model: $dino_model => Layer: $layer => Num Clusters: $nc "
@@ -82,7 +87,7 @@ for dataset in ${datasets[*]}; do
     echo -ne "\e[0m"
     # Variables for experiment
     wandb_group="$dataset"
-    wandb_name="DINO_V2_VLAD/l${layer}_${facet}_c${nc}/$dataset/${dino_model}"
+    wandb_name="${db_modality}_${q_modality}_${seq}"
     exp_id="ablations/$wandb_name"
     # python_cmd="python dino_v2_vlad_viz.py"
     # python_cmd="python dino_v2_vlad_plot_qual.py"
@@ -100,6 +105,7 @@ for dataset in ${datasets[*]}; do
     python_cmd+=" --prog.cache-dir ${cache_dir}"
     python_cmd+=" --prog.data-vg-dir ${data_vg_dir}"
     python_cmd+=" --prog.vg-dataset-name ${dataset}"
+    python_cmd+=" --prog.ms2_seq ${seq}"
     # python_cmd+=" --prog.use-wandb"
     python_cmd+=" --prog.wandb-proj ${wandb_project}"
     python_cmd+=" --prog.wandb-entity ${wandb_entity}"
@@ -118,6 +124,8 @@ for dataset in ${datasets[*]}; do
     run_dur=$(( $run_end_secs - $run_start_secs ))
     echo -n "---- Run finished in (HH:MM:SS): "
     echo "`date -d@$run_dur -u +%H:%M:%S` ----"
+done
+done
 done
 done
 done

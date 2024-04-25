@@ -1,0 +1,8 @@
+2024-04-25 02:28:43,775 INFO    StreamThr :2078 [internal.py:wandb_internal():86] W&B internal server running at pid: 2078, started at: 2024-04-25 02:28:43.774740
+2024-04-25 02:28:43,778 DEBUG   HandlerThread:2078 [handler.py:handle_request():146] handle_request: status
+2024-04-25 02:28:43,783 INFO    WriterThread:2078 [datastore.py:open_for_write():87] open: /storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/wandb/run-20240425_022843-1jibyu7y/run-1jibyu7y.wandb
+2024-04-25 02:28:43,783 DEBUG   SenderThread:2078 [sender.py:send():382] send: header
+2024-04-25 02:28:43,960 DEBUG   HandlerThread:2078 [handler.py:handle_request():146] handle_request: shutdown
+2024-04-25 02:28:43,960 INFO    HandlerThread:2078 [handler.py:finish():869] shutting down handler
+2024-04-25 02:28:44,784 INFO    WriterThread:2078 [datastore.py:close():296] close: /storage2/datasets/jkarhade/MultiLoc/place_rec_evaluate/wandb/run-20240425_022843-1jibyu7y/run-1jibyu7y.wandb
+2024-04-25 02:28:44,784 INFO    SenderThread:2078 [sender.py:finish():1572] shutting down sender
