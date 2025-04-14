@@ -376,6 +376,9 @@ def get_top_k_recall(top_k: List[int], db: torch.Tensor,
     # print(indices)
     recalls = dict(zip(top_k, [0]*len(top_k)))
     # print(qu.shape,indices.shape)
+    # import pdb;pdb.set_trace()
+    thr_list = []
+    thr_neg_list = []
     for i_qu, qu_retr in enumerate(indices):
         # print(qu_retr[:10],gt_pos[i_qu * sub_sample_qu])
         for i_rec in top_k:
@@ -390,6 +393,12 @@ def get_top_k_recall(top_k: List[int], db: torch.Tensor,
             if np.any(np.isin(qu_retr[:i_rec] * sub_sample_db, 
                         correct_retr)):
                 recalls[i_rec] += 1
+            else:
+                # thr_neg_list = [32,35,38,39,40,79]
+                if i_rec==5 and i_rec not in thr_list:                    
+                    print(i_qu, qu_retr[:i_rec])
+                    thr_list.append(i_qu)
+    print(thr_list)
     if use_percentage:
         for k in recalls:
             recalls[k] /= len(indices)

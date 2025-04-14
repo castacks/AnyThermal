@@ -16,14 +16,14 @@ import wandb
 
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
-parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=16, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
 parser.add_argument('--epochs', default=5, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_ce/checkpoints_lidar_global_bigger_denser', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
-parser.add_argument('--resume_epoch_num', default=1, type=int, help='Epoch number to resume training from')
+parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
 

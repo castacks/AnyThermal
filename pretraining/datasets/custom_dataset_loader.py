@@ -51,24 +51,39 @@ def sparse_to_dense(sparse, max_depth=100.):
     return sparse
 
 class Custom_MS2Dataset(Dataset):
-    def __init__(self, data_dir):
+    def __init__(self, data_dir,model_type="dinov2"):
         self.data_dir = data_dir
+        self.model_type = model_type
 
         #  self.seq_list = ["_2021-08-06-10-59-33","_2021-08-06-11-23-45","_2021-08-06-11-37-46","_2021-08-06-16-19-00","_2021-08-06-16-45-28","_2021-08-06-16-59-13","_2021-08-06-17-21-04",
         #                   "_2021-08-06-17-44-55","_2021-08-13-15-46-56","_2021-08-13-16-08-46","_2021-08-13-16-14-48","_2021-08-13-16-31-10","_2021-08-13-16-50-57","_2021-08-13-17-06-04",
         #                  "_2021-08-13-21-18-04","_2021-08-13-21-36-10","_2021-08-13-21-58-13","_2021-08-13-22-03-03","_2021-08-13-22-16-02","_2021-08-13-22-36-41"]
 
-        self.train_seq_list = ['_2021-08-06-10-59-33', '_2021-08-06-16-45-28', '_2021-08-06-16-19-00', '_2021-08-13-15-46-56','_2021-08-13-17-06-04','_2021-08-13-21-18-04','_2021-08-13-21-36-10']
+        # self.train_seq_list = ['_2021-08-06-10-59-33', '_2021-08-06-16-45-28', '_2021-08-06-16-19-00', '_2021-08-13-15-46-56', '_2021-08-13-17-06-04', '_2021-08-13-21-18-04', '_2021-08-13-21-36-10']
+
+        # Uses residential, suburban and road2 as test sequences
+        self.train_seq_list = ['_2021-08-06-10-59-33', '_2021-08-06-11-23-45', 
+                                '_2021-08-06-16-19-00', '_2021-08-06-16-59-13', '_2021-08-06-17-44-55',
+                                '_2021-08-13-15-46-56', '_2021-08-13-16-08-46', '_2021-08-13-16-31-10', '_2021-08-13-17-06-04',
+                                ]
 
         self.rgb_image_paths = []
         self.thermal_image_paths = []
         self.lidar_image_paths = []
 
         for seq in self.train_seq_list:
+            if not os.path.exists(os.path.join(self.data_dir,"sync_data", seq, "rgb", "img_left")):
+                continue
             # Convention: For now, left images only for training
             cur_seq_rgb_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data", seq, "rgb", "img_left")))
             cur_seq_thermal_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"sync_data", seq, "thr", "img_left")))
             cur_seq_lidar_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"proj_depth", seq, "rgb", "depth_filtered")))
+
+            #Subsample paths to match the number of images
+            skip_factor = int(len(cur_seq_rgb_image_paths)/1000)
+            cur_seq_rgb_image_paths = cur_seq_rgb_image_paths[::skip_factor]
+            cur_seq_thermal_image_paths = cur_seq_thermal_image_paths[::skip_factor]
+            cur_seq_lidar_image_paths = cur_seq_lidar_image_paths[::skip_factor]
 
             for i in range(len(cur_seq_rgb_image_paths)):
                 self.rgb_image_paths.append(os.path.join(self.data_dir,"sync_data", seq, "rgb", "img_left", cur_seq_rgb_image_paths[i]))
@@ -81,7 +96,6 @@ class Custom_MS2Dataset(Dataset):
         return len(self.rgb_image_paths)
 
     def __getitem__(self, idx):
-        
         idx1 = idx
 
         thermal_image_path1 = self.thermal_image_paths[idx1]
@@ -91,7 +105,10 @@ class Custom_MS2Dataset(Dataset):
         h = thermal_image1.shape[0]
         w = thermal_image1.shape[1]
         # print("thermal", h, w)
-        thermal_image1 = cv2.resize(thermal_image1, ((w//14)*14, (h//14)*14))
+        if self.model_type == "clip":
+            thermal_image1 = cv2.resize(thermal_image1, (224, 224))
+        else:
+            thermal_image1 = cv2.resize(thermal_image1, ((w//14)*14, (h//14)*14))
         thermal_image1 = base_transform(thermal_image1)
 
         rgb_image_path1 = self.rgb_image_paths[idx1]
@@ -99,7 +116,10 @@ class Custom_MS2Dataset(Dataset):
         h  = rgb_image1.shape[0]
         w = rgb_image1.shape[1]
         # print("rgb", h, w)
-        rgb_image1 = cv2.resize(rgb_image1, ((w//14)*14, (h//14)*14))
+        if self.model_type == "clip":
+            rgb_image1 = cv2.resize(rgb_image1, (224, 224))
+        else:
+            rgb_image1 = cv2.resize(rgb_image1, ((w//14)*14, (h//14)*14))
         rgb_image1 = base_transform(rgb_image1)
 
         lidar_image_path1 = self.lidar_image_paths[idx1]
@@ -108,12 +128,14 @@ class Custom_MS2Dataset(Dataset):
         h = lidar1.shape[0]
         w = lidar1.shape[1]
         # print("lidar", h, w)
-        lidar1 = cv2.resize(lidar1, ((w//14)*14, (h//14)*14))
+        if self.model_type == "clip":
+            lidar1 = cv2.resize(lidar1, (224, 224))
+        else:
+            lidar1 = cv2.resize(lidar1, ((w//14)*14, (h//14)*14))
         lidar1 = base_transform(lidar1)
 
-        # print(rgb_image1.shape, thermal_image1.shape, lidar1.shape)
         images_dict = {"rgb1": rgb_image1, "thermal1": thermal_image1,"lidar1": lidar1}
-
+        # print(rgb_image1.shape, thermal_image1.shape, lidar1.shape)
         return images_dict
 
 if __name__ == "__main__":

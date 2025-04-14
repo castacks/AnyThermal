@@ -8,15 +8,21 @@
 # Directory for storing experiment cache
 # Dataset directory
 data_dir="/storage2/datasets/ms2_full"
+# data_dir=""
 # Cache directory (where images and model cache will be stored)
-cache_dir="/storage2/datasets/jkarhade/multiloc_cache"
+cache_dir="/storage2/datasets/jkarhade/multiloc_cache_thesis"
 # Datasets
 datasets=("thermal_day_night")
+# datasets=("cart")
 # Modalities
 db_modality=("rgb")
 q_modality=("lidar")
 #Sequences
-seq_list=('_2021-08-06-10-59-33' '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
+# seq_list=( '_2021-08-06-16-45-28' '_2021-08-06-11-37-46' '_2021-08-06-17-21-04') #for rainy unseen seq # '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
+# seq_list=('_2021-08-13-22-03-03' '_2021-08-13-21-58-13')
+# seq_list=( '_2021-08-06-16-45-28' '_2021-08-06-11-37-46' '_2021-08-06-17-21-04' '_2021-08-13-16-08-46' '_2021-08-13-22-03-03' '_2021-08-13-21-58-13')
+seq_list=('_2021-08-06-16-45-28' '_2021-08-13-22-03-03')
+# seq_list=("Idyll_wild" "big_bear") # "ocean_duck") #('_2021-08-13-16-08-46')
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -24,7 +30,7 @@ export CUDA_VISIBLE_DEVICES=$gpu
 
 wandb_entity="jkarhade"
 wandb_project="MultiLoc"
-wandb_group="ms2_eval"
+wandb_group="cart_eval"
 
 # ----------- Main Experiment Code -----------
 curr_run=0

@@ -67,7 +67,7 @@ class ProgArgs:
     data_dir: Path = "/storage2/datasets/ms2_full"
     ms2_seq: str = "_2021-08-06-10-59-33"
     # Default dataset name for VPR
-    dataset_name: Literal["thermal_day_night"] = "thermal_day_night"
+    dataset_name: Literal["thermal_day_night", "cart"] = "thermal_day_night"
     # Use wandb (False = No WandB)
     use_wandb: bool = False
     # WandB project name

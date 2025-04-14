@@ -1,0 +1,7 @@
+pretraining/checkpoints
+pretraining/checkpoints_ce
+pretraining/checkpoints_ce_old
+pretraining/checkpoints_mse
+pretraining/checkpoints_old
+
+pretraining/wandb

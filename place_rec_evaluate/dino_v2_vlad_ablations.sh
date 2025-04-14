@@ -27,7 +27,7 @@ datasets=("thermal_day_night")  #("mars_2500") #("hawkins_long_corridor" "VPAir"
 num_clusters=(32)
 # Modalities
 db_modality=("rgb")
-q_modality=("lidar")
+q_modality=("thr")
 #Sequences
 seq_list=('_2021-08-06-10-59-33') # '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
 # GPU

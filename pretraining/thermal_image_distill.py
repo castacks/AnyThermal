@@ -11,20 +11,25 @@ import argparse
 import wandb
 
 from datasets.custom_dataset_loader import Custom_MS2Dataset
+from datasets.wisard_dataset import Wisard_Dataset
+from datasets.cart_dataset import CART_dataset
+
 from utilities import DinoV2ExtractFeatures
 
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
 parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
-parser.add_argument('--epochs', default=5, type=int, help='Number of epochs to train for')
+parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_ce/checkpoints_thermal_global_bigger', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_ce/cart_train_both', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
+parser.add_argument('--dataset', default="ms2", type=str, help='Dataset to use: ms2 or wisard')
+parser.add_argument('--train_both', default=True, type=bool, help='Train both RGB and thermal models')
 args = parser.parse_args()
 print(args)
 
@@ -46,7 +51,13 @@ for param in rgb_model.parameters():
     param.requires_grad = False
 
 # Fine-tune the thermal model
-optimizer = optim.SGD(thermal_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+if args.train_both:
+    print("Training both models")
+    optimizer = optim.SGD(list(thermal_model.blocks[:].parameters()) + list(rgb_model.blocks[:].parameters()), lr=args.learning_rate, weight_decay=args.weight_decay)
+else:
+    print("Training only thermal model")
+    optimizer = optim.SGD(thermal_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
 def loss_fn_mse(outputs, targets):
@@ -79,7 +90,16 @@ def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
 def train():
 
     # Load the dataset
-    dataset = Custom_MS2Dataset(args.dataset_path)
+    if args.dataset == "ms2":
+        print("Using MS2 dataset")
+        dataset = Custom_MS2Dataset(args.dataset_path)
+    elif args.dataset == "wisard":
+        print("Using Wisard dataset")
+        dataset = Wisard_Dataset(args.dataset_path)
+    elif args.dataset == "cart":
+        print("Using CART dataset")
+        dataset = CART_dataset(args.dataset_path)
+        # x = dataset[5732]
 
     train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -137,6 +157,14 @@ def train():
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss
         }, os.path.join(args.save_path, "thermal" +str(epoch) + '.pth'))
+
+        if args.train_both:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': rgb_model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss
+            }, os.path.join(args.save_path, "rgb" +str(epoch) + '.pth'))
 
         print("Epoch {} of {} took {:.3f}s".format(epoch, args.epochs, time.time() - start_time))
         print("  training loss (in-iteration): \t{:.6f}".format(loss))

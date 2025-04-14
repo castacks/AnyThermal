@@ -48,13 +48,6 @@ base_transform = T.Compose([
     T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-mixVPR_transform = T.Compose([
-    T.ToTensor(),
-    T.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
-    T.Resize((320,320))
-])
-
 def sparse_to_dense(sparse, max_depth=100.):
     ## invert
     valid = sparse > 0.1
@@ -103,24 +96,26 @@ class Thermal_day_night_MS2(CustomDataset):
         self.db_modality = db_modality
         self.q_modality = q_modality
         self.seq = seq
-
+        self.subsample = int(len(natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left"))))/200)
+        self.model_type = "dinov2"
         print("seq: ",self.seq)
         print("db_modality: ",self.db_modality)
         print("q_modality: ",self.q_modality)
-
+        print("subsample: ",self.subsample)
+        print("model_type: ",self.model_type)
         if self.db_modality == "rgb":
-            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::self.subsample]
         elif self.db_modality == "thr":
-            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::self.subsample]
         elif self.db_modality == "lidar":
-            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
+            self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::self.subsample]
 
         if self.q_modality == "rgb":
-            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::20]
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::self.subsample]
         elif self.q_modality == "thr":
-            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::20]
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"thr/img_left")))[::self.subsample]
         elif self.q_modality == "lidar":
-            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::20]
+            self.q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",self.seq,"rgb", "depth_filtered")))[::self.subsample]
     
         self.db_abs_paths = []
         self.q_abs_paths = []
@@ -157,8 +152,8 @@ class Thermal_day_night_MS2(CustomDataset):
         """
 
         # load files for the coordinates
-        self.db_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",self.seq,"thr")))[::20]
-        self.q_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",self.seq,"thr")))[::20]
+        self.db_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",self.seq,"thr")))[::self.subsample]
+        self.q_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",self.seq,"thr")))[::self.subsample]
         self.db_coords = []
         self.q_coords = []
 
@@ -212,7 +207,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
                 h  = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.q_modality == "thr":
@@ -222,7 +220,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
                 h = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.q_modality == "lidar":
@@ -231,7 +232,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = sparse_to_dense(img)
                 h = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
         elif index<self.database_num:
@@ -242,7 +246,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
                 h  = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.db_modality == "thr":
@@ -252,7 +259,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
                 h = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.db_modality == "lidar":
@@ -261,7 +271,10 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = sparse_to_dense(img)
                 h = img.shape[0]
                 w = img.shape[1]
-                img = cv2.resize(img, ((w//14)*14, (h//14)*14))
+                if self.model_type == "clip":
+                    img = cv2.resize(img, (224, 224))
+                else:
+                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
         return img, index

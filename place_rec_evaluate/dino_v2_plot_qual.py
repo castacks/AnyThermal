@@ -20,6 +20,7 @@ from torch.nn import functional as F
 from torchvision import transforms as T
 from torch.utils.data import DataLoader
 
+import timm
 import time
 import traceback
 from tqdm.auto import tqdm
@@ -32,6 +33,7 @@ from utilities import *
 from configs import ProgArgs, prog_args, BaseDatasetArgs, \
         base_dataset_args, device
 from custom_datasets.thermal_dataloader import Thermal_day_night_MS2
+from custom_datasets.cart_dataloader import CartDataloader
 
 @dataclass
 class LocalArgs:
@@ -49,7 +51,7 @@ class LocalArgs:
     # Dino parameters
     # Model type
     model_type: Literal["dinov2_vits14", "dinov2_vitb14", 
-            "dinov2_vitl14", "dinov2_vitg14","dinov2_vits14_reg"] = "dinov2_vits14"
+            "dinov2_vitl14", "dinov2_vitg14","dinov2_vits14_reg","dino_vits16"] = "dinov2_vits14" #"dino_vits16"
     """
         Model for Dino-v2 to use as the base model.
     """
@@ -68,7 +70,7 @@ class LocalArgs:
     qual_num_rets: int = 5
     faiss_method: Literal["l2", "cosine"] = "cosine"
     use_residual: Literal[1, 0] = bool(0)
-    qual_result_percent: float = 0.1
+    qual_result_percent: float = 0.05
 
 def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray, 
             nqu_descs: np.ndarray, pos_per_qu: np.ndarray,
@@ -117,7 +119,8 @@ def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray,
                         f"{largs.exp_id}/qualitative_retr_residual_nc"\
                         f"{largs.num_clusters}"
     qimgs_inds = []
-    print(save_figs, largs.qual_result_percent)
+    # print(save_figs, largs.qual_result_percent,qimgs_result)
+    # import pdb;pdb.set_trace()
     if (not save_figs) or largs.qual_result_percent <= 0:
         qimgs_result = False
     if not qimgs_result:    # Saving query images
@@ -127,6 +130,7 @@ def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray,
         qimgs_inds = np.random.default_rng().choice(
                 range(_n_qu), int(_n_qu * largs.qual_result_percent),
                 replace=False)  # Qualitative images to save
+        # qimgs_inds = [32,35,38,39,40,79]
         print(f"There are {_n_qu} query images")
         print(f"Will save {len(qimgs_inds)} qualitative images")
         if not os.path.isdir(qimgs_dir):
@@ -199,22 +203,47 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
 
 
     dino_db = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
+    # dino_db = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
+    # dino_db = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
+
     if db_modality == "thr":
         print("Loading thermal weights for database model")
-        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_cart_no_caltech/thermal9.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/dino_checkpoints_thermal_cart_no_caltech/thermal9.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/dino_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])        
+        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth")["model_state_dict"])                
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])                
     elif db_modality == "lidar":
         print("Loading lidar weights for database model")
-        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar3.pth")["model_state_dict"])
+        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar4.pth")["model_state_dict"])
+        # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for database model")
 
     dino_q = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
+    # dino_q = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
+    # dino_q = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
+
     if q_modality == "thr":
         print("Loading thermal weights for query model")
-        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_global_bigger/thermal3.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_cart_no_caltech/thermal9.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/dino_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])        
+        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth")["model_state_dict"])        
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])                
     elif q_modality == "lidar":
         print("Loading lidar weights for query model")
-        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar0.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar3.pth")["model_state_dict"])
+        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar4.pth")["model_state_dict"])
+        # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for query model")
 
@@ -233,6 +262,7 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
                 flipper = T.RandomHorizontalFlip(p=1)
                 img_in = flipper(img_in)
             ret = dino_db(img_in)
+            ret = F.normalize(ret,dim=-1)
             patch_descs.append(ret.cpu())
         patch_descs = torch.cat(patch_descs, dim=0) # [N, n_p, d_dim]
 
@@ -250,6 +280,7 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
                 flipper = T.RandomHorizontalFlip(p=1)
                 img_in = flipper(img_in)
             ret = dino_q(img_in)
+            ret = F.normalize(ret,dim=-1)
             patch_descs.append(ret.cpu())
         patch_descs = torch.cat(patch_descs, dim=0) # [N, n_p, d_dim]
 
@@ -306,7 +337,9 @@ def main(largs: LocalArgs):
     # Load dataset
     if ds_name=="thermal_day_night":
         vpr_ds = Thermal_day_night_MS2(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
-    
+    elif ds_name=="cart":
+        vpr_ds = CartDataloader(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
+
     db_vlads, qu_vlads = build_descriptors(largs, vpr_ds, verbose=True,db_modality=largs.db_modality,q_modality=largs.q_modality)
     print("--------- Generated VLADs ---------")
     
@@ -317,12 +350,6 @@ def main(largs: LocalArgs):
         sub_sample_qu=largs.sub_sample_qu)
     print("------------ Recalls calculated ------------")
 
-    # Plot recalls
-    print("------------ Plot Recalls ------------")
-    vpr_dl = DataLoader(vpr_ds, largs.batch_size, pin_memory=True, 
-                        shuffle=False)
-
-    # plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
 
     print("--------------------- Results ---------------------")
     ts = time.strftime(f"%Y_%m_%d_%H_%M_%S")
@@ -382,7 +409,15 @@ def main(largs: LocalArgs):
         joblib.dump(results, save_res_file)
     else:
         print("Not saving results")
-    
+
+    # Plot recalls
+    print("------------ Plot Recalls ------------")
+    vpr_dl = DataLoader(vpr_ds, largs.batch_size, pin_memory=True, 
+                        shuffle=False)
+
+    plot_recalls(largs, db_vlads, qu_vlads, vpr_ds.soft_positives_per_query,vpr_dl)
+
+
     if largs.prog.use_wandb:
         wandb.finish()
     print("--------------------- END ---------------------")
