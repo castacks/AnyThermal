@@ -1,15 +1,12 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.utils.data import random_split
-from torchvision import datasets, transforms
 import torch.optim as optim
 import time
 import os
 import argparse
-import sys
 from datasets.custom_dataset_loader import Custom_MS2Dataset
+#PARV_ASK: What is the use of the below function/ Class 
 from utilities import DinoV2ExtractFeatures
 
 import wandb
@@ -26,7 +23,7 @@ parser.add_argument('--resume', action='store_true', help='Resume training from 
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
-
+#PARV_TODO_1: Make this as a yaml save the yaml in wandb params, add another parameter for modality - RGB or Thermal. Dump this yaml file where the model is bein saved
 args = parser.parse_args()
 print(args)
 
@@ -51,6 +48,7 @@ def loss_fn_mse(outputs, targets):
     return F.mse_loss(outputs, targets)
 
 def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
+    #PARV_TODO_1: Add the max val trick to avoid numerical instability, optimise the code to calcualte log softmax of only one value (positive sample), benchmark resources - memory and time
 
     # Normalize embeddings
     teacher_embed = F.normalize(teacher_embed, dim=-1)
@@ -83,7 +81,8 @@ def train():
     dataset = Custom_MS2Dataset(args.dataset_path)
 
     train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-
+    #PARV_TODO_2: After resource benchmarking , see if we will benefit from a cached dataloader for faster training. Use Wenshan's or PIAug caching dataloader
+    #PARV_TODO_1: Load only the modalities which will be used. No need to load all modalities for each samples
     # Create the save directory if it doesn't exist
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
@@ -109,6 +108,7 @@ def train():
             lidar_images1 = images['lidar1'].cuda()
 
             # Forward pass
+            #PARV_TODO_1: Can we add a torch. no_grad or torch.inference mode to speed up the forward pass of the teacher model?
             rgb_output1 = rgb_model(rgb_images1)
             lidar_output1 = lidar_model(lidar_images1)
 
@@ -146,3 +146,5 @@ def train():
 
 if __name__ == "__main__":
     train()
+    
+#PARV_TODO_1: Make a common file for both thermal and lidar distillation, add a parameter for modality, and the path of saving the model

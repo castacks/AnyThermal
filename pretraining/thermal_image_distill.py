@@ -43,6 +43,7 @@ rgb_model.eval()
 thermal_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
 thermal_model.eval()
 
+#PARV_TODO_1: Not being used
 temperature = 1
 embedding_dim = 384
 

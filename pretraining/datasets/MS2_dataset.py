@@ -102,7 +102,7 @@ class DataLoader_MS2(data.Dataset):
         elif data_format == "Odometry":
             self.data_getter = self.get_data_Odometry
             self.crawl_folders_pose(sampling_step, set_length, set_interval)
-        elifdata_format == "Distill":
+        elif data_format == "Distill":
             self.data_getter = self.get_data_Distill
             self.crawl_folders_depth(sampling_step, set_length, set_interval)
         else:
