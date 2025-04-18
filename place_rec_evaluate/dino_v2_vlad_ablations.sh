@@ -7,29 +7,30 @@
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing experiment cache
 # Cache directory (where images and model cache will be stored)
-cache_dir="/storage2/datasets/jkarhade/multiloc_cache" #"/home/jay/Documents/vl-vpr/cache" 
+# cache_dir="/storage2/datasets/jkarhade/multiloc_cache" #"/home/jay/Documents/vl-vpr/cache" 
+cache_dir="$(dirname "${BASH_SOURCE[0]}"..)/../multiloc_cache"
 # cache_dir="/scratch/avneesh.mishra/vl-vpr/cache"
 # Directory where the datasets are downloaded
 data_vg_dir="/ocean/projects/cis220039p/shared/datasets/vpr/datasets_vg"
 # data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
 # Dino models and layers: "Model, <Space separated layers>"
 dino_models_layers=(
-    "dinov2_vits14, `echo {11..11..1}`"
+    "dino_vits16, `echo {11..11..1}`" #11..11.1 means 11 to 11 with step 1 i.e. layer 11
     # "dinov2_vits14_reg, `echo {11..11..1}`"
     # "dinov2_vitg14, `echo {31..31..1}`"
 )
 # Facets
-dino_facets=("value")
+dino_facets=("value") #Which "facet" of the feature to use (e.g., "value", "key"—value is typical for DINO).
 # Datasets
 datasets=("thermal_day_night")  #("mars_2500") #("hawkins_long_corridor" "VPAir" "laurel_caverns" "GNSS_Tartan")
 # Number of VLAD clusters
 # num_clusters=(256 128 64 32)
-num_clusters=(32)
+num_clusters=(32) #array for number of clusters
 # Modalities
 db_modality=("rgb")
 q_modality=("thr")
 #Sequences
-seq_list=('_2021-08-06-10-59-33') # '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
+seq_list=('_2021-08-06-10-59-33' '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -38,7 +39,7 @@ export CUDA_VISIBLE_DEVICES=$gpu
 # wandb_project="Ablations"
 # wandb_group="DINO_V2_VLAD"
 
-wandb_entity="jkarhade"
+# wandb_entity="jkarhade"
 wandb_project="MultiLoc"
 wandb_group="ms2_eval"
 # wandb_project="Paper_Structured_Benchmarks"
@@ -50,9 +51,9 @@ wandb_group="ms2_eval"
 # ----------- Main Experiment Code -----------
 num_runs_dino=0
 for ((i=0; i<${#dino_models_layers[*]}; i++)); do
-    IFS="," read dino_model layers <<< "${dino_models_layers[$i]}"
-    layers=(${layers})
-    num_runs_dino=$(($num_runs_dino + ${#layers[@]}))
+    IFS="," read dino_model layers <<< "${dino_models_layers[$i]}" #This splits each string (like "dinov2_vits14, 11") into: ,dino_model="dinov2_vits14" layers=" 11" (as a single string initially)
+    layers=(${layers}) #this converts space separated string into an int array
+    num_runs_dino=$(($num_runs_dino + ${#layers[@]})) #This counts the number of layers from which features woudl be used for the model inference
 done
 echo "Number of DINO runs: $num_runs_dino"
 num_facets=${#dino_facets[@]}
@@ -91,24 +92,24 @@ for seq in ${seq_list[*]}; do
     exp_id="ablations/$wandb_name"
     # python_cmd="python dino_v2_vlad_viz.py"
     # python_cmd="python dino_v2_vlad_plot_qual.py"
-    python_cmd="python dino_v2_plot_qual.py"
+    python_cmd="python3 dino_v2_plot_qual.py"
     python_cmd+=" --exp-id $exp_id"
     python_cmd+=" --model-type ${dino_model}"
-    python_cmd+=" --num-clusters $nc"
-    python_cmd+=" --desc-layer $layer"
-    python_cmd+=" --desc-facet $facet"
+    # python_cmd+=" --num-clusters $nc"
+    # python_cmd+=" --desc-layer $layer" #where is this used in the inference code
+    # python_cmd+=" --desc-facet $facet" #where is this used in the inference code
     python_cmd+=" --db-modality $db_modality"
     python_cmd+=" --q-modality $q_modality"
     if [ "$dataset" == "pitts30k" ]; then
         python_cmd+=" --sub-sample-db-vlad 4"
     fi
     python_cmd+=" --prog.cache-dir ${cache_dir}"
-    python_cmd+=" --prog.data-vg-dir ${data_vg_dir}"
-    python_cmd+=" --prog.vg-dataset-name ${dataset}"
+    # python_cmd+=" --prog.data-vg-dir ${data_vg_dir}"
+    # python_cmd+=" --prog.vg-dataset-name ${dataset}"
     python_cmd+=" --prog.ms2_seq ${seq}"
     # python_cmd+=" --prog.use-wandb"
     python_cmd+=" --prog.wandb-proj ${wandb_project}"
-    python_cmd+=" --prog.wandb-entity ${wandb_entity}"
+    # python_cmd+=" --prog.wandb-entity ${wandb_entity}"
     python_cmd+=" --prog.wandb-group ${wandb_group}"
     python_cmd+=" --prog.wandb-run-name ${wandb_name}"
     echo -ne "\e[0;36m"

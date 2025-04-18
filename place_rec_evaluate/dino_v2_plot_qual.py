@@ -51,7 +51,7 @@ class LocalArgs:
     # Dino parameters
     # Model type
     model_type: Literal["dinov2_vits14", "dinov2_vitb14", 
-            "dinov2_vitl14", "dinov2_vitg14","dinov2_vits14_reg","dino_vits16"] = "dinov2_vits14" #"dino_vits16"
+            "dinov2_vitl14", "dinov2_vitg14","dinov2_vits14_reg","dino_vits16"] = "dino_vits16"
     """
         Model for Dino-v2 to use as the base model.
     """
@@ -202,7 +202,7 @@ def plot_recalls(largs: LocalArgs, ndb_descs: np.ndarray,
 def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: str="rgb",q_modality: str="thr")-> Tuple[torch.Tensor, torch.Tensor]:
 
 
-    dino_db = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
+    dino_db = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
     # dino_db = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
     # dino_db = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
 
@@ -215,17 +215,17 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/dino_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])        
-        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth")["model_state_dict"])                
+        dino_db.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dino_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])                
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])                
     elif db_modality == "lidar":
         print("Loading lidar weights for database model")
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar3.pth")["model_state_dict"])
-        dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar4.pth")["model_state_dict"])
+        dino_db.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dino_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
         # dino_db.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for database model")
 
-    dino_q = torch.hub.load('facebookresearch/dinov2', largs.model_type).cuda()
+    dino_q = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
     # dino_q = torch.hub.load('facebookresearch/dino:main', largs.model_type).cuda()
     # dino_q = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
 
@@ -237,12 +237,12 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/dino_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_checkpoints_thermal_cart_test_hidden/thermal9.pth")["model_state_dict"])
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])        
-        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth")["model_state_dict"])        
+        dino_q.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dino_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])        
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal9.pth")["model_state_dict"])                
     elif q_modality == "lidar":
         print("Loading lidar weights for query model")
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/checkpoints_lidar_global_bigger_denser/lidar3.pth")["model_state_dict"])
-        dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar4.pth")["model_state_dict"])
+        dino_q.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dino_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
         # dino_q.load_state_dict(torch.load("/storage2/datasets/jkarhade/MultiLoc/pretraining/checkpoints_ce/clip_ms2_checkpoints_lidar_global_bigger_denser_no_night/lidar9.pth")["model_state_dict"])
     else:
         print("Loading rgb weights for query model")
@@ -256,7 +256,7 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
         for i in tqdm(indices, disable=not verbose):
             img = vpr_ds[i][0].to(device)
             c, h, w = img.shape
-            h_new, w_new = (h // 14) * 14, (w // 14) * 14
+            h_new, w_new = (h // 14) * 14, (w // 14) * 14 # local patch of 14*14
             img_in = T.CenterCrop((h_new, w_new))(img)[None, ...]
             if allow_flip:
                 flipper = T.RandomHorizontalFlip(p=1)
@@ -264,7 +264,7 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
             ret = dino_db(img_in)
             ret = F.normalize(ret,dim=-1)
             patch_descs.append(ret.cpu())
-        patch_descs = torch.cat(patch_descs, dim=0) # [N, n_p, d_dim]
+        patch_descs = torch.cat(patch_descs, dim=0) # [N, n_p, d_dim] #PARV_Q what is n_p
 
         return patch_descs
 
@@ -293,7 +293,7 @@ def build_descriptors(largs: LocalArgs, vpr_ds, verbose: bool=True,db_modality: 
     
     # Get descriptors of the database
     if verbose:
-        print("Building VLADs for databases...")
+        print("Building VLADs for databases...") #PARV_Q where is the VLAD exactly ?
     db_indices = np.arange(0, num_db, largs.sub_sample_db)
     db_img_names = vpr_ds.get_image_relpaths(db_indices)
 
@@ -322,10 +322,15 @@ def main(largs: LocalArgs):
     if largs.prog.use_wandb:
         # Launch WandB
         print(largs.prog.wandb_proj, largs.prog.wandb_entity, largs.prog.wandb_group, largs.prog.wandb_run_name)
-        wandb_run = wandb.init(project=largs.prog.wandb_proj, 
-                entity=largs.prog.wandb_entity, # config=largs,
+        if largs.prog.wandb_entity == "":
+            wandb_run = wandb.init(project=largs.prog.wandb_proj, 
                 group=largs.prog.wandb_group, 
                 name=largs.prog.wandb_run_name)
+        else:
+            wandb_run = wandb.init(project=largs.prog.wandb_proj, 
+                    entity=largs.prog.wandb_entity, # config=largs,
+                    group=largs.prog.wandb_group, 
+                    name=largs.prog.wandb_run_name)
         print(f"Initialized WandB run: {wandb_run.name}")
     
     print("--------- Generating VLADs ---------")
@@ -336,7 +341,7 @@ def main(largs: LocalArgs):
 
     # Load dataset
     if ds_name=="thermal_day_night":
-        vpr_ds = Thermal_day_night_MS2(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
+        vpr_ds = Thermal_day_night_MS2(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality,datasets_folder=ds_dir)
     elif ds_name=="cart":
         vpr_ds = CartDataloader(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
 

@@ -10,6 +10,7 @@ import timm
 import os
 import argparse
 import wandb
+from tqdm import tqdm
 
 from datasets.custom_dataset_loader import Custom_MS2Dataset
 from datasets.wisard_dataset import Wisard_Dataset
@@ -36,13 +37,13 @@ print(args)
 
 #Initialize wandb
 if args.wandb_use:
-    wandb.init(project="multiloc", entity="jkarhade", name="clip_thermal_image_distill")
+    wandb.init(project="multiloc", name="clip_thermal_image_distill")
 
 # Load models
 rgb_model = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
 rgb_model.eval()
 thermal_model = timm.create_model("vit_small_patch16_224",pretrained=True, num_classes=0).cuda()
-thermal_model.eval()
+thermal_model.train()
 
 temperature = 1
 embedding_dim = 384
@@ -120,12 +121,17 @@ def train():
     for epoch in range(start_epoch, args.epochs):
         start_time = time.time()
         running_loss = 0.0
-        for i, images in enumerate(train_dataloader):
+        num_batches = len(train_dataloader)
+        for i, images in tqdm(enumerate(train_dataloader)):
+            if i!=0:
+                del rgb_images1, thermal_images1, rgb_output1, thermal_output1, loss
+                import gc; gc.collect()  
             rgb_images1 = images['rgb1'].cuda()
             thermal_images1 = images['thermal1'].cuda()
 
             # Forward pass
-            rgb_output1 = rgb_model(rgb_images1)
+            with torch.inference_mode():
+                rgb_output1 = rgb_model(rgb_images1)
             thermal_output1 = thermal_model(thermal_images1)
 
             # Compute loss
@@ -145,7 +151,7 @@ def train():
 
             running_loss += loss.item()
             if i % 10 == 9:
-                print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
+                print('[Epoch: %d, Batch: %d/%d] loss: %.3f\n' % (epoch + 1, i + 1,num_batches, running_loss / 10))
                 running_loss = 0.0
 
         scheduler.step()
@@ -158,8 +164,8 @@ def train():
             'loss': loss
         }, os.path.join(args.save_path, "thermal" +str(epoch) + '.pth'))
 
-        print("Epoch {} of {} took {:.3f}s".format(epoch, args.epochs, time.time() - start_time))
-        print("  training loss (in-iteration): \t{:.6f}".format(loss))
+        print("Epoch {} of {} took {:.3f}s\n".format(epoch, args.epochs, time.time() - start_time))
+        print("  training loss (in-iteration): \t{:.6f}\n".format(loss))
 
 if __name__ == "__main__":
     train()

@@ -4,6 +4,8 @@ pretraining/checkpoints_ce_old
 pretraining/checkpoints_mse
 pretraining/checkpoints_old
 
+**/multiloc_cache/**
+**/wandb/**
 pretraining/wandb
 **/.vscode/**
 **/__pycache__/**

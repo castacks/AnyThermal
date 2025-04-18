@@ -11,12 +11,13 @@ import argparse
 import sys
 from datasets.custom_dataset_loader import Custom_MS2Dataset
 from utilities import DinoV2ExtractFeatures
+from tqdm import tqdm
 
 import wandb
 
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
-parser.add_argument('--batch_size', default=16, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
 parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
@@ -32,7 +33,7 @@ print(args)
 
 #Initialize wandb
 if args.wandb_use:
-    wandb.init(project="multiloc", entity="jkarhade", name="lidar_image_distill")
+    wandb.init(project="multiloc", name="dino_lidar_image_distill")
 
 # Load models
 rgb_model = torch.hub.load('facebookresearch/dino:main', 'dino_vits16').cuda()
@@ -103,8 +104,9 @@ def train():
 
         start_time = time.time()
         running_loss = 0.0
+        num_batches = len(train_dataloader)
 
-        for i, images in enumerate(train_dataloader):
+        for i, images in tqdm(enumerate(train_dataloader)):
             rgb_images1 = images['rgb1'].cuda()
             lidar_images1 = images['lidar1'].cuda()
 
@@ -128,7 +130,7 @@ def train():
 
             running_loss += loss.item()
             if i % 10 == 9:
-                print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch, i, running_loss / 10))
+                print('[Epoch: %d, Batch: %d/%d] loss: %.3f\n' % (epoch+1, i+1,num_batches, running_loss / 10))
                 running_loss = 0.0
 
         scheduler.step()
@@ -141,8 +143,8 @@ def train():
             'loss': loss
         }, os.path.join(args.save_path, "lidar" +str(epoch) + '.pth'))
 
-        print("Epoch {} of {} took {:.3f}s".format(epoch, args.epochs, time.time() - start_time))
-        print("  training loss (in-iteration): \t{:.6f}".format(loss))
+        print("Epoch {} of {} took {:.3f}s\n".format(epoch, args.epochs, time.time() - start_time))
+        print("  training loss (in-iteration): \t{:.6f}\n".format(loss))
 
 if __name__ == "__main__":
     train()

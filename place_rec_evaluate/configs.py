@@ -62,7 +62,7 @@ class ProgArgs:
         Core program arguments
     """
     # A directory for storing cache
-    cache_dir: Path = "/storage2/datasets/jkarhade/multiloc_cache"
+    cache_dir: Path = ""
     # The directory where 'datasets' are downloaded
     data_dir: Path = "/storage2/datasets/ms2_full"
     ms2_seq: str = "_2021-08-06-10-59-33"
@@ -73,11 +73,11 @@ class ProgArgs:
     # WandB project name
     wandb_proj: str = "Baselines"
     # WandB entity (should be 'vpr-vl')
-    wandb_entity: str = "vpr-vl"
+    wandb_entity: str = ""
     # WandB result group (within the project)
-    wandb_group: str = "Oxford"
+    wandb_group: str = ""
     # WandB run name (within the group)
-    wandb_run_name: str = "Oxford/CLIP_TopK"
+    wandb_run_name: str = "Demo Run"
     # Save qualitative results for WandB
     wandb_save_qual: bool = False
 
