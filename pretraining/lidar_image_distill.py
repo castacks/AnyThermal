@@ -8,17 +8,18 @@ import argparse
 from datasets.custom_dataset_loader import Custom_MS2Dataset
 #PARV_ASK: What is the use of the below function/ Class 
 from utilities import DinoV2ExtractFeatures
+from tqdm import tqdm
 
 import wandb
 
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
-parser.add_argument('--batch_size', default=16, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
 parser.add_argument('--epochs', default=5, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_ce/ms2_checkpoints_lidar_global_bigger_denser_no_night', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints_ce/dinov2_ms2_checkpoints_lidar_global_bigger_denser_no_night', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
@@ -29,7 +30,7 @@ print(args)
 
 #Initialize wandb
 if args.wandb_use:
-    wandb.init(project="multiloc", entity="jkarhade", name="lidar_image_distill")
+    wandb.init(project="multiloc", name="dinov2_lidar_image_distill")
 
 # Load models
 rgb_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
@@ -102,14 +103,21 @@ def train():
 
         start_time = time.time()
         running_loss = 0.0
+        num_batches = len(train_dataloader)
 
-        for i, images in enumerate(train_dataloader):
+        for i, images in tqdm(enumerate(train_dataloader)):
+            if i!=0:
+                del rgb_images1, lidar_images1, rgb_output1, lidar_output1, loss
+                import gc; gc.collect()  
+
+            
             rgb_images1 = images['rgb1'].cuda()
             lidar_images1 = images['lidar1'].cuda()
 
             # Forward pass
             #PARV_TODO_1: Can we add a torch. no_grad or torch.inference mode to speed up the forward pass of the teacher model?
-            rgb_output1 = rgb_model(rgb_images1)
+            with torch.inference_mode():
+                rgb_output1 = rgb_model(rgb_images1)
             lidar_output1 = lidar_model(lidar_images1)
 
             # Compute loss
@@ -128,7 +136,7 @@ def train():
 
             running_loss += loss.item()
             if i % 10 == 9:
-                print('[Epoch: %d, Batch: %d] loss: %.3f' % (epoch, i, running_loss / 10))
+                print('[Epoch: %d, Batch: %d/%d] loss: %.3f\n' % (epoch+1, i+1,num_batches, running_loss / 10))
                 running_loss = 0.0
 
         scheduler.step()
@@ -141,8 +149,8 @@ def train():
             'loss': loss
         }, os.path.join(args.save_path, "lidar" +str(epoch) + '.pth'))
 
-        print("Epoch {} of {} took {:.3f}s".format(epoch, args.epochs, time.time() - start_time))
-        print("  training loss (in-iteration): \t{:.6f}".format(loss))
+        print("Epoch {} of {} took {:.3f}s\n".format(epoch, args.epochs, time.time() - start_time))
+        print("  training loss (in-iteration): \t{:.6f}\n".format(loss))
 
 if __name__ == "__main__":
     train()

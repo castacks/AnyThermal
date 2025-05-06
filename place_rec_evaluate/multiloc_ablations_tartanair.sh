@@ -4,25 +4,26 @@
 #
 # 
 
+declare -A model_dict
+model_dict=(
+    ["depth"]="/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dinov2_ms2_checkpoints_thermal_global_bigger_denser_no_night/tartanair/rgb_depth/2025-04-28_15-06-05/model1.pth"
+)
+
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing experiment cache
 # Dataset directory
-data_dir="/ocean/projects/cis220039p/shared/datasets/ms2_full"
+data_dir="/ocean/projects/cis220039p/shared/datasets/tartanair_v2"
 # data_dir=""
 # Cache directory (where images and model cache will be stored)
 cache_dir="$(dirname "${BASH_SOURCE[0]}"..)/../multiloc_cache"
 # Datasets
-datasets=("thermal_day_night")
+datasets=("tartanair")
 # datasets=("cart")
 # Modalities
-db_modality=("thr")
-q_modality=("lidar")
+db_modality=("rgb")
+q_modality=("depth")
 #Sequences
-# seq_list=( '_2021-08-06-16-45-28' '_2021-08-06-11-37-46' '_2021-08-06-17-21-04') #for rainy unseen seq # '_2021-08-06-16-45-28' '_2021-08-06-16-19-00' '_2021-08-13-15-46-56' '_2021-08-13-17-06-04' '_2021-08-13-21-18-04' '_2021-08-13-21-36-10')
-# seq_list=('_2021-08-13-22-03-03' '_2021-08-13-21-58-13')
-seq_list=( '_2021-08-06-16-45-28' '_2021-08-06-11-37-46' '_2021-08-06-17-21-04' '_2021-08-13-16-08-46' '_2021-08-13-22-03-03' '_2021-08-13-21-58-13')
-# seq_list=('_2021-08-06-16-45-28' '_2021-08-13-22-03-03')
-# seq_list=("Idyll_wild" "big_bear") # "ocean_duck") #('_2021-08-13-16-08-46')
+seq_list=( 'ForestEnv/Data_easy/P000' )
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -52,7 +53,13 @@ for seq in ${seq_list[*]}; do
     python_cmd+=" --exp-id $exp_id"
     python_cmd+=" --db-modality $db_modality"
     python_cmd+=" --q-modality $q_modality"
-
+    # if db_model is not rgb, then use the model_dict
+    if [[ $db_modality != "rgb" ]]; then
+        db_model=${model_dict[$db_modality]}
+        python_cmd+=" --db-model $db_model"
+    fi
+    q_model=${model_dict[$q_modality]}
+    python_cmd+=" --q-model $q_model"
     python_cmd+=" --prog.cache-dir ${cache_dir}"
     python_cmd+=" --prog.data-dir ${data_dir}"
     python_cmd+=" --prog.ms2_seq ${seq}"
