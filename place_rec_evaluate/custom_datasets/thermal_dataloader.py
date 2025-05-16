@@ -45,7 +45,8 @@ def path_to_pil_img(path):
 
 base_transform = T.Compose([
     T.ToTensor(),
-    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    # normalization is done in the model since it can be different for each modal
 ])
 
 def sparse_to_dense(sparse, max_depth=100.):
@@ -85,24 +86,20 @@ class Thermal_day_night_MS2(CustomDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,seq,db_modality,q_modality,datasets_folder='/storage2/datasets/ms2_full',dataset_name="sync_data",split="train",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
+    def __init__(self,seq,db_modality,q_modality,datasets_folder='/storage2/datasets/ms2_full',dataset_name="sync_data",use_ang_positives=False,dist_thresh = 10,ang_thresh=20):
         super().__init__()
 
         self.dataset_name = dataset_name
         self.datasets_folder = datasets_folder
-        self.split = split
-        self.use_mixVPR = use_mixVPR
-        self.use_SAM = use_SAM
         self.db_modality = db_modality
         self.q_modality = q_modality
         self.seq = seq
-        self.subsample = int(len(natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left"))))/200)
-        self.model_type = "dinov2"
+        # self.subsample = int(len(natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left"))))/200)
+        self.subsample = 10 # sampling at 1Hz instead of outputting only N (200 in above case) images and changing subsmaple step according to that
         print("seq: ",self.seq)
         print("db_modality: ",self.db_modality)
         print("q_modality: ",self.q_modality)
         print("subsample: ",self.subsample)
-        print("model_type: ",self.model_type)
         if self.db_modality == "rgb":
             self.db_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,self.dataset_name,self.seq,"rgb/img_left")))[::self.subsample]
         elif self.db_modality == "thr":
@@ -203,14 +200,6 @@ class Thermal_day_night_MS2(CustomDataset):
         if index>=self.database_num:
             if self.q_modality == "rgb":
                 img = cv2.imread(self.images_paths[index])
-                # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-                h  = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.q_modality == "thr":
@@ -218,38 +207,18 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = load_as_float_img(thermal_image_path1)
                 img = process_one_image(img,type="hist_99")
                 img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-                h = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.q_modality == "lidar":
                 lidar_image_path1 = self.images_paths[index]
                 img = cv2.imread(lidar_image_path1)
                 img = sparse_to_dense(img)
-                h = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
         elif index<self.database_num:
 
             if self.db_modality == "rgb":
                 img = cv2.imread(self.images_paths[index])
-                # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                # img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-                h  = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.db_modality == "thr":
@@ -257,30 +226,18 @@ class Thermal_day_night_MS2(CustomDataset):
                 img = load_as_float_img(thermal_image_path1)
                 img = process_one_image(img,type="hist_99")
                 img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-                h = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
             elif self.db_modality == "lidar":
                 lidar_image_path1 = self.images_paths[index]
                 img = cv2.imread(lidar_image_path1)
                 img = sparse_to_dense(img)
-                h = img.shape[0]
-                w = img.shape[1]
-                if self.model_type == "clip":
-                    img = cv2.resize(img, (224, 224))
-                else:
-                    img = cv2.resize(img, ((w//14)*14, (h//14)*14))
                 img = base_transform(img)
 
         return img, index
 
 if __name__ == "__main__":
     args = None
-    dataset = Thermal_day_night_MS2(args,split="train",use_mixVPR=False)
+    dataset = Thermal_day_night_MS2()
     print(dataset[0][0].shape)
     

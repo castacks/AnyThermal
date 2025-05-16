@@ -49,14 +49,11 @@ base_transform = T.Compose([
 ])
 
 class CartDataloader(CustomDataset):
-    def __init__(self,args,seq,db_modality,q_modality,datasets_folder='/storage2/datasets/jkarhade',dataset_name="CART_place_recognition",split="train",use_ang_positives=False,dist_thresh = 10,ang_thresh=20,use_mixVPR=False,use_SAM=False):
+    def __init__(self,args,seq,db_modality,q_modality,datasets_folder='/storage2/datasets/jkarhade',dataset_name="CART_place_recognition",use_ang_positives=False,dist_thresh = 10,ang_thresh=20):
         # super().__init()
 
         self.dataset_name = dataset_name
         self.datasets_folder = datasets_folder
-        self.split = split
-        self.use_mixVPR = use_mixVPR
-        self.use_SAM = use_SAM
         self.db_modality = db_modality
         self.q_modality = q_modality
         self.seq = seq #"Idyll_wild"
@@ -173,6 +170,6 @@ class CartDataloader(CustomDataset):
 if __name__ == "__main__":
 
     args = None
-    dataset = CartDataloader(args,split="train",db_modality="rgb",q_modality="thr",use_mixVPR=False,seq="Idyll_wild")
+    dataset = CartDataloader(args,db_modality="rgb",q_modality="thr",seq="Idyll_wild")
 
     # cv2.imwrite("test.png",dataset[0+dataset.db_num][0])

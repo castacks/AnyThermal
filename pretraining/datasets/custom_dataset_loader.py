@@ -80,7 +80,7 @@ class Custom_MS2Dataset(Dataset):
             cur_seq_lidar_image_paths = natsorted(os.listdir(os.path.join(self.data_dir,"proj_depth", seq, "rgb", "depth_filtered")))
 
             #Subsample paths to match the number of images
-            skip_factor = int(len(cur_seq_rgb_image_paths)/1000)
+            skip_factor = int(len(cur_seq_rgb_image_paths)/1000) #PARV_TODO: THis hsoudl be 1Hz and not a upper cbund on the sequence
             cur_seq_rgb_image_paths = cur_seq_rgb_image_paths[::skip_factor]
             cur_seq_thermal_image_paths = cur_seq_thermal_image_paths[::skip_factor]
             cur_seq_lidar_image_paths = cur_seq_lidar_image_paths[::skip_factor]

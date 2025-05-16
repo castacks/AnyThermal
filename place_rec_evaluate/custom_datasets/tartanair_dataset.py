@@ -160,9 +160,3 @@ class TartanAirDataset(CustomDataset):
                 raise ValueError("Invalid modality. Please choose 'rgb' or 'depth'.")
 
         return img, index
-
-if __name__ == "__main__":
-    args = None
-    dataset = Thermal_day_night_MS2(args,split="train",use_mixVPR=False)
-    print(dataset[0][0].shape)
-    

@@ -328,7 +328,7 @@ def main(largs: LocalArgs):
 
     # Load dataset
     if ds_name=="thermal_day_night":
-        vpr_ds = Thermal_day_night_MS2(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality,datasets_folder=ds_dir)
+        vpr_ds = Thermal_day_night_MS2(seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality,datasets_folder=ds_dir)
     elif ds_name=="cart":
         vpr_ds = CartDataloader(largs.bd_args,seq=largs.prog.ms2_seq,db_modality=largs.db_modality,q_modality=largs.q_modality)
     elif ds_name=="tartanair":

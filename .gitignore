@@ -9,3 +9,5 @@ pretraining/checkpoints_old
 pretraining/wandb
 **/.vscode/**
 **/__pycache__/**
+place_rec_evaluate/qualitative_outputs/**
+place_rec_evaluate/.checkpoints
