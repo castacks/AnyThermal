@@ -67,16 +67,17 @@ def get_model_from_string(name: str):
         elements = name.split('_')
         if len(elements) == 2:
             from .dinov2_model import DINOv2FeatureExtractor
-            return DINOv2FeatureExtractor(model_type=name)
+            return DINOv2FeatureExtractor(model_type=name,use_intermediate_layers=False)
         elif elements[-1] == 'variable':
             from .dinov2_model import DINOv2FeatureExtractor_Variable
             model_name = '_'.join(elements[:-1])
-            return DINOv2FeatureExtractor_Variable(model_type=model_name)
+            return DINOv2FeatureExtractor_Variable(model_type=model_name,use_intermediate_layers=False)
         else:
             raise ValueError(f"Unsupported DINOv2 model name: {name}")
     
     elif name.startswith('mmdistill_dinov2'):
         modality = name.split('_')[-1]
+        model_type = '_'.join(name.split('_')[3:5])
         if modality not in ['rgb', 'thermal']:
             raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
         if modality == 'rgb':
@@ -86,12 +87,12 @@ def get_model_from_string(name: str):
             
             if image_input_mode == 'fixed':
                 from .mmdistill_dinov2_model import FixedRGBDistillDINOv2FeatureExtractor
-                return FixedRGBDistillDINOv2FeatureExtractor()
+                return FixedRGBDistillDINOv2FeatureExtractor(model_type=model_type,use_intermediate_layers=False)
             elif image_input_mode == 'variable':
                 # This is a placeholder for the variable input mode
                 # You can implement the corresponding class as needed
                 from .mmdistill_dinov2_model import VariableRGBDistillDINOv2FeatureExtractor
-                return VariableRGBDistillDINOv2FeatureExtractor()
+                return VariableRGBDistillDINOv2FeatureExtractor(model_type=model_type,use_intermediate_layers=False)
         elif modality == 'thermal':
             image_input_mode = name.split('_')[2]
             if image_input_mode not in ['fixed', 'variable']:
@@ -99,16 +100,29 @@ def get_model_from_string(name: str):
             
             if image_input_mode == 'fixed':
                 from .mmdistill_dinov2_model import FixedThermalDistillDINOv2FeatureExtractor
-                return FixedThermalDistillDINOv2FeatureExtractor()
+                return FixedThermalDistillDINOv2FeatureExtractor(model_type=model_type,use_intermediate_layers=False)
             elif image_input_mode == 'variable':
                 # This is a placeholder for the variable input mode
                 # You can implement the corresponding class as needed
                 from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
-                return VariableThermalDistillDINOv2FeatureExtractor()
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type=model_type,use_intermediate_layers=False)
 
     elif name == "salad":
         from .dinov2salad_model import DinoV2SALADFeatureExtractor
         return DinoV2SALADFeatureExtractor()
-    
+    elif name.startswith("salad_mmdistill_dinov2"):
+        modality = name.split('_')[-1]
+        if modality not in ['rgb', 'thermal']:
+            raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+        if modality == 'rgb':
+            print(f"Using RGBMMDistillDinoV2SALADFeatureExtractor model for {name}")
+            from .dinov2salad_model import RGBMMDistillDinoV2SALADFeatureExtractor
+            return RGBMMDistillDinoV2SALADFeatureExtractor()
+        elif modality == 'thermal':
+            print(f"Using ThermalMMDistillDinoV2SALADFeatureExtractor model for {name}")
+            from .dinov2salad_model import ThermalMMDistillDinoV2SALADFeatureExtractor
+            return ThermalMMDistillDinoV2SALADFeatureExtractor()
+        else:
+            raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
     else:
         raise ValueError(f"Model name '{name}' not recognized.")

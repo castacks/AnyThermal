@@ -1,12 +1,12 @@
-spretraining/checkpoints
-pretraining/checkpoints_ce
-pretraining/checkpoints_ce_old
-pretraining/checkpoints_mse
-pretraining/checkpoints_old
+pretraining/checkpoints/**
+pretraining/checkpoints_ce/**
+pretraining/checkpoints_ce_old/**
+pretraining/checkpoints_mse/**
+pretraining/checkpoints_old/**
 
 **/multiloc_cache/**
 **/wandb/**
-pretraining/wandb
+pretraining/wandb/**
 **/.vscode/**
 **/__pycache__/**
 place_rec_evaluate/qualitative_outputs/**

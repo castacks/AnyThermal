@@ -17,6 +17,7 @@ class BaseFeatureExtractor(ABC):
         self.device = device
         self.model = self.build_model().to(self.device)
         self.model.eval()
+        self.own_recall_method = False
     
     @abstractmethod
     def build_model(self):

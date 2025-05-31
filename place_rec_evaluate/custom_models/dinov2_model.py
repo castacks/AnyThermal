@@ -34,7 +34,7 @@ class DINOv2FeatureExtractor(BaseFeatureExtractor):
                 desc = features[:, 1:]  # all patch tokens
                 desc = desc.mean(dim=1)  # mean pooling
         else:
-            features = self.model(inputs)
+            desc = self.model(inputs)
         return desc
 
 class DINOv2FeatureExtractor_Variable(DINOv2FeatureExtractor):

@@ -8,13 +8,17 @@ from tqdm import tqdm
 from PIL import Image
 from dataclasses import dataclass, field
 from typing import List, Literal
+import sys 
+sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
 
 from torch.utils.data import DataLoader
 import faiss
 import faiss.contrib.torch_utils
 from custom_models.str_to_cls import get_model_from_string
 from custom_models.utils import *
-from custom_datasets.thermal_dataloader import Thermal_day_night_MS2
+from custom_datasets.ms2_dataset import MS2
+from custom_datasets.cart_dataset import CART
+
 import csv
 import datetime
 import random
@@ -23,8 +27,8 @@ from torchvision import transforms as T
 @dataclass
 class BenchmarkArgs:
     model_names: List[str] = field(default_factory=lambda: ["alexnet", "resnet18", "resnet50"])
-    dataset_name: Literal["thermal_day_night"] = "thermal_day_night"
-    dataset_root: str = "datasets/"
+    dataset_name: Literal["ms2","cart"] = "ms2"
+    # dataset_root: str = "datasets/"
     top_k_vals: List[int] = field(default_factory=lambda: [1, 5, 10])
     batch_size: int = 1
     save_qual: bool = True
@@ -99,7 +103,7 @@ def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu,top_k_indices, save
 
         if log_to_wandb:
             wandb.log({f"Qualitative/query_{i}": wandb.Image(path)})
-def evaluate_retrieval_faiss(query_feats, db_feats, pos_per_query, top_k_vals, use_gpu=True,exclude_exact_query_in_db=True):
+def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_feats, pos_per_query, top_k_vals, use_gpu=True,exclude_exact_query_in_db=True):
     recalls = {k: 0 for k in top_k_vals}
     d = db_feats.shape[1]
 
@@ -120,6 +124,8 @@ def evaluate_retrieval_faiss(query_feats, db_feats, pos_per_query, top_k_vals, u
     _, indices = index.search(query_feats.numpy(), max(top_k_vals))
 
     for i, retrieved in enumerate(indices):
+        if no_positive_matches_for_queries[i]:
+            continue
         gt = pos_per_query[i]
         for k in top_k_vals:
             if exclude_exact_query_in_db:
@@ -131,17 +137,17 @@ def evaluate_retrieval_faiss(query_feats, db_feats, pos_per_query, top_k_vals, u
                 if any(idx in gt for idx in retrieved[:k]):
                     recalls[k] += 1
 
-    total = len(pos_per_query)
+    total = np.sum(~no_positive_matches_for_queries)
     return {f"R@{k}": recalls[k] / total for k in top_k_vals}, indices
 
-def vpr(db_model,qu_model,args,seq,save_dir,model_name, db_dataset,db_feats, qu_dataset,qu_feats, pos_per_query, top_k_vals, use_gpu=True):
+def vpr(db_model,qu_model,args,seq,save_dir,model_name, no_positive_matches_for_queries,db_dataset,db_feats, qu_dataset,qu_feats, pos_per_query, top_k_vals, use_gpu=True):
     # import pdb; pdb.set_trace()
     if db_model.own_recall_method == False:
-        recalls, top_k_indices = evaluate_retrieval_faiss(
+        recalls, top_k_indices = evaluate_retrieval_faiss(no_positive_matches_for_queries,
             qu_feats, db_feats, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     else:
         # assumes db_model == qu_model
-        recalls, top_k_indices = db_model.evaluate_retrieval(db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
+        recalls, top_k_indices = db_model.evaluate_retrieval(no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     print(f"📊 Recalls:")
     for k, v in recalls.items():
         print(f"  - R@{k}: {v:.4f}")
@@ -195,7 +201,12 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        if model_name in["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable"]:
+        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2"]
+        method_is_rgbt_method_flag = False 
+        for method in rgb_t_methods:
+            if method not in model_name:
+                continue
+            method_is_rgbt_method_flag = True
             if args.db_q_mode == "RGB_THERMAL":
                 db_model = get_model_from_string(f"{model_name}_rgb")
                 qu_model = get_model_from_string(f"{model_name}_thermal")
@@ -204,7 +215,9 @@ def run(args: BenchmarkArgs):
                 qu_model = get_model_from_string(f"{model_name}_rgb")
             else:
                 raise ValueError(f"Mode {args.db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
-        else:
+            break
+        if not method_is_rgbt_method_flag:
+            print(f"initializing model {model_name}")
             db_model = get_model_from_string(model_name)
             qu_model = db_model
 
@@ -215,15 +228,30 @@ def run(args: BenchmarkArgs):
         all_db_feats = []
         all_qu_feats = []
         all_pos_per_qu = []
+        all_no_positive_matches_for_queries = []
 
         for seq in seqs:
-            if args.dataset_name == "thermal_day_night":
-                dataset = Thermal_day_night_MS2(
-                    seq=seq,
-                    db_modality="rgb",
-                    q_modality="thr",
-                    datasets_folder=args.dataset_root
+            if args.db_q_mode == "RGB_THERMAL":
+                db_modality = "rgb"
+                q_modality = "thr"
+            elif args.db_q_mode == "THERMAL_RGB":
+                db_modality = "thr"
+                q_modality = "rgb"
+
+            if args.dataset_name == "ms2":
+                dataset_root = "/ocean/projects/cis220039p/shared/datasets/ms2_full"
+                dataset = MS2(
+                    seq=[seq],
+                    db_modality=db_modality,
+                    q_modality=q_modality,
+                    datasets_folder=dataset_root,
+                    vpr_test=True
                 )
+            elif args.dataset_name == "cart":
+                data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
+                frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
+                dataset = CART(root_frame_dir=frame_list_root,db_modality=db_modality,q_modality=q_modality,datasets_folder=data_root,vpr_test=True,seq=[seq])
+
             else:
                 raise ValueError(f"Dataset {args.dataset_name} not supported")
 
@@ -231,14 +259,18 @@ def run(args: BenchmarkArgs):
             qu_dataset = torch.utils.data.Subset(dataset, range(dataset.database_num, len(dataset)))
             pos_per_qu = dataset.soft_positives_per_query
 
+            no_positive_matches_for_queries = np.zeros_like(pos_per_qu, dtype=bool)
+
             for i in range(len(pos_per_qu)):
                 if len(pos_per_qu[i]) == 1 and args.exclude_exact_query_in_db:
                     print(f"⚠️ Warning: Query {i} has only one positive match. This may affect recall calculations since we will ignore exact match")
+                    no_positive_matches_for_queries[i] = True
             all_db_dataset.append(db_dataset)
             all_qu_dataset.append(qu_dataset)
             all_db_feats.append(extract_all_features(db_model, db_dataset, batch_size=args.batch_size))
             all_qu_feats.append(extract_all_features(qu_model, qu_dataset, batch_size=args.batch_size))
             all_pos_per_qu.append(pos_per_qu)
+            all_no_positive_matches_for_queries.append(no_positive_matches_for_queries)
         
         if len(seqs) >1 and (args.combine_all_seq_also or args.combine_all_seq_only):
             
@@ -247,12 +279,17 @@ def run(args: BenchmarkArgs):
             combined_db_feats = torch.cat(all_db_feats, dim=0)
             combined_qu_feats = torch.cat(all_qu_feats, dim=0)
             combined_pos_per_qu = np.concatenate(all_pos_per_qu, axis=0)
+            combined_no_positive_matches_for_queries = np.concatenate(all_no_positive_matches_for_queries, axis=0)
             seq_name = "combined_seq"
             if seq_name not in recall_dict:
                 recall_dict[seq_name] = {}
-            recalls, top_k_indices = vpr(db_model,qu_model,
-                args,seq_name,save_dir,model_name, combined_db_dataset, combined_db_feats,combined_qu_dataset,combined_qu_feats, combined_pos_per_qu, args.top_k_vals, use_gpu=args.use_faiss_gpu)
-
+            recalls, top_k_indices = vpr(db_model =db_model,qu_model =qu_model,
+                                        args =args,seq=seq_name,save_dir=save_dir,model_name=model_name,
+                                        no_positive_matches_for_queries=combined_no_positive_matches_for_queries,
+                                        db_dataset=combined_db_dataset, db_feats=combined_db_feats,
+                                        qu_dataset=combined_qu_dataset ,qu_feats=combined_qu_feats,
+                                        pos_per_query=combined_pos_per_qu, top_k_vals=args.top_k_vals,
+                                        use_gpu=args.use_faiss_gpu)
             recall_dict[seq_name][model_name] = []
 
             for k, v in recalls.items():
@@ -265,11 +302,17 @@ def run(args: BenchmarkArgs):
                     recall_dict[seq_name] = {}
                     recall_dict[seq_name]['q/db'] = f'{len(all_qu_dataset[seq_idx])}/{len(all_db_dataset[seq_idx])}'
                 
-                recalls, top_k_indices = vpr(db_model,qu_model,
-                    args,seq_name,save_dir,model_name,all_db_dataset[seq_idx], all_db_feats[seq_idx],all_qu_dataset[seq_idx] ,all_qu_feats[seq_idx], all_pos_per_qu[seq_idx], args.top_k_vals, use_gpu=args.use_faiss_gpu)
+                recalls, top_k_indices = vpr(db_model =db_model,qu_model =qu_model,
+                                                args=args,seq=seq_name,save_dir=save_dir,model_name=model_name,
+                                                no_positive_matches_for_queries=all_no_positive_matches_for_queries[seq_idx],
+                                                db_dataset=all_db_dataset[seq_idx], db_feats=all_db_feats[seq_idx],
+                                                qu_dataset=all_qu_dataset[seq_idx] ,qu_feats=all_qu_feats[seq_idx], 
+                                                pos_per_query=all_pos_per_qu[seq_idx], top_k_vals=args.top_k_vals, 
+                                                use_gpu=args.use_faiss_gpu)
                 recall_dict[seq_name][model_name] =[]
                 for k, v in recalls.items():
                     recall_dict[seq_name][model_name].append(round(v,4))
+        del db_model, qu_model
     for k1 in recall_dict.keys():
         for k2 in recall_dict[k1].keys():
             if k2 == 'q/db':

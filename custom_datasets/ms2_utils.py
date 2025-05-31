@@ -97,6 +97,7 @@ def process_one_image(imageL, type):
     else:
         imageL_out= imageL / 255
     
+
     # print(imageL_out.shape)
     # imageL_final = imageL_out#.astype(np.uint8)
     imageL_final = enhance_image(imageL_out.astype(np.uint8))

@@ -13,7 +13,13 @@ class FixedThermalDistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
     """
     def build_model(self):
         model = torch.hub.load("facebookresearch/dinov2", self.model_type)
-        state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dinov2_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth", map_location=self.device)["model_state_dict"]
+        if self.model_type == "dinov2_vitb14":
+            # model.head = nn.Identity()
+            state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-05-17_15-50-49/model9.pth", map_location=self.device)["student_model_state_dict"]
+        elif self.model_type == "dinov2_vits14":
+            state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints_ce/dinov2_ms2_checkpoints_thermal_global_bigger_denser_no_night/thermal4.pth", map_location=self.device)["model_state_dict"]
+        else:
+            raise ValueError(f"Model type - {self.model_type} not supported")
         model.load_state_dict(state_dict)
         model.eval()
         return model

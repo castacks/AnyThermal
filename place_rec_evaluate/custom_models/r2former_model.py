@@ -123,9 +123,11 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
         size = self.args.resize
         return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio, size=size)
 
-    def recall(self,pos_per_query, predictions, top_k_vals, exclude_exact_query_in_db=False):
+    def recall(self,no_positive_matches_for_queries,pos_per_query, predictions, top_k_vals, exclude_exact_query_in_db=False):
         recalls = {k: 0 for k in top_k_vals}
         for i, retrieved in enumerate(predictions):
+            if no_positive_matches_for_queries[i]:
+                continue
             gt = pos_per_query[i]
             for k in top_k_vals:
                 if exclude_exact_query_in_db:
@@ -136,10 +138,10 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
                 else:
                     if any(idx in gt for idx in retrieved[:k]):
                         recalls[k] += 1
-        total = len(pos_per_query)
+        total = np.sum(~no_positive_matches_for_queries)
         global_recalls = {k: v / total for k, v in recalls.items()}
         return global_recalls
-    def evaluate_retrieval(self,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=False,exclude_exact_query_in_db=False):
+    def evaluate_retrieval(self,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=False,exclude_exact_query_in_db=False):
         num_local=self.args.num_local
         rerank_dim = self.args.local_dim + 3
         rerank_top = 100
@@ -176,7 +178,7 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
         faiss_index.add(database_features)
         distances, predictions = faiss_index.search(queries_features, rerank_top)  # max(args.recall_values)
 
-        global_recalls = self.recall(pos_per_query, predictions, top_k_vals, exclude_exact_query_in_db)
+        global_recalls = self.recall(no_positive_matches_for_queries,pos_per_query, predictions, top_k_vals, exclude_exact_query_in_db)
         global_indices = deepcopy(predictions)
         # import pdb; pdb.set_trace()
         Reranker = self.model.Reranker
@@ -216,5 +218,5 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
                     rerank_order = torch.argsort(-rerank_score[id]).cpu().numpy()
                     new_rank[query_index + id, :rerank_top] = ranks[query_index + id, :rerank_top][rerank_order]
                 rerank_time += (time.time() - time_s)
-        new_rerank_recalls = self.recall(pos_per_query, new_rank, top_k_vals, exclude_exact_query_in_db)
+        new_rerank_recalls = self.recall(no_positive_matches_for_queries,pos_per_query, new_rank, top_k_vals, exclude_exact_query_in_db)
         return new_rerank_recalls, new_rank

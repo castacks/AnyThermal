@@ -6,12 +6,12 @@ from .utils import default_preprocess_tensor
 # Add MixVPR repo to path
 sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition")
 sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/MixVPR")
-from MixVPR.main import VPRModel
+from MixVPR.main import VPRModel as MixVPRModel
 
 class MixVPRFeatureExtractor(BaseFeatureExtractor):
     def build_model(self):
         # Load backbone (ResNet50) and MixVPR head
-        model = VPRModel(backbone_arch='resnet50', 
+        model = MixVPRModel(backbone_arch='resnet50', 
                  layers_to_crop=[4],
                  agg_arch='MixVPR',
                  agg_config={'in_channels' : 1024,

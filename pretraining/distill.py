@@ -10,41 +10,74 @@ import os
 import argparse
 import wandb
 from tqdm import tqdm
+import sys
+sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
+from contextlib import nullcontext
+from itertools import chain
 
-from datasets.custom_dataset_loader import Custom_MS2Dataset
-from datasets.wisard_dataset import Wisard_Dataset
-from datasets.cart_dataset import CART_dataset
-from datasets.tartanair_dataset import *
+from custom_datasets.ms2_dataset import *
+from custom_datasets.cart_dataset import *
+# from datasets.wisard_dataset import Wisard_Dataset
+# from datasets.cart_dataset import CART_dataset
+# from datasets.tartanair_dataset import *
 import gc
 from utilities import DinoV2ExtractFeatures
+from torchvision.utils import save_image
 
+def save_viz_debug_images(images_dict, index, epoch, batch_num, split, save_root):
+    """
+    Save RGB and thermal images to disk for visualization/debugging.
+    """
+    for modality, tensor in images_dict.items():
+        # Shape: (B, C, H, W)
+        save_dir = os.path.join(save_root, f"epoch_{epoch:03d}", f"iter_{batch_num:04d}", split, modality)
+        os.makedirs(save_dir, exist_ok=True)
+        for i in range(tensor.shape[0]):
+            filename = f"{index[i] if index is not None else i}.png"
+            path = os.path.join(save_dir, filename)
+            save_image(tensor[i], path)
 
 def init_model(model_name):
     if model_name == "dinov2_vits14":
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
+        patch_size = 14
+    elif model_name == "dinov2_vitb14":
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').cuda()
+        patch_size = 14
     elif model_name == "dinov2_vitb16":
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb16').cuda()
+        patch_size = 16
     else:
         raise ValueError("Invalid model name")
-    return model
+    return model, patch_size
 
+def transform_images(images,patch_size=14):
+    # Resize the images to the required input size
+    width = images.shape[-2]
+    height = images.shape[-1]
+    new_width = (width // patch_size) * patch_size
+    new_height = (height // patch_size) * patch_size
+    images = F.interpolate(images, size=(new_width, new_height), mode='bilinear', align_corners=False)
+    return images
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
-parser.add_argument('--dataset_path', default='/storage2/datasets/ms2_full/', type=str, help='Path to the ImageNet dataset')
+# parser.add_argument('--dataset_path', default='', type=str, help='Path to the ImageNet dataset')
 parser.add_argument('--dataset', default='ms2', type=str, help='dataset name')
 parser.add_argument('--teacher_modality', default='rgb', type=str, help='modality which will be frozen unless "unfreeze teacher" is true')
-parser.add_argument('--student_modality', default='thermal', type=str, help='modality for which encoder has to be trained')
+parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained')
 parser.add_argument('--unfreeze_teacher',action="store_true", help='modality for which encoder has to be trained')
 parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
 parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
-parser.add_argument('--save_path', default='./checkpoints_ce/dinov2_ms2_checkpoints_thermal_global_bigger_denser_no_night', type=str, help='Path to save the checkpoints')
+parser.add_argument('--save_path', default='./checkpoints', type=str, help='Path to save the checkpoints')
 parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
 parser.add_argument('--model_name', default='dinov2_vits14', type=str, help='Name of the encoder model')
+parser.add_argument('--viz_debug', action='store_true', help='Save train and val images for debugging')
+
 args = parser.parse_args()
 print(args)
 
@@ -55,8 +88,10 @@ if args.wandb_use:
 
 # Load models
 
-teacher_model = init_model(args.model_name).cuda()
-student_model = init_model(args.model_name).cuda()
+teacher_model,teacher_patch_size = init_model(args.model_name)
+student_model,student_patch_size = init_model(args.model_name)
+teacher_model = teacher_model.cuda()
+student_model = student_model.cuda()
 
 if args.unfreeze_teacher:
     teacher_model.train()
@@ -74,10 +109,14 @@ temperature = 1
 embedding_dim = 384
 
 if args.unfreeze_teacher:
-    optimizer = optim.SGD(student_model.blocks[:].parameters() + teacher_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = optim.SGD(
+        chain(student_model.blocks[:].parameters(), teacher_model.blocks[:].parameters()),
+        lr=args.learning_rate,
+            weight_decay=args.weight_decay
+    )
 else:
     optimizer = optim.SGD(student_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.3)
 
 def loss_fn_mse(outputs, targets):
     return F.mse_loss(outputs, targets)
@@ -108,25 +147,68 @@ def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
     
     return loss
 
+def cosine_loss(student_embed, teacher_embed):
+    # with torch.no_grad():
+    student_embed = F.normalize(student_embed, dim=-1)
+    teacher_embed = F.normalize(teacher_embed, dim=-1)
+    cos_sim = F.cosine_similarity(student_embed, teacher_embed, dim=-1)  # shape: [B]
+    loss = 1 - cos_sim  # shape: [B]
+    return loss.mean()
+
+def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,test=False):
+    with (torch.inference_mode() if test else nullcontext()):
+        img_teacher = transform_images(images[teacher_modality],teacher_patch_size).to('cuda')
+        img_student = transform_images(images[student_modality],student_patch_size).to('cuda')
+
+        if args.unfreeze_teacher:
+            teacher_output = teacher_model(img_teacher)
+        else:
+            with torch.inference_mode():
+                teacher_output = teacher_model(img_teacher).detach()
+        
+        student_output = student_model(img_student)
+        if args.loss_type == "mse":
+            loss = loss_fn_mse(student_output, teacher_output)
+        elif args.loss_type == "ce":
+            contrastive_loss_output = contrastive_loss(teacher_output, student_output)
+            cosine_loss_output = cosine_loss(student_output, teacher_output)
+            loss = contrastive_loss_output + cosine_loss_output
+            contrastive_item = contrastive_loss_output.item()
+            cosine_loss_item = cosine_loss_output.item()
+        else:   
+            raise ValueError("Invalid loss type. Please choose 'mse' or 'ce'.")
+        if not test:
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        del img_teacher, img_student, teacher_output, student_output, loss, contrastive_loss_output, cosine_loss_output
+
+        return contrastive_item,cosine_loss_item
+
 def train():
     # Load the dataset
     teacher_modality = args.teacher_modality
     student_modality = args.student_modality
     if args.dataset == "ms2":
         print("Using MS2 dataset")
-        modality_map = {
-            "rgb": "rgb1",
-            "thermal": "thermal1"
-        }
-        teacher_modality = modality_map[teacher_modality]
-        student_modality = modality_map[student_modality]
-        dataset = Custom_MS2Dataset(args.dataset_path)
+        train_seq_list = return_ms2_split("train")
+        val_seq_list = return_ms2_split("val")
+        data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
+        train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=train_seq_list)
+        val_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=val_seq_list)
     elif args.dataset == "wisard":
         print("Using Wisard dataset")
         dataset = Wisard_Dataset(args.dataset_path)
     elif args.dataset == "cart":
         print("Using CART dataset")
-        dataset = CART_dataset(args.dataset_path)
+        train_seq_list = return_cart_split("train")
+        val_seq_list = return_cart_split("val")
+        data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
+        frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
+        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=train_seq_list)
+        val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=val_seq_list)
+
     elif args.dataset == "tartanair":
         print("Using TartanAir dataset")
         modality_map = {
@@ -143,19 +225,23 @@ def train():
     else:
         raise ValueError("Invalid dataset name. Please choose 'ms2', 'wisard', 'cart' or 'tartanair'.")
 
-    train_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.num_workers,persistent_workers=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.num_workers,persistent_workers=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
 
     
     
     # Load the checkpoint if resuming training
     start_epoch = args.resume_epoch_num
     if args.resume:
+        save_path = args.save_path
         checkpoint = torch.load(os.path.join(args.save_path, "model" +str(start_epoch) + '.pth'))
         if args.unfreeze_teacher:
             teacher_model.load_state_dict(checkpoint['teacher_model_state_dict'])
         student_model.load_state_dict(checkpoint['student_model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
+        for e in range(start_epoch):
+            scheduler.step()
         print("Resuming training from epoch {}".format(start_epoch))
     else:
         save_path = args.save_path
@@ -169,129 +255,60 @@ def train():
         import yaml
         with open(os.path.join(save_path,'args.yaml'), 'w') as f:
             yaml.dump(vars(args), f)
-    
+    viz_debug_dir = os.path.join(save_path, "viz_debug") if args.viz_debug else None
+
 
     # Train the model
     for epoch in range(start_epoch, args.epochs):
         start_time = time.time()
-        running_loss = 0.0
-        running_timing ={}
-        for k in ['data_cuda_transfer', 'forward_pass', 'loss', 'optimizer', "dataloader_extra","dataloader_total","batch_time"]:
-            running_timing[k] = 0.0
         num_batches = len(train_dataloader)
+        train_iterator = iter(train_dataloader)
+        val_iterator = iter(val_dataloader)
 
-        # last_time_total = time.time()
-        # last_time = time.time()
-
-        iterator = iter(train_dataloader)
-
-        torch.cuda.synchronize()
-        # last_time_total = time.time()
-
+        reset_training_loss = True
         for i in tqdm(range(len(train_dataloader))):
-            torch.cuda.synchronize()
-            start_time = time.time()
-
-            # Fetch batch
-            images = next(iterator)
-
-            fetch_done_time = time.time()
-
-            dataloader_fetch_time = fetch_done_time - start_time
-            running_timing['dataloader_extra'] = running_timing['dataloader_extra'] + dataloader_fetch_time
-            # running_timing['dataloader_total'] = running_timing['dataloader_total'] + dataloader_total_time
-            # last_time_total = time.time()
-            # if i!=0:
-                # st = time.time()
-                # del teacher_images, student_images, teacher_output, student_output, loss
-                
-                # print("Garbage collection time: ", time.time() - st)
-
-            st = time.time()
-            
-            teacher_images = images[teacher_modality].cuda()
-            student_images = images[student_modality].cuda()
-            et = time.time()
-            running_timing['data_cuda_transfer'] = running_timing['data_cuda_transfer'] + et - st
-            # Forward pass
-            torch.cuda.synchronize()
-
-            st = time.time()
-            if args.unfreeze_teacher:
-                teacher_output = teacher_model(teacher_images)
-            else:
-                with torch.inference_mode():
-                    teacher_output = teacher_model(teacher_images)
-            torch.cuda.synchronize()
-
-            teacher_time = time.time() - st
-            torch.cuda.synchronize()
-
-            st = time.time()
-            student_output = student_model(student_images)
-            torch.cuda.synchronize()
-
-            student_time = time.time() - st
-            
-            running_timing['forward_pass'] = running_timing['forward_pass'] + teacher_time + student_time
-            
-            # print("Forward pass time: ", teacher_time + student_time)
-            # Compute loss
-            torch.cuda.synchronize()
-
-            st = time.time()
-            if args.loss_type == "mse":
-                loss = loss_fn_mse(student_output, teacher_output)
-            elif args.loss_type == "ce":
-                loss = contrastive_loss(teacher_output, student_output)
-            torch.cuda.synchronize()
-
-            end = time.time()
-            running_timing['loss'] = running_timing['loss'] + end - st
-            # print("Loss time: ", time.time() - st)
-            # Backpropagation
-            torch.cuda.synchronize()
-
-            st = time.time()
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            torch.cuda.synchronize()
-
-            optimizer_time = time.time() - st
-            running_timing['optimizer'] = running_timing['optimizer'] + optimizer_time
-
-            # print("Optimizer time: ", optimizer_time)
-
-
-            # if args.wandb_use:
-                # st = time.time()
-            #     wandb.log({"loss": loss.item()})
-            #     wandb_time = time.time() - st
-            #     print("Wandb time: ", wandb_time)
-            running_loss += loss.item()
-
-               
-            
-            # st_end = time.time()
-            # print("Batch time: ", st_end - st_all)
-            batch_time = time.time() - start_time
-            running_timing['batch_time'] = running_timing['batch_time'] + batch_time
+            if reset_training_loss:
+                train_running_contrastive_loss = 0.0
+                train_running_cosine_loss = 0.0
+                reset_training_loss = False
+            images,index = next(train_iterator)
+            print("images shape: ", images[teacher_modality].shape, images[student_modality].shape)
+            print("images.dtype: ", images[teacher_modality].dtype, images[student_modality].dtype)
+            if args.viz_debug:
+                save_viz_debug_images(images, index, epoch, i, "train", viz_debug_dir)
+            train_contrastive_loss, train_cosine_loss = inference(args,teacher_model,student_model, teacher_modality,student_modality,images)
+            train_running_contrastive_loss += train_contrastive_loss
+            train_running_cosine_loss += train_cosine_loss
+            torch.cuda.empty_cache()
             if i % 10 == 9:
-                running_loss /= 10
-                for k in running_timing.keys():
-                    running_timing[k] = running_timing[k] / 10
-                print('[Epoch: %d, Batch: %d/%d] loss: %.3f\n' % (epoch + 1, i + 1,num_batches, running_loss))
+                train_running_contrastive_loss = train_running_contrastive_loss / 10
+                train_running_cosine_loss = train_running_cosine_loss / 10
+                try:
+                    val_images, val_index = next(val_iterator)
+                    if args.viz_debug:
+                        save_viz_debug_images(val_images, val_index, epoch, i, "val", viz_debug_dir)
+
+                    val_contrastive_loss, val_cosine_loss = inference(args,teacher_model,student_model, teacher_modality,student_modality,val_images,test=True)
+                except StopIteration:
+                    val_iterator = iter(val_dataloader)
+                    val_images, val_index = next(val_iterator)
+                    if args.viz_debug:
+                        save_viz_debug_images(val_images, val_index, epoch, i, "val", viz_debug_dir)
+
+                    val_contrastive_loss, val_cosine_loss = inference(args,teacher_model,student_model, teacher_modality,student_modality,val_images,test=True)
+                print('[Epoch: %d, Batch: %d/%d] train loss: %.3f val loss: %.3f\n' % (epoch + 1, i + 1,num_batches, train_running_cosine_loss, val_cosine_loss))
+                
                 if args.wandb_use:
-                    wandb.log({"running_loss": running_loss})
-                    for k in running_timing.keys():
-                        wandb.log({"time/"+k: running_timing[k]})
-                running_loss = 0.0
-                for k in running_timing.keys():
-                    running_timing[k] = 0.0
-                gc.collect()
-            # last_time = time.time()
+                    wandb.log({"train_contrastive_loss": train_running_contrastive_loss,
+                                "train_cosine_loss": train_running_cosine_loss,
+                                "val_contrastive_loss": val_contrastive_loss,
+                                "val_cosine_loss": val_cosine_loss,
+                    })
+                reset_training_loss = True
+            gc.collect()
+            torch.cuda.empty_cache()
+        
+        del images, index, train_iterator, val_iterator
 
         scheduler.step()
 
@@ -301,11 +318,13 @@ def train():
             'student_model_state_dict': student_model.state_dict(),
             'teacher_model_state_dict': teacher_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss
+            "train_contrastive_loss": train_running_contrastive_loss,
+            "train_cosine_loss": train_running_cosine_loss,
+            "val_contrastive_loss": val_contrastive_loss,
+            "val_cosine_loss": val_cosine_loss
         }, os.path.join(save_path, "model" +str(epoch) + '.pth'))
 
         print("Epoch {} of {} took {:.3f}s\n".format(epoch+1, args.epochs, time.time() - start_time))
-        print("  training loss (in-iteration): \t{:.6f}\n".format(loss))
 
 if __name__ == "__main__":
     train()
