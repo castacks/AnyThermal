@@ -39,6 +39,9 @@ from sklearn.neighbors import NearestNeighbors
 from torch.utils.data import Dataset
 from abc import ABC, abstractmethod
 
+from typing import Tuple
+from torchvision.transforms import functional as F
+import random
 # from utilities import CustomDataset
 def path_to_pil_img(path):
     return Image.open(path).convert("RGB")
@@ -54,7 +57,8 @@ class BaseDataset(Dataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,dist_thresh = 25,vpr_test=False,seq=[]):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,dist_thresh = 25):
+        self.augment = augment
         super().__init__()
         self.vpr_test = vpr_test
         self.datasets_folder = datasets_folder
@@ -86,7 +90,8 @@ class BaseDataset(Dataset):
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
         self.read_fn=self.generate_read_fn()
-    
+        self.semantic_classes= -1
+
     @abstractmethod
     def generate_image_paths(self,db_abs_paths,q_abs_paths):
         """
@@ -125,6 +130,50 @@ class BaseDataset(Dataset):
         """
         pass
 
+    def augment(self,modality1,modality2,img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image, Image.Image]:
+       
+
+        if modality1 == "thr" and modality2 == "rgb":
+            rgb, thermal = img2, img1
+        elif modality1 == "rgb" and modality2 == "thr":
+            rgb, thermal = img1, img2
+        else:
+            return img1, img2  # No augmentation if modalities are not recognized
+        # ----- Random Parameters -----
+        brightness_factor = random.uniform(0.9, 1.1)
+        contrast_factor = random.uniform(0.9, 1.1)
+        saturation_factor = random.uniform(0.9, 1.1)
+        hue_factor = random.uniform(-0.05, 0.05)
+        do_flip = random.random() > 0.5
+
+        # ----- Center Crop and Resize (300x450) -----
+        i, j, h, w = T.RandomResizedCrop.get_params(rgb, scale=(0.8, 1.0), ratio=(0.75, 1.33))
+        rgb = F.resized_crop(rgb, i, j, h, w, size=(300, 450),antialias=True)
+        thermal = F.resized_crop(thermal, i, j, h, w, size=(300, 450),antialias=True)
+
+        # ----- Horizontal Flip -----
+        if do_flip:
+            rgb = F.hflip(rgb)
+            thermal = F.hflip(thermal)
+
+        # ----- Brightness & Contrast (synchronized) -----
+        rgb = F.adjust_brightness(rgb, brightness_factor)
+        thermal = F.adjust_brightness(thermal, brightness_factor)
+
+        rgb = F.adjust_contrast(rgb, contrast_factor)
+        thermal = F.adjust_contrast(thermal, contrast_factor)
+
+        # ----- RGB-only: Saturation & Hue -----
+        rgb = F.adjust_saturation(rgb, saturation_factor)
+        rgb = F.adjust_hue(rgb, hue_factor)
+
+        if modality1 == "thr" and modality2 == "rgb":
+            return thermal, rgb
+        elif modality1 == "rgb" and modality2 == "thr":
+            return rgb, thermal
+        else:
+            raise ValueError("Unsupported modality combination. Supported combinations are: ('thr', 'rgb') or ('rgb', 'thr').")
+
     def __getitem__(self, index):
 
         if self.vpr_test:
@@ -138,7 +187,9 @@ class BaseDataset(Dataset):
         else:
             db_img = self.read_fn[self.db_modality](self.images_paths[index])
             q_img = self.read_fn[self.q_modality](self.images_paths[self.database_num+index])
-            
+            if self.augment:
+                # Apply augmentations if training mode and augmentations are enabled
+                db_img,q_img = self.augment(self.db_modality, self.q_modality, db_img, q_img)
             return {self.db_modality:db_img,self.q_modality:q_img}, index
 
 if __name__ == "__main__":

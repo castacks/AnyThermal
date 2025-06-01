@@ -46,8 +46,6 @@ class BenchmarkArgs:
     db_q_mode: Literal["RGB_THERMAL","THERMAL_RGB"] = "RGB_THERMAL"
     keep_aspect_ratio_during_preprocess: bool = False
 
-    #PARV_TODO add arguments for keep_Aspect_ratio, mode (RGB_THERMAL) or (THERMAL_RGB) - dataset,query
-
 def extract_all_features(model, dataset, batch_size=1):
     features = []
     if model.own_recall_method == False:
@@ -245,12 +243,14 @@ def run(args: BenchmarkArgs):
                     db_modality=db_modality,
                     q_modality=q_modality,
                     datasets_folder=dataset_root,
-                    vpr_test=True
+                    vpr_test=True,
+                    augment=False
                 )
             elif args.dataset_name == "cart":
                 data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
                 frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-                dataset = CART(root_frame_dir=frame_list_root,db_modality=db_modality,q_modality=q_modality,datasets_folder=data_root,vpr_test=True,seq=[seq])
+                dataset = CART(root_frame_dir=frame_list_root,db_modality=db_modality,q_modality=q_modality,datasets_folder=data_root,vpr_test=True,seq=[seq],
+                               augment=False)
 
             else:
                 raise ValueError(f"Dataset {args.dataset_name} not supported")

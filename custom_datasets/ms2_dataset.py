@@ -57,12 +57,12 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,dist_thresh = 25,vpr_test=False,seq=[]):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augument,vpr_test=False,dist_thresh = 25):
         self.subsample =10
         if vpr_test and len(seq) > 1:
             raise ValueError("Please provide a single sequence name since MS2 does not support combining odometry of multiple sequences for a VPR test. Input is a list")
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,seq=seq)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,seq=seq,augument = augument)
     def generate_read_fn(self):
         return {
             "rgb": self.read_rgb,

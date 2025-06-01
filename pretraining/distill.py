@@ -77,6 +77,7 @@ parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse 
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
 parser.add_argument('--model_name', default='dinov2_vits14', type=str, help='Name of the encoder model')
 parser.add_argument('--viz_debug', action='store_true', help='Save train and val images for debugging')
+parser.add_argument('--lr_scheduler', action='store_true', help='Save train and val images for debugging')
 
 args = parser.parse_args()
 print(args)
@@ -104,10 +105,6 @@ else:
 
 student_model.train()
 
-#PARV_TODO: Not being used
-temperature = 1
-embedding_dim = 384
-
 if args.unfreeze_teacher:
     optimizer = optim.SGD(
         chain(student_model.blocks[:].parameters(), teacher_model.blocks[:].parameters()),
@@ -116,15 +113,13 @@ if args.unfreeze_teacher:
     )
 else:
     optimizer = optim.SGD(student_model.blocks[:].parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.3)
+if args.lr_scheduler:
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.3)
 
 def loss_fn_mse(outputs, targets):
     return F.mse_loss(outputs, targets)
 
 def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
-
-    #PARV_TODO: Improve speed of this
-
     # Normalize embeddings
     teacher_embed = F.normalize(teacher_embed, dim=-1)
     student_embed = F.normalize(student_embed, dim=-1)
@@ -195,8 +190,8 @@ def train():
         train_seq_list = return_ms2_split("train")
         val_seq_list = return_ms2_split("val")
         data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
-        train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=train_seq_list)
-        val_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=val_seq_list)
+        train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=True)
+        val_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False) #no augmentation for val dataset
     elif args.dataset == "wisard":
         print("Using Wisard dataset")
         dataset = Wisard_Dataset(args.dataset_path)
@@ -206,8 +201,8 @@ def train():
         val_seq_list = return_cart_split("val")
         data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
         frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=train_seq_list)
-        val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,vpr_test=False,seq=val_seq_list)
+        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=True)
+        val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False) #no augmentation for val dataset
 
     elif args.dataset == "tartanair":
         print("Using TartanAir dataset")
@@ -240,8 +235,9 @@ def train():
         student_model.load_state_dict(checkpoint['student_model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
-        for e in range(start_epoch):
-            scheduler.step()
+        if args.lr_scheduler:
+            for e in range(start_epoch):
+                scheduler.step()
         print("Resuming training from epoch {}".format(start_epoch))
     else:
         save_path = args.save_path
@@ -272,8 +268,6 @@ def train():
                 train_running_cosine_loss = 0.0
                 reset_training_loss = False
             images,index = next(train_iterator)
-            print("images shape: ", images[teacher_modality].shape, images[student_modality].shape)
-            print("images.dtype: ", images[teacher_modality].dtype, images[student_modality].dtype)
             if args.viz_debug:
                 save_viz_debug_images(images, index, epoch, i, "train", viz_debug_dir)
             train_contrastive_loss, train_cosine_loss = inference(args,teacher_model,student_model, teacher_modality,student_modality,images)
@@ -309,8 +303,8 @@ def train():
             torch.cuda.empty_cache()
         
         del images, index, train_iterator, val_iterator
-
-        scheduler.step()
+        if args.lr_scheduler:
+            scheduler.step()
 
         # Save the model
         torch.save({

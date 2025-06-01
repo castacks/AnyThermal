@@ -119,7 +119,6 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
         return model
 
     def preprocess(self, images, keep_ratio=False,resize=True):
-        #PARV_TODO fill this 
         size = self.args.resize
         return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio, size=size)
 

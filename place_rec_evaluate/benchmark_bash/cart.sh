@@ -17,4 +17,4 @@ python3 benchmark_vpr.py \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
     --exclude_exact_query_in_db \
-    --seq "2022-12-20-11-40-28 2022-05-08-11-30-40 2022-05-15-06-00-09 2022-07-26-10-39-11 2023-03-21-09-59-39"
+    --seq "2022-12-20-11-40-28 2022-05-15-06-00-09 2022-07-26-10-39-11 2023-03-21-09-59-39"
