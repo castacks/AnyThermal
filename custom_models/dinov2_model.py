@@ -5,10 +5,11 @@ from torchvision import transforms
 from PIL import Image
 
 class DINOv2FeatureExtractor(BaseFeatureExtractor):
-    def __init__(self, model_type="dinov2_vits14", use_cls=False, use_intermediate_layers = True,**kwargs):
+    def __init__(self, model_type="dinov2_vits14", use_cls=False, use_intermediate_layers = True,backbone_path="",**kwargs):
         self.model_type = model_type
         self.use_cls = use_cls  # CLS token or patch pooling
         self.use_intermediate_layers = use_intermediate_layers
+        self.backbone_path = backbone_path
         super().__init__(**kwargs)
 
     def build_model(self):

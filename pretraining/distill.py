@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as torch_func
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchvision import datasets, transforms
@@ -51,13 +51,16 @@ def init_model(model_name):
         raise ValueError("Invalid model name")
     return model, patch_size
 
-def transform_images(images,patch_size=14):
+def transform_images(modality,images,patch_size=14):
     # Resize the images to the required input size
+    if modality == "rgb":
+        #normalise the image using VIT mean 
+        images = transforms.functional.normalize(images, mean=[0.481, 0.457, 0.408], std=[0.269, 0.26, 0.275])
     width = images.shape[-2]
     height = images.shape[-1]
     new_width = (width // patch_size) * patch_size
     new_height = (height // patch_size) * patch_size
-    images = F.interpolate(images, size=(new_width, new_height), mode='bilinear', align_corners=False)
+    images = torch_func.interpolate(images, size=(new_width, new_height), mode='bilinear', align_corners=False)
     return images
 parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 # parser.add_argument('--dataset_path', default='', type=str, help='Path to the ImageNet dataset')
@@ -75,15 +78,20 @@ parser.add_argument('--resume', action='store_true', help='Resume training from 
 parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from')
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity')
 parser.add_argument('--wandb_use',default=False, type=bool, help='Use wandb for logging')
-parser.add_argument('--model_name', default='dinov2_vits14', type=str, help='Name of the encoder model')
+parser.add_argument('--model_name', default='dinov2_vitb14', type=str, help='Name of the encoder model')
 parser.add_argument('--viz_debug', action='store_true', help='Save train and val images for debugging')
 parser.add_argument('--lr_scheduler', action='store_true', help='Save train and val images for debugging')
+parser.add_argument('--augment', action='store_true', help='Add augmentation in training')
+parser.add_argument('--train_easy', action='store_true', help='Easy traing split in training')
+parser.add_argument('--wandb_name', default="",type=str, help='Name to append to wandb run')
 
 args = parser.parse_args()
 print(args)
 
 #Initialize wandb
 name = args.model_name + "_" + args.dataset + "_" + args.student_modality + "_distill"
+if args.wandb_name != "":
+    name += "_" + args.wandb_name
 if args.wandb_use:
     wandb.init(project="multiloc", name=name)
 
@@ -117,12 +125,12 @@ if args.lr_scheduler:
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.3)
 
 def loss_fn_mse(outputs, targets):
-    return F.mse_loss(outputs, targets)
+    return torch_func.mse_loss(outputs, targets)
 
 def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
     # Normalize embeddings
-    teacher_embed = F.normalize(teacher_embed, dim=-1)
-    student_embed = F.normalize(student_embed, dim=-1)
+    teacher_embed = torch_func.normalize(teacher_embed, dim=-1)
+    student_embed = torch_func.normalize(student_embed, dim=-1)
     
     # Compute cosine similarity between embeddings
     similarity = torch.matmul(teacher_embed, student_embed.T) / temperature
@@ -136,7 +144,7 @@ def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
     # Compute log probabilities
     logits = torch.cat([positive_pairs.unsqueeze(1), negative_pairs], dim=1)
     # Apply log-softmax to logits
-    log_probs = F.log_softmax(logits, dim=1)
+    log_probs = torch_func.log_softmax(logits, dim=1)
     # Negative log probability of the true pairs (positive pairs)
     loss = -log_probs[:, 0].mean()
     
@@ -144,16 +152,16 @@ def contrastive_loss(teacher_embed, student_embed, temperature=0.07):
 
 def cosine_loss(student_embed, teacher_embed):
     # with torch.no_grad():
-    student_embed = F.normalize(student_embed, dim=-1)
-    teacher_embed = F.normalize(teacher_embed, dim=-1)
-    cos_sim = F.cosine_similarity(student_embed, teacher_embed, dim=-1)  # shape: [B]
+    student_embed = torch_func.normalize(student_embed, dim=-1)
+    teacher_embed = torch_func.normalize(teacher_embed, dim=-1)
+    cos_sim = torch_func.cosine_similarity(student_embed, teacher_embed, dim=-1)  # shape: [B]
     loss = 1 - cos_sim  # shape: [B]
     return loss.mean()
 
 def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,test=False):
     with (torch.inference_mode() if test else nullcontext()):
-        img_teacher = transform_images(images[teacher_modality],teacher_patch_size).to('cuda')
-        img_student = transform_images(images[student_modality],student_patch_size).to('cuda')
+        img_teacher = transform_images(teacher_modality,images[teacher_modality],teacher_patch_size).to('cuda')
+        img_student = transform_images(student_modality,images[student_modality],student_patch_size).to('cuda')
 
         if args.unfreeze_teacher:
             teacher_output = teacher_model(img_teacher)
@@ -190,18 +198,23 @@ def train():
         train_seq_list = return_ms2_split("train")
         val_seq_list = return_ms2_split("val")
         data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
-        train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=True)
+        train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=args.augment)
         val_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False) #no augmentation for val dataset
     elif args.dataset == "wisard":
         print("Using Wisard dataset")
         dataset = Wisard_Dataset(args.dataset_path)
     elif args.dataset == "cart":
         print("Using CART dataset")
-        train_seq_list = return_cart_split("train")
+        if args.train_easy:
+            print("Using easy training split")
+            train_seq_list = return_cart_split("train_easy")
+        else:
+            print("Using normal training split")
+            train_seq_list = return_cart_split("train")
         val_seq_list = return_cart_split("val")
         data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
         frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=True)
+        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=args.augment)
         val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False) #no augmentation for val dataset
 
     elif args.dataset == "tartanair":
@@ -309,6 +322,7 @@ def train():
         # Save the model
         torch.save({
             'epoch': epoch,
+            'student_model_type': args.model_name,
             'student_model_state_dict': student_model.state_dict(),
             'teacher_model_state_dict': teacher_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),

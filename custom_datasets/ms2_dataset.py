@@ -57,12 +57,12 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augument,vpr_test=False,dist_thresh = 25):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25):
         self.subsample =10
         if vpr_test and len(seq) > 1:
             raise ValueError("Please provide a single sequence name since MS2 does not support combining odometry of multiple sequences for a VPR test. Input is a list")
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,seq=seq,augument = augument)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment)
     def generate_read_fn(self):
         return {
             "rgb": self.read_rgb,
@@ -94,6 +94,9 @@ class MS2(BaseDataset):
                 rel_q_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"proj_depth/",seq,"rgb", "depth_filtered")))[::self.subsample]
                 q_abs_paths.extend([os.path.join(self.datasets_folder,"proj_depth/",seq,"rgb", "depth_filtered",x) for x in rel_q_paths])
         return db_abs_paths,q_abs_paths
+    
+    def semantic_classes_num_and_map_to_rgb(self):
+        return -1,{}
 
     def form_gt_positives(self):
         """

@@ -33,7 +33,7 @@ class BenchmarkArgs:
     batch_size: int = 1
     save_qual: bool = True
     qual_k: int = 5
-    output_dir: str = "qualitative_outputs"
+    output_dir: str = "qualitative_outputs/vpr"
     use_faiss_gpu: bool = True
     use_wandb: bool = True
     wandb_project: str = "PlaceRecBench"
@@ -199,24 +199,24 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2"]
+        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy"]
         method_is_rgbt_method_flag = False 
         for method in rgb_t_methods:
             if method not in model_name:
                 continue
             method_is_rgbt_method_flag = True
             if args.db_q_mode == "RGB_THERMAL":
-                db_model = get_model_from_string(f"{model_name}_rgb")
-                qu_model = get_model_from_string(f"{model_name}_thermal")
+                db_model = get_model_from_string(f"{model_name}_rgb","vpr")
+                qu_model = get_model_from_string(f"{model_name}_thermal","vpr")
             elif args.db_q_mode == "THERMAL_RGB":
-                db_model = get_model_from_string(f"{model_name}_thermal")
-                qu_model = get_model_from_string(f"{model_name}_rgb")
+                db_model = get_model_from_string(f"{model_name}_thermal","vpr")
+                qu_model = get_model_from_string(f"{model_name}_rgb","vpr")
             else:
                 raise ValueError(f"Mode {args.db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
             break
         if not method_is_rgbt_method_flag:
             print(f"initializing model {model_name}")
-            db_model = get_model_from_string(model_name)
+            db_model = get_model_from_string(model_name,"vpr")
             qu_model = db_model
 
         print(f"🏁 Benchmarking: {model_name}")

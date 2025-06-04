@@ -41,3 +41,23 @@ class BaseFeatureExtractor(ABC):
             assert len(feature.shape) == 2, "Feature extraction should return a 2D tensor."
             assert feature.shape[0] == tensor.shape[0], "Feature shape mismatch with input batch size."
         return feature / feature.norm(p=2, dim=1, keepdim=True)  # Normalize the feature vector
+
+class BaseSegmentationModel(ABC):
+    def __init__(self, device, num_classes=2, **kwargs):
+        self.device = device
+        self.num_classes = num_classes
+        self.model = self.build_model()
+
+    @abstractmethod
+    def preprocess(self, images,keep_ratio=False,resize=True):
+        """Return a preprocessed tensor from a tensor of images"""
+        pass
+
+    @abstractmethod
+    def build_model(self):
+        """Return the segmentation model."""
+        pass
+
+    def forward(self, images):
+        """Forward pass through the model."""
+        return self.model(images)

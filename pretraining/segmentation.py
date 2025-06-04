@@ -1,7 +1,7 @@
 import argparse
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as torch_F
 from torch.utils.data import DataLoader
 import os
 import wandb
@@ -16,81 +16,81 @@ import numpy as np
 from torchvision.utils import save_image
 from PIL import Image
 import torchvision.transforms as T
+from custom_models.dinov2_segmentation_model import SegmentationHead
+from custom_models.mmdistill_dinov2_model import MMDistillSegmentationModel
+from utils.segment_utils import label_to_rgb, transform_images
+from contextlib import nullcontext
 
-# Define the color map (from screenshot)
-ID_TO_RGB = {
-    0: (255, 36, 0),        # Unknown
-    1: (0, 0, 0),           # Background
-    2: (242, 216, 196),     # Bare ground
-    3: (89, 70, 54),        # Rocky terrain
-    4: (166, 166, 166),     # Developed structures
-    5: (82, 89, 90),        # Road
-    6: (155, 230, 0),       # Shrubs
-    7: (0, 138, 53),        # Trees
-    8: (0, 216, 245),       # Sky
-    9: (13, 127, 252),      # Water
-    10: (255, 249, 0),      # Vehicles
-    11: (254, 0, 170),      # Person
-}
+def viz_pred_masks(imgs,preds, masks, epoch, save_vis_dir, semantic_id_to_rgb):
+    pred_classes = preds.argmax(dim=1)
+    for j in range(imgs.size(0)):
+        pred_img = label_to_rgb(pred_classes[j],semantic_id_to_rgb)
+        gt_img = label_to_rgb(masks[j],semantic_id_to_rgb)
+        img_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_pred.png")
+        gt_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_gt.png")
+        pred_img.save(img_path)
+        gt_img.save(gt_path)
+        #save the original image also 
+        original_img = T.ToPILImage()(imgs[j].cpu())
+        original_img_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_orig.png")
+        original_img.save(original_img_path)
 
-def label_to_rgb(mask_tensor):
-    mask_np = mask_tensor.cpu().numpy()
-    h, w = mask_np.shape
-    rgb_img = np.zeros((h, w, 3), dtype=np.uint8)
-    for k, color in ID_TO_RGB.items():
-        rgb_img[mask_np == k] = color
-    return Image.fromarray(rgb_img)
+def dataloader_loop(args,optimizer,model,dataloader,test, epoch):
+    criterion = nn.CrossEntropyLoss()
+    with (torch.inference_mode() if test else nullcontext()):
+        total_loss = 0.0
+        for batch_number,batch in enumerate(tqdm(dataloader)):
+            imgs_dict = batch[0]
+            imgs, masks = transform_images(imgs_dict["thr_seg"]).to(model.device), transform_images(imgs_dict["seg_mask"],mask=True).to(model.device).long()
+            masks = masks.squeeze(-3)  # Remove channel dimension if present
+            preds = model.forward(imgs)
+            loss = criterion(preds, masks)
 
-# Simple Segmentation Head
-class SegmentationHead(nn.Module):
-    def __init__(self, in_channels=768, num_classes=12):
-        super().__init__()
-        self.head = nn.Sequential(
-            nn.Conv2d(in_channels, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, num_classes, kernel_size=1)
-        )
+            if not test:
 
-    def forward(self, x):
-        return self.head(x)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
-def transform_images(images,patch_size=14):
-    # Resize the images to the required input size
-    # import pdb; pdb.set_trace()
-    width = images.shape[-2]
-    height = images.shape[-1]
-    new_width = (width // patch_size) * patch_size
-    new_height = (height // patch_size) * patch_size
-    images = F.interpolate(images, size=(new_width, new_height), mode='bilinear', align_corners=False)
-    return images
-# Training pipeline
+            total_loss += loss.item()
+        total_loss /= len(dataloader)
+        loss_str = "train_loss" if not test else "val_loss"
+
+        print(f"Epoch {epoch+1}/{args.epochs}  - {loss_str}: {total_loss:.4f}")
+        if args.wandb_use:
+            wandb.log({loss_str: total_loss, "epoch": epoch+1})
+
+
 def train_segmentation_pipeline(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.wandb_use:
         wandb.init(project="mm_segmentation", name=args.wandb_name, config=vars(args))
 
     # Load DINOv2 backbone
+
+    
     backbone = torch.hub.load('facebookresearch/dinov2', args.model_name).to(device)
     
     # Dataset selection
     if args.dataset == "cart":
         print("Using CART dataset")
-        train_seq_list = return_cart_split_segmentation("train")
+        if args.train_easy:
+            train_seq_list = return_cart_split_segmentation("train_easy")
+        else:
+            train_seq_list = return_cart_split_segmentation("train")
         val_seq_list = return_cart_split_segmentation("val")
         data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
         frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-        train_dataset = CART(root_frame_dir=frame_list_root, db_modality="thr_seg", q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list,augment=False) #PARV_TODO enab;e augumenta in segmentation
+        train_dataset = CART(root_frame_dir=frame_list_root, db_modality="thr_seg", q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list,augment=True) #PARV_TODO enab;e augumenta in segmentation
         val_dataset = CART(root_frame_dir=frame_list_root, db_modality="thr_seg", q_modality="seg_mask", datasets_folder=data_root, seq=val_seq_list, augment=False)
     else:
         raise ValueError("Unsupported dataset")
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
+    semantic_id_to_rgb = val_dataset.semantic_id_to_rgb
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.num_workers,persistent_workers=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.num_workers,persistent_workers=True)
     val_iter = iter(val_loader)
     # Segmentation Head
-    head = SegmentationHead(num_classes=train_dataset.semantic_classes).to(device)
-    optimizer = torch.optim.Adam(head.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    criterion = nn.CrossEntropyLoss()
+    # head = SegmentationHead(num_classes=train_dataset.semantic_classes).to(device)
     start_epoch = 0
 
     # Resume training
@@ -104,9 +104,9 @@ def train_segmentation_pipeline(args):
                 backbone_path = args.model_path
         if backbone_path == "":
             raise ValueError("Please provide a valid model path to resume from.")
-        backbone.load_state_dict(torch.load(backbone_path, map_location=device))
+        # backbone.load_state_dict(torch.load(backbone_path, map_location=device))
         ckpt = torch.load(model_resume_path, map_location=device)
-        head.load_state_dict(ckpt['seg_head'])
+        # head.load_state_dict(ckpt['seg_head'])
         optimizer.load_state_dict(ckpt['optimizer'])
         if ckpt['epoch']!= args.resume_epoch_num:
             raise ValueError(f"Checkpoint epoch {ckpt['epoch']} does not match resume epoch {args.resume_epoch_num}. Please check the resume path and epoch number.")
@@ -120,82 +120,53 @@ def train_segmentation_pipeline(args):
             raise ValueError("Please provide a valid model path to initialize the backbone.")
         if not os.path.exists(backbone_path):
             raise FileNotFoundError(f"Model path {backbone_path} does not exist.")
-        backbone.load_state_dict(torch.load(backbone_path, map_location=device)["student_model_state_dict"])
+        # backbone.load_state_dict(torch.load(backbone_path, map_location=device)["student_model_state_dict"])
         #dump args in the folder 
         with open(os.path.join(save_path, "config.yaml"), "w") as f:
             yaml.dump(vars(args), f)
     save_vis_dir = os.path.join(save_path, "visualizations")
     os.makedirs(save_vis_dir, exist_ok=True)
-    backbone.eval()
+
+    if args.resume:
+        model = MMDistillSegmentationModel(
+            model_type=args.model_name,
+            frozen_backbone=True,
+            frozen_head=False,
+            device=device,
+            num_classes=train_dataset.semantic_classes,  # This will be updated later based on the dataset
+            model_path = model_resume_path,
+            pre_upscale=args.pre_upscale
+        )
+    else:
+        model = MMDistillSegmentationModel(
+            model_type=args.model_name,
+            frozen_backbone=True,
+            frozen_head=False,
+            device=device,
+            num_classes=train_dataset.semantic_classes,  # This will be updated later based on the dataset
+            backbone_path=backbone_path,
+            pre_upscale=args.pre_upscale
+        )
+    
+    # model.model.backbone.eval()  # Freeze the backbone
+    optimizer = torch.optim.Adam(model.model.head.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     for epoch in range(start_epoch, args.epochs):
         
-        total_loss = 0.0
-        for batch_number,train_dict in enumerate(tqdm(train_loader)):
-            # import pdb; pdb.set_trace()
-            head.train()
-            imgs_dict = train_dict[0]
-            imgs, masks = transform_images(imgs_dict[train_dataset.db_modality]).to(device), transform_images(imgs_dict[train_dataset.q_modality]).to(device).long()
-            masks = masks.squeeze(-3)  # Remove channel dimension if present
-            with torch.no_grad():
-                features = backbone.get_intermediate_layers(imgs, n=1, reshape=True)[0]
-            preds = head(features)
-            preds = F.interpolate(preds, size=masks.shape[-2:], mode='bilinear', align_corners=False)
-            loss = criterion(preds, masks)
+        print(f"Epoch {epoch+1}/{args.epochs}")
+        # Training loop
+        print("Training...")
+        dataloader_loop(args, optimizer, model, train_loader, test=False, epoch=epoch)
+        print("Validation ...")
+        dataloader_loop(args, optimizer, model, val_loader, test=True, epoch=epoch)
+        gc.collect()
+        torch.cuda.empty_cache()
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-
-            if (batch_number+1) % 10 == 0:
-                print(f"Epoch {epoch+1}/{args.epochs} - Batch {batch_number+1}/{len(train_loader)} - Loss: {total_loss/10:.4f}")
-                if args.wandb_use:
-                    wandb.log({"train_loss": total_loss/10, "epoch": epoch+1, "batch": batch_number+1})
-                total_loss = 0.0
-                head.eval()
-                with torch.no_grad():
-                    try:
-                        val_imgs_dict = next(val_iter)[0]
-                    except StopIteration:
-                        val_iter = iter(val_loader)
-                        val_imgs_dict = next(val_iter)[0]
-
-                    imgs, masks = transform_images(val_imgs_dict[val_dataset.db_modality]).to(device), transform_images(val_imgs_dict[val_dataset.q_modality]).to(device).long()
-                    masks = masks.squeeze(-3)  # Remove channel dimension if present
-                    features = backbone.get_intermediate_layers(imgs, n=1, reshape=True)[0]
-                    preds = head(features)
-                    preds = F.interpolate(preds, size=masks.shape[-2:], mode='bilinear', align_corners=False)
-                    loss = criterion(preds, masks)
-                    val_loss = loss.item()
-                    print(f"Validation Loss: {val_loss:.4f}")
-                    if args.wandb_use:
-                        wandb.log({"val_loss": val_loss, "epoch": epoch+1, "batch": batch_number+1})
-                    pred_classes = preds.argmax(dim=1)
-                    for j in range(imgs.size(0)):
-                        pred_img = label_to_rgb(pred_classes[j])
-                        gt_img = label_to_rgb(masks[j])
-                        img_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_pred.png")
-                        gt_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_gt.png")
-                        pred_img.save(img_path)
-                        gt_img.save(gt_path)
-                        #save the original image also 
-                        original_img = T.ToPILImage()(imgs[j].cpu())
-                        original_img_path = os.path.join(save_vis_dir, f"sample_e{epoch}_{j}_orig.png")
-                        original_img.save(original_img_path)
-                gc.collect()
-                torch.cuda.empty_cache()
-
-        # print(f"Epoch {epoch+1}/{args.epochs} - Train Loss: {total_loss:.4f} - Val Loss: {val_loss:.4f}")
-        # if args.wandb_use:
-        #     wandb.log({"train_loss": total_loss, "val_loss": val_loss, "epoch": epoch})
-
-        # Save checkpoint
         torch.save({
             'epoch': epoch,
-            'seg_head': head.state_dict(),
-            'optimizer': optimizer.state_dict()
+            'seg_head': model.model.head.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            "backbone_path": backbone_path,
         }, os.path.join(save_path, f"model{epoch}.pth"))
 
 if __name__ == "__main__":
@@ -214,6 +185,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', default='dinov2_vitb14', type=str, help='Name of the encoder model')
     parser.add_argument('--model_path', default="", type=str, help='Path to the encoder weights')
     parser.add_argument('--wandb_name', default="", type=str, help='Path to the encoder weights')
+    parser.add_argument('--train_easy', action='store_true', help='Path to the encoder weights')
+    parser.add_argument('--pre_upscale', action='store_true', help='Path to the encoder weights')
 
     args = parser.parse_args()
 

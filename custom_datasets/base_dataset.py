@@ -57,10 +57,11 @@ class BaseDataset(Dataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,dist_thresh = 25):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25):
         self.augment = augment
         super().__init__()
         self.vpr_test = vpr_test
+        self.vpr_train = vpr_train
         self.datasets_folder = datasets_folder
 
         if seq == []:
@@ -84,13 +85,13 @@ class BaseDataset(Dataset):
         
         self.database_num = len(self.db_abs_paths)
         self.queries_num = len(self.q_abs_paths)
-        if self.vpr_test:
+        if self.vpr_test or self.vpr_train:
             self.dist, self.soft_positives_per_query = self.form_gt_positives()
 
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
         self.read_fn=self.generate_read_fn()
-        self.semantic_classes= -1
+        self.semantic_classes , self.semantic_id_to_rgb= self.semantic_classes_num_and_map_to_rgb()
 
     @abstractmethod
     def generate_image_paths(self,db_abs_paths,q_abs_paths):
@@ -129,16 +130,26 @@ class BaseDataset(Dataset):
         Returns ground truth positives for the dataset.
         """
         pass
+    
+    @abstractmethod
+    def semantic_classes_num_and_map_to_rgb(self):
+        """
+        Return num of sematic classes and dict for the mapping between semantic class and RGB in the dataset. If not a semantic dataset return -1,{}
+        """
+        pass
 
-    def augment(self,modality1,modality2,img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image, Image.Image]:
-       
 
+    def augment_function(self, modality1: str, modality2: str, img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image, Image.Image]:
         if modality1 == "thr" and modality2 == "rgb":
-            rgb, thermal = img2, img1
+            img2, img1 = self.rgb_thermal_augment(img2, img1)
         elif modality1 == "rgb" and modality2 == "thr":
-            rgb, thermal = img1, img2
+            img1, img2 = self.rgb_thermal_augment(img1, img2)
         else:
-            return img1, img2  # No augmentation if modalities are not recognized
+            raise ValueError(f"Unsupported modality combination: {modality1}, {modality2}")
+        return img1, img2  # No augmentation if modalities are not recognized
+    
+
+    def rgb_thermal_augment(self,rgb: Image.Image, thermal: Image.Image) -> Tuple[Image.Image, Image.Image]:
         # ----- Random Parameters -----
         brightness_factor = random.uniform(0.9, 1.1)
         contrast_factor = random.uniform(0.9, 1.1)
@@ -158,22 +169,16 @@ class BaseDataset(Dataset):
 
         # ----- Brightness & Contrast (synchronized) -----
         rgb = F.adjust_brightness(rgb, brightness_factor)
-        thermal = F.adjust_brightness(thermal, brightness_factor)
+        # thermal = F.adjust_brightness(thermal, brightness_factor)
 
         rgb = F.adjust_contrast(rgb, contrast_factor)
-        thermal = F.adjust_contrast(thermal, contrast_factor)
+        # thermal = F.adjust_contrast(thermal, contrast_factor)
 
         # ----- RGB-only: Saturation & Hue -----
         rgb = F.adjust_saturation(rgb, saturation_factor)
         rgb = F.adjust_hue(rgb, hue_factor)
 
-        if modality1 == "thr" and modality2 == "rgb":
-            return thermal, rgb
-        elif modality1 == "rgb" and modality2 == "thr":
-            return rgb, thermal
-        else:
-            raise ValueError("Unsupported modality combination. Supported combinations are: ('thr', 'rgb') or ('rgb', 'thr').")
-
+        return rgb, thermal
     def __getitem__(self, index):
 
         if self.vpr_test:
@@ -189,7 +194,7 @@ class BaseDataset(Dataset):
             q_img = self.read_fn[self.q_modality](self.images_paths[self.database_num+index])
             if self.augment:
                 # Apply augmentations if training mode and augmentations are enabled
-                db_img,q_img = self.augment(self.db_modality, self.q_modality, db_img, q_img)
+                db_img,q_img = self.augment_function(self.db_modality, self.q_modality, db_img, q_img)
             return {self.db_modality:db_img,self.q_modality:q_img}, index
 
 if __name__ == "__main__":
