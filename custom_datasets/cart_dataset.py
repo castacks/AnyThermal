@@ -97,7 +97,7 @@ class CART(BaseDataset):
         if vpr_train or vpr_test:
             seq_filtered = [seq_single for seq_single in seq if seq_has_gps(seq_single, datasets_folder)]
             if len(seq_filtered) == 0:
-                raise ValueError("No sequences with GPS data found. Please provide a valid sequence name.")
+                raise ValueError(f"No sequences with GPS data found. Please provide a valid sequence name., current seq is {seq}")
             if len(seq_filtered) < len(seq):
                 # print(f"Filtered sequences with GPS data: {seq_filtered}. Original sequences: {seq}")
                 for seq_single in seq:
@@ -233,9 +233,7 @@ class CART(BaseDataset):
         """
         img = cv2.imread(path)
         img = base_transform(img)
-        img = resize_transform(img)  # Resize the image
 
-        # print(f"RGB image shape: {img.shape}")  # Debugging line to check the shape
         return img
     
     def read_thermal(self, path):
@@ -244,9 +242,7 @@ class CART(BaseDataset):
         """
         img = cv2.imread(path)
         img = base_transform(img)
-        img = resize_transform(img)  # Resize the image
 
-        # print(f"Thermal image shape: {img.shape}")  # Debugging line to check the shape
         return img
     
     def read_segmentation_mask(self, path):
@@ -256,7 +252,6 @@ class CART(BaseDataset):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         img = np.expand_dims(img, axis=0)  # Add channel dimension
         img = torch.tensor(img).float()  # Convert to tensor
-        img = resize_transform(img)  # Resize the image
         # print(f"Segmentation mask shape: {img.shape}")  # Debugging line to check the shape
         return img
     

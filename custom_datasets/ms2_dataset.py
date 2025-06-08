@@ -1,5 +1,7 @@
 from .base_dataset import *
 from .ms2_utils import *
+from pyproj import Transformer
+
 def sparse_to_dense(sparse, max_depth=100.):
     ## invert
     valid = sparse > 0.1
@@ -59,6 +61,13 @@ class MS2(BaseDataset):
     """
     def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25):
         self.subsample =10
+        self.zone = 52
+        self.utm_transformer = self.get_utm_transformer(self.zone)
+        # lon = float("36.366181493439412975")
+        # lat = float("127.365607591950677602")
+        # easting, northing = self.utm_transformer.transform(lon, lat)
+        # # print("Easting:", easting)
+        # # print("Northing:", northing)
         if vpr_test and len(seq) > 1:
             raise ValueError("Please provide a single sequence name since MS2 does not support combining odometry of multiple sequences for a VPR test. Input is a list")
 
@@ -97,6 +106,21 @@ class MS2(BaseDataset):
     
     def semantic_classes_num_and_map_to_rgb(self):
         return -1,{}
+    
+    def get_utm_transformer(self,zone_number):
+        # UTM North zones are EPSG 326## (e.g., zone 33N → EPSG:32633)
+        epsg_code = f"326{int(zone_number):02d}"
+        return Transformer.from_crs("epsg:4326", f"epsg:{epsg_code}", always_xy=True)
+
+    def get_xyz_coords(self,lon,lat,alt):
+        """
+        Converts latitude, longitude and altitude to UTM coordinates.
+        """
+        assert abs(lat) <= 90 and abs(lon) <= 180, f"Invalid lat/lon: {lat}, {lon}"
+
+        easting, northing = self.utm_transformer.transform(lon, lat)
+        # import pdb;pdb.set_trace()
+        return [easting, northing, alt]
 
     def form_gt_positives(self):
         """
@@ -106,43 +130,23 @@ class MS2(BaseDataset):
         self.q_coords = []
         # load files for the coordinates
         for seq in self.seq:
-            self.db_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",seq,"thr")))[::self.subsample]
-            self.q_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"odom",seq,"thr")))[::self.subsample]
+            self.db_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"sync_data",seq,"gps_imu/data")))[::self.subsample]
+            self.q_coord_paths = natsorted(os.listdir(os.path.join(self.datasets_folder,"sync_data",seq,"gps_imu/data")))[::self.subsample]
         
 
             for p in self.db_coord_paths:          
-                with open(os.path.join(self.datasets_folder,"odom",seq,"thr",p)) as f:
-                    lines = f.readline()
-                    elements = lines.split()
+                with open(os.path.join(self.datasets_folder,"sync_data",seq,"gps_imu/data",p)) as f:
+                    lines = f.readlines()
+                    # lat = float(lines[0].strip())
+                    # lon = float(lines[1].strip())
+                    lon = float(lines[0].strip()) #the MS2 descriptions seems wrong
+                    lat = float(lines[1].strip()) 
+                    alt = float(lines[2].strip())
+                    coord = self.get_xyz_coords(lon,lat,alt)
+                    # import pdb;pdb.set_trace()
 
-                    matrix = []
-                    for i in range(0, len(elements), 4):
-                        row = [float(elements[i]), float(elements[i+1]), float(elements[i+2]), float(elements[i+3])]
-                        matrix.append(row)
-                    matrix = np.asarray(matrix)
-
-                    coord_x = float(matrix[0,3])
-                    coord_y = float(matrix[1,3])
-                    coord_z = float(matrix[2,3])
-
-                    self.db_coords.append([coord_x,coord_y,coord_z])
-
-            for q in self.q_coord_paths:
-                with open(os.path.join(self.datasets_folder,"odom",seq,"thr",q)) as f:
-                    lines = f.readline()
-                    elements = lines.split()
-
-                    matrix = []
-                    for i in range(0, len(elements), 4):
-                        row = [float(elements[i]), float(elements[i+1]), float(elements[i+2]), float(elements[i+3])]
-                        matrix.append(row)
-                    matrix = np.asarray(matrix)
-
-                    coord_x = float(matrix[0,3])
-                    coord_y = float(matrix[1,3])
-                    coord_z = float(matrix[2,3])
-
-                    self.q_coords.append([coord_x,coord_y,coord_z])
+                    self.db_coords.append(coord)
+                    self.q_coords.append(coord)
 
         # do knn over the coordinates
         knn = NearestNeighbors(n_jobs=-1)

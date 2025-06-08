@@ -3,7 +3,7 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 benchmark_vpr.py \
-    --model_names salad cart_train_normal cart_train_easy\
+    --model_names netvlad_mmdistill_dinov2_cart\
     --dataset_name cart \
     --top_k_vals 1 5 10 \
     --batch_size 16 \

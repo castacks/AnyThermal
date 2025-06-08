@@ -149,18 +149,29 @@ class BaseDataset(Dataset):
         return img1, img2  # No augmentation if modalities are not recognized
     
 
+    def crop_and_resize(self, img1: Image.Image,img2: Image.Image,size: Tuple[int, int] = (300, 450)) -> Image.Image:
+        """
+        Center crops and resizes the image to the specified size.
+        """
+        i, j, h, w = T.RandomResizedCrop.get_params(img1, scale=(0.8, 1.0), ratio=(0.75, 1.33))
+
+        return F.resized_crop(img1, i, j, h, w, size=size, antialias=True), F.resized_crop(img2, i, j, h, w, size=size, antialias=True)
+    
     def rgb_thermal_augment(self,rgb: Image.Image, thermal: Image.Image) -> Tuple[Image.Image, Image.Image]:
         # ----- Random Parameters -----
-        brightness_factor = random.uniform(0.9, 1.1)
-        contrast_factor = random.uniform(0.9, 1.1)
-        saturation_factor = random.uniform(0.9, 1.1)
+        rgb_brightness_factor = random.uniform(0.7, 1.3)
+        rgb_contrast_factor = random.uniform(0.8, 1.2)
+
+        thermal_brightness_factor = random.uniform(0.7, 1.3) 
+        thermal_contrast_factor = random.uniform(0.8, 1.2)
+
+
+        saturation_factor = random.uniform(0.2, 1.2)
         hue_factor = random.uniform(-0.05, 0.05)
         do_flip = random.random() > 0.5
 
-        # ----- Center Crop and Resize (300x450) -----
-        i, j, h, w = T.RandomResizedCrop.get_params(rgb, scale=(0.8, 1.0), ratio=(0.75, 1.33))
-        rgb = F.resized_crop(rgb, i, j, h, w, size=(300, 450),antialias=True)
-        thermal = F.resized_crop(thermal, i, j, h, w, size=(300, 450),antialias=True)
+        # # ----- Center Crop and Resize (300x450) -----
+        # rgb, thermal = self.crop_and_resize(rgb, thermal)
 
         # ----- Horizontal Flip -----
         if do_flip:
@@ -168,11 +179,11 @@ class BaseDataset(Dataset):
             thermal = F.hflip(thermal)
 
         # ----- Brightness & Contrast (synchronized) -----
-        rgb = F.adjust_brightness(rgb, brightness_factor)
-        # thermal = F.adjust_brightness(thermal, brightness_factor)
+        rgb = F.adjust_brightness(rgb, rgb_brightness_factor)
+        thermal = F.adjust_brightness(thermal, thermal_brightness_factor)
 
-        rgb = F.adjust_contrast(rgb, contrast_factor)
-        # thermal = F.adjust_contrast(thermal, contrast_factor)
+        rgb = F.adjust_contrast(rgb, rgb_contrast_factor)
+        thermal = F.adjust_contrast(thermal, rgb_contrast_factor)
 
         # ----- RGB-only: Saturation & Hue -----
         rgb = F.adjust_saturation(rgb, saturation_factor)
@@ -192,6 +203,7 @@ class BaseDataset(Dataset):
         else:
             db_img = self.read_fn[self.db_modality](self.images_paths[index])
             q_img = self.read_fn[self.q_modality](self.images_paths[self.database_num+index])
+            db_img, q_img = self.crop_and_resize(db_img, q_img)
             if self.augment:
                 # Apply augmentations if training mode and augmentations are enabled
                 db_img,q_img = self.augment_function(self.db_modality, self.q_modality, db_img, q_img)

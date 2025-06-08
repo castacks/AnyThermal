@@ -3,7 +3,7 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 benchmark_vpr.py \
-    --model_names salad cart_train_normal cart_train_easy\
+    --model_names netvlad_mmdistill_dinov2_cart\
     --dataset_name cart \
     --top_k_vals 1 5 10 \
     --batch_size 16 \
@@ -17,7 +17,5 @@ python3 benchmark_vpr.py \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
     --exclude_exact_query_in_db \
-    --seq "2022-04-03-12-16-33 2022-04-03-12-20-57 2022-04-03-17-12-07 2022-04-03-17-16-17 2022-05-08-11-30-40 2022-05-08-11-34-00 2022-05-08-11-37-09 \
-    2022-05-15-06-00-09 2022-05-15-06-14-42 2022-05-15-06-26-50 2022-05-15-06-39-43 \
-    2023-03-21-09-59-39 2023-03-21-14-06-04 2023-03-21-18-20-21 2023-03-21-19-55-11 2023-03-22-14-31-06 2023-03-22-14-41-46"
+    --seq "2022-05-15-06-00-09 2022-05-15-06-14-42 2022-05-15-06-26-50 2022-05-15-06-39-43 2023-03-21-09-59-39 2023-03-21-14-06-04 2023-03-21-18-20-21 2023-03-21-19-55-11 2023-03-22-14-31-06 2023-03-22-14-41-46"
 

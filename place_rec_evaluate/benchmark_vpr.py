@@ -62,45 +62,59 @@ def extract_all_features(model, dataset, batch_size=1):
         return features #return empty list if the model has its own recall method
 
 
-def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu,top_k_indices, save_dir, qual_k=5, log_to_wandb=False):
+def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, save_dir, qual_k=5, log_to_wandb=False, num_random=5, num_failures=5):
     os.makedirs(save_dir, exist_ok=True)
     padding = 20
     true_color = (0, 255, 0)
     query_color = (125, 0, 125)
-    false_color = (255,   0,   0)   # False retrievals
+    false_color = (255, 0, 0)
 
+    # Identify failure cases
+    failure_cases = []
+    for i in range(len(qu_dataset)):
+        retrieved = top_k_indices[i, :qual_k].tolist()
+        if all(idx not in pos_per_qu[i] for idx in retrieved):
+            failure_cases.append(i)
 
-    selected_indices = random.sample(range(len(qu_dataset)), min(10, len(qu_dataset)))
+    # Randomly sample
+    all_indices = set(range(len(qu_dataset)))
+    failure_cases = random.sample(failure_cases, min(num_failures, len(failure_cases)))
+    remaining_indices = list(all_indices - set(failure_cases))
+    random_cases = random.sample(remaining_indices, min(num_random, len(remaining_indices)))
+
+    selected_indices = random_cases + failure_cases
 
     for i in selected_indices:
         fig = plt.figure(figsize=(5 * (1 + qual_k), 5), dpi=200)
         gs = fig.add_gridspec(1, 1 + qual_k)
         q_img = normalise_img(qu_dataset[i][0])
-        q_img = to_np(q_img, np.uint8)
-        q_img = q_img.transpose(1, 2, 0)  # Convert to HWC format since pad_img requires that 
+        q_img = to_np(q_img, np.uint8).transpose(1, 2, 0)
         ax = fig.add_subplot(gs[0, 0])
         ax.imshow(pad_img(q_img, padding, query_color))
-        ax.set_title("Query")
+        ax.set_title(f"Query {i}")
         ax.axis("off")
+
+        is_failure = all(top_k_indices[i, j] not in pos_per_qu[i] for j in range(qual_k))
 
         for j in range(qual_k):
             db_idx = top_k_indices[i, j]
             db_img = normalise_img(db_dataset[db_idx][0])
-            db_img = to_np(db_img, np.uint8)
-            db_img = db_img.transpose(1, 2, 0)  # Convert to HWC format since pad_img requires that
-            ax = fig.add_subplot(gs[0, j + 1])
+            db_img = to_np(db_img, np.uint8).transpose(1, 2, 0)
             color_mask = false_color if db_idx not in pos_per_qu[i] else true_color
+            ax = fig.add_subplot(gs[0, j + 1])
             ax.imshow(pad_img(db_img, padding, color_mask))
             ax.set_title(f"DB {db_idx}")
             ax.axis("off")
 
         fig.tight_layout()
-        path = os.path.join(save_dir, f"query_{i}_topk.png")
+        category = "failure" if is_failure else "random"
+        path = os.path.join(save_dir, f"{category}_query_{i}_topk.png")
         fig.savefig(path)
         plt.close(fig)
 
         if log_to_wandb:
-            wandb.log({f"Qualitative/query_{i}": wandb.Image(path)})
+            wandb.log({f"{category}_query_{i}": wandb.Image(path)})
+
 def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_feats, pos_per_query, top_k_vals, use_gpu=True,exclude_exact_query_in_db=True):
     recalls = {k: 0 for k in top_k_vals}
     d = db_feats.shape[1]
@@ -199,7 +213,7 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy"]
+        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart"]
         method_is_rgbt_method_flag = False 
         for method in rgb_t_methods:
             if method not in model_name:
