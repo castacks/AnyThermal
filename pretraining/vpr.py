@@ -8,8 +8,6 @@ import wandb
 import time
 import sys
 sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
-from custom_datasets.ms2_dataset import MS2
-from custom_datasets.cart_dataset import CART, return_cart_split
 from custom_models.mmdistill_dinov2_model import MMDistillVPRModel
 from torch.optim import Adam
 from contextlib import nullcontext
@@ -23,6 +21,11 @@ import matplotlib.pyplot as plt
 import random
 import networkx as nx
 import gc
+from custom_datasets.multi_dataset_loader import *
+from itertools import chain
+import torch.optim as optim
+
+
 def get_miner(miner_name, feats, labels, gps_coords=None):
     if miner_name == "multi_similarity":
         miner = MultiSimilarityMiner(epsilon=0.1)
@@ -41,7 +44,7 @@ def get_miner(miner_name, feats, labels, gps_coords=None):
     else:
         raise ValueError(f"Unknown miner: {miner_name}")
 
-def run(model_dict, dataloader, optimizer, device, epoch, train=True, miner_type="multi_similarity", use_memory_bank=False):
+def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, miner_type="multi_similarity", use_memory_bank=False):
     mode = "train" if train else "val"
     # if train:
     #     model.train()
@@ -52,9 +55,11 @@ def run(model_dict, dataloader, optimizer, device, epoch, train=True, miner_type
     total_loss = 0
     memory_feats, memory_labels = [], []
     
-    db_modality = dataloader.dataset.db_modality
-    q_modality = dataloader.dataset.q_modality
-    positive_index_per_query = dataloader.dataset.soft_positives_per_query
+    db_modality = args.teacher_modality
+    q_modality = args.student_modality
+    positive_index_per_query = dataloader.dataset.soft_positives
+    positive_index_per_query = np.array(positive_index_per_query, dtype=object)
+
     gps_database = torch.from_numpy(dataloader.dataset.db_coords)
     if db_modality != "rgb":
         raise ValueError(f"Database modality {db_modality} is not supported. Only 'rgb' is supported.")
@@ -62,18 +67,18 @@ def run(model_dict, dataloader, optimizer, device, epoch, train=True, miner_type
         raise ValueError(f"Query modality {q_modality} is not supported. Only 'thr' (thermal) is supported.")
 
     global_batch_with_hard_pairs = 0
-    for batch,indices in tqdm(dataloader, desc=f"{mode.capitalize()} Epoch {epoch}"):
-        indices = indices.tolist()
+    for batch_item in tqdm(dataloader, desc=f"{mode.capitalize()} Epoch {epoch}"):
+        batch,_ = batch_item["item"]
+        indices = batch_item["batch_id"].tolist()
         rgb = batch[db_modality].to(device)
         thermal = batch[q_modality].to(device)
         positive_indices_list = positive_index_per_query[indices]
-        gps_coords = gps_database[indices] if hasattr(dataloader.dataset, 'db_coords') else None
+        gps_coords = gps_database[indices]
         if gps_coords is not None:
             gps_coords = gps_coords.to(device)
+        else:
+            raise ValueError("GPS coordinates are not available for the dataset. Please provide GPS coordinates.")
         # import pdb; pdb.set_trace()
-        feats_rgb = model_dict["rgb"].extract_feature(rgb,test=False)
-        feats_thr = model_dict["thr"].extract_feature(thermal,test=False)
-        feats = torch.cat([feats_rgb, feats_thr], dim=0)
 
         index_to_label = {}
         current_label = 0
@@ -86,37 +91,38 @@ def run(model_dict, dataloader, optimizer, device, epoch, train=True, miner_type
             for i in component:
                 index_to_label[i] = current_label
             current_label += 1
-        # import pdb; pdb.set_trace()  # Debugging line to inspect the index_to_label mapping
+
         labels_rgb = torch.tensor([index_to_label[i] for i in indices], device=device)
         labels_thr = torch.tensor([index_to_label[i] for i in indices], device=device)
         labels = torch.cat([labels_rgb, labels_thr], dim=0)
 
-        if use_memory_bank and memory_feats:
-            feats = torch.cat([feats] + memory_feats, dim=0)
-            labels = torch.cat([labels] + memory_labels, dim=0)
-        if train:
+        with torch.no_grad() if not train else nullcontext():
+            feats_rgb = model_dict["rgb"].extract_feature(rgb,test=False)
+            feats_thr = model_dict["thr"].extract_feature(thermal,test=False)
+            feats = torch.cat([feats_rgb, feats_thr], dim=0)
+
+            if use_memory_bank and memory_feats:
+                feats = torch.cat([feats] + memory_feats, dim=0)
+                labels = torch.cat([labels] + memory_labels, dim=0)
+            
             hard_pairs = get_miner(miner_type, feats, labels, gps_coords=gps_coords)
             if len(hard_pairs[0]) == 0:
                 print(f"Warning: No hard pairs found for epoch {epoch}, batch {indices}. Skipping this batch.")
                 continue
+            
             loss = loss_fn(feats, labels, hard_pairs)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        else:
-            with torch.no_grad(): #PARV_TODO - add torch no grad above not this low in case of val 
-                hard_pairs = get_miner(miner_type, feats, labels, gps_coords=gps_coords)
-                if len(hard_pairs[0]) == 0:
-                    print(f"Warning: No hard pairs found for epoch {epoch}, batch {indices}. Skipping this batch.")
-                    continue
-                loss = loss_fn(feats, labels, hard_pairs)
 
-        if use_memory_bank:
-            memory_feats = [feats.detach()]
-            memory_labels = [labels.detach()]
+            if train:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()                
 
-        total_loss += loss.item()
-        # wandb.log({f"{mode}/loss": loss.item()})
+            if use_memory_bank:
+                memory_feats = [feats.detach()]
+                memory_labels = [labels.detach()]
+
+            total_loss += loss.item()
+            # wandb.log({f"{mode}/loss": loss.item()})
 
         if random.random() < 0.01:
             fig, ax = plt.subplots(figsize=(6, 4))
@@ -138,52 +144,77 @@ def run(model_dict, dataloader, optimizer, device, epoch, train=True, miner_type
             axs[1].set_title('Positive/Negative (Thermal)')
             wandb.log({f"{mode}/sample_pair": wandb.Image(fig)})
             plt.close(fig)
-        
+                
         global_batch_with_hard_pairs += 1
 
     return total_loss / global_batch_with_hard_pairs
 
-def main(args):
-    wandb.init(project="mm_vpr", name=args.name)
-    teacher_modality = 'rgb'
-    student_modality = 'thr'
-    if args.dataset == 'ms2':
-        train_dataset = MS2(mode='train')
-        val_dataset = MS2(mode='val')
+
+def build_head_dict(arch_name):
+    if arch_name == "netvlad":
+        print(f"Using NetVLAD aggregation head for {arch_name}")
+        default_agg_dict = {
+            "agg_arch":'NetVLAD'
+        }
+        return default_agg_dict
+    elif arch_name == "salad":
+        print(f"Using SALAD aggregation head for {arch_name}")
+        default_agg_dict = {
+            "agg_arch":'SALAD',
+            "agg_config":{
+                'num_channels': 768,
+                'num_clusters': 64,
+                'cluster_dim': 128,
+                'token_dim': 256,
+            }
+        }
+        return default_agg_dict
     else:
-        print("Using CART dataset")
-        if args.train_easy:
-            print("Using easy training split")
-            train_seq_list = return_cart_split("train_easy")
-        else:
-            print("Using normal training split")
-            train_seq_list = return_cart_split("train")
-        val_seq_list = return_cart_split("val")
-        data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
-        frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-        train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=args.augment,vpr_train=True)
-        val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False,vpr_train=True) #no augmentation for val dataset
+        raise ValueError(f"Unknown head architecture: {arch_name}")
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
+def main(args):
+    dataset_name = "_".join(args.dataset)
+    args.save_dir = os.path.join(args.save_dir, dataset_name)
+    #append date and time 
+    args.save_dir = os.path.join(args.save_dir, time.strftime("%Y-%m-%d_%H-%M-%S"))
+    os.makedirs(args.save_dir, exist_ok=True)
+    wandb_name = f"{args.name}_{dataset_name}_{args.head_arch}_same_backbone{args.same_backbone}"
+    wandb.init(project="mm_vpr", name=wandb_name)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    
-    rgb_model = MMDistillVPRModel(frozen_backbone=True,frozen_head=False,backbone_path = args.backbone_path,modality='rgb', device=device)
-    thr_model = MMDistillVPRModel(frozen_backbone=True,frozen_head=False,model = rgb_model.model,modality='thermal', device=device)
+    train_dataloader, val_dataloader = build_dataset(args)
+    print("Train dataset size: ", len(train_dataloader.dataset))
+    print("Val dataset size: ", len(val_dataloader.dataset))
 
-    optimizer = Adam(thr_model.model.head.parameters(), lr=0.001, weight_decay=0.01)
+    agg_dict = build_head_dict(args.head_arch)
+
+    if args.same_backbone:
+        rgb_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_path = args.backbone_path,head_config=agg_dict)
+        thr_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,model=rgb_model.model,modality='thermal', device=device,head_config=agg_dict)
+        head_params = chain(thr_model.model.head.parameters())
+    else:
+        rgb_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_model_type="dinov2_vitb14",head_config=agg_dict)
+        thr_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thermal', device=device,head_config=agg_dict)
+
+        head_params = chain(thr_model.model.head.parameters(), rgb_model.model.head.parameters())
+        
+    
+    backbone_params = chain(*[thr_model.model.backbone.blocks[i].parameters() for i in args.un_frozen_layer_index])
+    # import pdb; pdb.set_trace()  # Debugging line to inspect the model parameters
+    optimizer = Adam(
+            chain(head_params, backbone_params),
+            lr=0.001, weight_decay=0.01
+        )
     
     model_dict = {"rgb": rgb_model, "thr": thr_model}
 
     for epoch in range(0,args.epochs+1):
         if epoch>0:
-            train_loss = run(model_dict, train_loader, optimizer, device, epoch, train=True, miner_type=args.miner_type, use_memory_bank=args.memory_bank)
+            train_loss = run(args,model_dict, train_dataloader, optimizer, device, epoch, train=True, miner_type=args.miner_type, use_memory_bank=args.memory_bank)
             wandb.log({"epoch": epoch, "train/avg_loss": train_loss})
 
         with torch.no_grad():
-            val_loss = run(model_dict, val_loader, optimizer, device, epoch, train=False, miner_type=args.miner_type, use_memory_bank=args.memory_bank)
+            val_loss = run(args,model_dict, val_dataloader, optimizer, device, epoch, train=False, miner_type=args.miner_type, use_memory_bank=args.memory_bank)
             wandb.log({"epoch": epoch, "val/avg_loss": val_loss})
 
         if epoch >0:
@@ -192,19 +223,23 @@ def main(args):
             print(f"Epoch {epoch} - Val Loss: {val_loss:.4f} (No training in epoch 0)")
             
         if epoch % args.save_interval == 0:
-            torch.save({"vpr_head": thr_model.model.head.state_dict(),
+
+            save_dict = {"thermal_vpr_head": thr_model.model.head.state_dict(),
                         "backbone_path": args.backbone_path
                         }
-                       
-                       , os.path.join(args.save_dir, f"model_{epoch}.pth"))
+            if not args.same_backbone:
+                save_dict["rgb_vpr_head"] = rgb_model.model.head.state_dict()
+
+            torch.save(save_dict, os.path.join(args.save_dir, f"model_{epoch}.pth"))
         
         gc.collect()
         torch.cuda.empty_cache()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', type=str, default="dinov2_netvlad")
-    parser.add_argument('--dataset', type=str, choices=['cart', 'ms2'], default='ms2')
+    parser.add_argument('--name', type=str, default="mmdistill")
+    parser.add_argument('--dataset', type=str, nargs='+',
+                    help='List of datasets to use in training and eval')    
     parser.add_argument('--backbone_path', type=str, required=True)
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=20)
@@ -212,10 +247,23 @@ if __name__ == '__main__':
     parser.add_argument('--save_interval', type=int, default=1)
     parser.add_argument('--miner_type', type=str, choices=['multi_similarity', 'distance_weighted', 'gps_cosine'], default='multi_similarity')
     parser.add_argument('--memory_bank', action='store_true')
-    parser.add_argument("augment", action='store_true', help="Use data augmentation for training")
-    parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--train_easy', action='store_true', help="Use easy training split for CART dataset")
-    args = parser.parse_args()
+    parser.add_argument("--augment", action='store_true', help="Use data augmentation for training")
+    parser.add_argument('--train_num_workers', type=int, default=4)
+    parser.add_argument('--eval_num_workers', type=int, default=4)
 
-    os.makedirs(args.save_dir, exist_ok=True)
+    parser.add_argument('--train_easy', action='store_true', help="Use easy training split for CART dataset")
+    parser.add_argument('--train', default=True,type=bool, help='Mode to build datasets and dataloaders')
+    parser.add_argument('--use_odom', default=True,type=bool, help='Mode to build datasets and dataloaders')
+    parser.add_argument('--rescale_during_crop', default=False, help='Rescale images during cropping')
+    parser.add_argument('--teacher_modality', default='rgb', type=str, help='modality which will be frozen unless "unfreeze teacher" is true')
+    parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained')
+    parser.add_argument('--vpr_test', default=False, help='Rescale images during cropping')
+    parser.add_argument('--same_backbone', action='store_true', help='Rescale images during cropping')
+    parser.add_argument('--frozen_backbone', default=True,type=bool, help='Rescale images during cropping')
+    parser.add_argument('--un_frozen_layer_index', type=int, nargs='+', default=[],
+                    help='List of layer indices to unfreeze')
+    parser.add_argument('--head_arch', type=str, choices=['netvlad', 'salad'], default='netvlad')
+
+
+    args = parser.parse_args()
     main(args)

@@ -67,8 +67,7 @@ def return_cart_split(split):
                                 ]
         return train_seq_list
     elif split == "val":
-        val_seq_list = ['2022-12-20-12-16-02', '2022-12-20-12-48-59','2022-12-20-13-37-37'
-                             ]
+        val_seq_list = ['2022-12-20-12-16-02', '2022-12-20-12-48-59','2022-12-20-13-37-37']
         return val_seq_list
     else:
         raise ValueError("Please provide a valid split name. Options are train or val")
@@ -92,7 +91,7 @@ class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25):
+    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=True,crop_during_vpr_test=False):
         self.root_frame_dir = root_frame_dir
         if vpr_train or vpr_test:
             seq_filtered = [seq_single for seq_single in seq if seq_has_gps(seq_single, datasets_folder)]
@@ -105,7 +104,7 @@ class CART(BaseDataset):
                         print(f"Sequence {seq_single} does not have GPS data and is filtered out.")
         else:
             seq_filtered = seq
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered,rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test)
     
     def generate_read_fn(self):
         return {

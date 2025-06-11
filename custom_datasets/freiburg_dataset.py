@@ -32,8 +32,10 @@ class Freiburg(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25,use_clahe=True):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25,use_clahe=True, rescale_during_crop=True,crop_during_vpr_test=False):
 
+
+        assert crop_during_vpr_test == False, "Crop during VPR test is not supported for Freiburg dataset. Please set it to False."
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/frame_list"
         self.metadata = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/crop_box_metadata.txt"
         self.read_metadata()
@@ -44,7 +46,7 @@ class Freiburg(BaseDataset):
         
         self.use_clahe = use_clahe
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop)
     
     def read_metadata(self):
         with open(self.metadata, 'r') as f:

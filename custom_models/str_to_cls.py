@@ -135,7 +135,7 @@ def get_model_from_string(name: str,task,**kwargs):
                 return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
-                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart/rgb_thr/2025-06-05_14-03-58/model7.pth')
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart/rgb_thr/2025-06-09_19-39-04/model8.pth')
         elif name.startswith("cart_train_easy"):
             modality = name.split('_')[-1]
             if modality not in ['rgb', 'thermal']:
@@ -145,17 +145,38 @@ def get_model_from_string(name: str,task,**kwargs):
                 return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
-                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart/rgb_thr/2025-06-02_03-44-59/model9.pth') 
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart/rgb_thr/2025-06-02_03-44-59/model9.pth')
+        elif name.startswith("ms2_mmdistill"):
+            modality = name.split('_')[-1]
+            if modality not in ['rgb', 'thermal']:
+                raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+            if modality == 'rgb':
+                from .mmdistill_dinov2_model import VariableRGBDistillDINOv2FeatureExtractor
+                return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
+            elif modality == 'thermal':
+                from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-06-09_19-43-06/model19.pth')
+        
         elif name.startswith("netvlad_mmdistill_dinov2_cart"):
             modality = name.split('_')[-1]
             if modality not in ['rgb', 'thermal']:
                 raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
             if modality == 'rgb':
                 from .mmdistill_dinov2_model import MMDistillVPRModel
-                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="rgb",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_20.pth') 
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="rgb",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_15.pth') 
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import MMDistillVPRModel
-                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_20.pth')
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_15.pth')
+        elif name.startswith("netvlad_mmdistill_dinov2_ms2"):
+            modality = name.split('_')[-1]
+            if modality not in ['rgb', 'thermal']:
+                raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+            if modality == 'rgb':
+                from .mmdistill_dinov2_model import MMDistillVPRModel
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="rgb",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_5.pth') 
+            elif modality == 'thermal':
+                from .mmdistill_dinov2_model import MMDistillVPRModel
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_5.pth')
         else:
             raise ValueError(f"Model name '{name}' not recognized.")
     elif task == 'segmentation':

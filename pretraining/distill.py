@@ -74,7 +74,9 @@ parser.add_argument('--teacher_modality', default='rgb', type=str, help='modalit
 parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained')
 parser.add_argument('--unfreeze_teacher',action="store_true", help='modality for which encoder has to be trained')
 parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
-parser.add_argument('--num_workers', default=1, type=int, help='Number of workers for data loading')
+parser.add_argument('--train_num_workers', type=int, default=4)
+parser.add_argument('--eval_num_workers', type=int, default=0)
+
 parser.add_argument('--epochs', default=20, type=int, help='Number of epochs to train for')
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay')
@@ -93,7 +95,8 @@ parser.add_argument('--un_frozen_layer_index', type=int, nargs='+', default=[-1]
                     help='List of layer indices to unfreeze')
 parser.add_argument('--train', default=True,type=bool, help='Mode to build datasets and dataloaders')
 parser.add_argument('--use_odom', default=False,type=bool, help='Mode to build datasets and dataloaders')
-
+parser.add_argument('--rescale_during_crop', default=False, help='Rescale images during cropping')
+parser.add_argument('--vpr_test', default=False, help='Rescale images during cropping')
 args = parser.parse_args()
 print(args)
 
@@ -246,6 +249,7 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
     with (torch.inference_mode() if test else nullcontext()):
         images, _ = batch_item["item"]
         batch_indices = batch_item["batch_id"].tolist()
+        # print("Batch indices: ", batch_indices)
         # if soft_positives_per_query is not None:
         #     pos_masks = generate_positive_masks(soft_positives_per_query, batch_indices, device='cuda')
         # else:
@@ -303,6 +307,8 @@ def train():
     # Load the dataset
 
     train_dataloader, val_dataloader = build_dataset(args)
+    print("Train dataset size: ", len(train_dataloader.dataset))
+    print("Val dataset size: ", len(val_dataloader.dataset))
     # teacher_modality = args.teacher_modality
     # student_modality = args.student_modality
     # if args.dataset == "ms2":
@@ -444,6 +450,7 @@ def train():
                         "val_cosine_loss": val_cosine_loss,
                         "val_positive_cosine_loss": val_positive_cosine_loss,
                         "val_negative_cosine_loss": val_negative_cosine_loss,
+                        "epoch": epoch,
                     }
                     if train_positive_cosine_loss is not None and train_negative_cosine_loss is not None:
                         log_dict["train_positive_cosine_loss"] = train_running_cosine_loss_positive

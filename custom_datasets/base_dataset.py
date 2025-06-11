@@ -57,17 +57,22 @@ class BaseDataset(Dataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=True,crop_during_vpr_test=False):
         self.augment = augment
+        self.crop_during_vpr_test = crop_during_vpr_test
         super().__init__()
         self.vpr_test = vpr_test
         self.vpr_train = vpr_train
         self.datasets_folder = datasets_folder
-
+        self.rescale_during_crop = rescale_during_crop
         if seq == []:
             raise ValueError("Please provide a sequence name. Input is a list")
         if not isinstance(seq,list):
             raise ValueError("Sequence name(s) should be a list")
+
+        if self.vpr_test:
+            if self.augment or self.rescale_during_crop:
+                raise ValueError("For VPR test, augmentations and rescale_during_crop should be False")
         self.check_seq_list(seq)
         self.seq = seq
 
@@ -87,7 +92,7 @@ class BaseDataset(Dataset):
         self.queries_num = len(self.q_abs_paths)
         if self.vpr_test or self.vpr_train:
             self.dist, self.soft_positives_per_query = self.form_gt_positives()
-
+            assert len(self.soft_positives_per_query) == self.queries_num, f"Soft positives per query length {len(self.soft_positives_per_query)} does not match queries number {self.queries_num}"
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
         self.read_fn=self.generate_read_fn()
@@ -149,14 +154,38 @@ class BaseDataset(Dataset):
         return img1, img2  # No augmentation if modalities are not recognized
     
 
-    def crop_and_resize(self, img1: Image.Image,img2: Image.Image,size: Tuple[int, int] = (300, 450)) -> Image.Image:
+    def crop_and_resize(self, img1: Image.Image,img2: Image.Image,size: Tuple[int, int] = (210,546)) -> Image.Image:
         """
         Center crops and resizes the image to the specified size.
         """
         i, j, h, w = T.RandomResizedCrop.get_params(img1, scale=(0.8, 1.0), ratio=(0.75, 1.33))
 
-        return F.resized_crop(img1, i, j, h, w, size=size, antialias=True), F.resized_crop(img2, i, j, h, w, size=size, antialias=True)
-    
+ 
+    def crop_pair_fixed_size(self, img1: Image.Image, img2: Image.Image, size: Tuple[int, int] = (210,546)) -> Tuple[Image.Image, Image.Image]:
+        """
+        Applies the same fixed-size random crop to both images without rescaling.
+        Args:
+            img1: PIL Image (e.g., RGB)
+            img2: PIL Image (e.g., thermal)
+            size: (height, width) of crop
+        Returns:
+            Tuple of cropped img1 and img2
+        """
+        original_height, original_width = img1.shape[-2:]  # Assuming img1 is a PIL Image
+        target_height, target_width = size
+
+        if original_height < target_height or original_width < target_width:
+            
+            return img1, img2  # Return original images if they are smaller than the target size
+
+        top = random.randint(0, original_height - target_height)
+        left = random.randint(0, original_width - target_width)
+
+        cropped1 = F.crop(img1, top, left, target_height, target_width)
+        cropped2 = F.crop(img2, top, left, target_height, target_width)
+
+        return cropped1, cropped2
+
     def rgb_thermal_augment(self,rgb: Image.Image, thermal: Image.Image) -> Tuple[Image.Image, Image.Image]:
         # ----- Random Parameters -----
         rgb_brightness_factor = random.uniform(0.7, 1.3)
@@ -198,12 +227,27 @@ class BaseDataset(Dataset):
 
             elif index<self.database_num:
                 img = self.read_fn[self.db_modality](self.images_paths[index])
+            
+            if self.crop_during_vpr_test:
+                img = F.resize(img, size=(210,560))
+
+            # print("Image shape:", img.shape)
+
             return img, index
 
         else:
             db_img = self.read_fn[self.db_modality](self.images_paths[index])
             q_img = self.read_fn[self.q_modality](self.images_paths[self.database_num+index])
-            db_img, q_img = self.crop_and_resize(db_img, q_img)
+            if self.rescale_during_crop:
+                if random.random() < 0.5:
+                    # Random resized crop (augmentation)
+                    db_img, q_img = self.crop_and_resize(db_img, q_img)
+                else:
+                    # Realistic crop (no resize)
+                    db_img, q_img = self.crop_pair_fixed_size(db_img, q_img)
+            else:
+                db_img, q_img = self.crop_pair_fixed_size(db_img, q_img)
+            
             if self.augment:
                 # Apply augmentations if training mode and augmentations are enabled
                 db_img,q_img = self.augment_function(self.db_modality, self.q_modality, db_img, q_img)

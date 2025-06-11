@@ -1,6 +1,4 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from .base import *
 
 class PatchNCELoss(nn.Module):
     def __init__(self, temperature=0.07, patch_radius=1):
