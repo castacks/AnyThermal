@@ -28,7 +28,7 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=True):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=False):
         self.subsample =10
         self.zone = 52
         self.utm_transformer = self.get_utm_transformer(self.zone)

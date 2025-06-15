@@ -54,7 +54,7 @@ class Vivid(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=True, crop_during_vpr_test=False):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=True, crop_during_vpr_test=False):
 
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/frame_lists"
         self.thr_res = (512, 640)
@@ -64,7 +64,7 @@ class Vivid(BaseDataset):
         self.crop_left = 145
         self.crop_right = 108
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
     def generate_read_fn(self):
         return {

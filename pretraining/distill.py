@@ -21,6 +21,8 @@ import gc
 from utilities import DinoV2ExtractFeatures
 from torchvision.utils import save_image
 from custom_models.mmdistill_dinov2_model import MMDistillDinov2
+
+global_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def save_viz_debug_images(images_dict, index, epoch, batch_num, split, save_root):
     """
     Save RGB and thermal images to disk for visualization/debugging.
@@ -36,7 +38,9 @@ def save_viz_debug_images(images_dict, index, epoch, batch_num, split, save_root
 
 def init_model(args,modality,un_frozen_layer_index):
     if args.model_name == "dinov2_vits14":
-        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').cuda()
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+        if global_device.type == 'cuda':
+            model = model.cuda()
         patch_size = 14
     elif args.model_name == "dinov2_vitb14":
         # model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').cuda()
@@ -70,6 +74,8 @@ parser = argparse.ArgumentParser(description='Fine-tuning DINOv2 on ImageNet')
 # parser.add_argument('--dataset_path', default='', type=str, help='Path to the ImageNet dataset')
 parser.add_argument('--dataset', type=str, nargs='+',
                     help='List of datasets to use in training and eval')
+parser.add_argument('--eval_dataset', default=[],type=str, nargs='+',
+                    help='List of datasets to use in training and eval')
 parser.add_argument('--teacher_modality', default='rgb', type=str, help='modality which will be frozen unless "unfreeze teacher" is true')
 parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained')
 parser.add_argument('--unfreeze_teacher',action="store_true", help='modality for which encoder has to be trained')
@@ -95,8 +101,12 @@ parser.add_argument('--un_frozen_layer_index', type=int, nargs='+', default=[-1]
                     help='List of layer indices to unfreeze')
 parser.add_argument('--train', default=True,type=bool, help='Mode to build datasets and dataloaders')
 parser.add_argument('--use_odom', default=False,type=bool, help='Mode to build datasets and dataloaders')
-parser.add_argument('--rescale_during_crop', default=False, help='Rescale images during cropping')
-parser.add_argument('--vpr_test', default=False, help='Rescale images during cropping')
+parser.add_argument('--rescale_during_crop', default=False,type=bool, help='Rescale images during cropping')
+parser.add_argument('--vpr_test', default=False,type=bool, help='Rescale images during cropping')
+parser.add_argument('--no_shuffle', action='store_true', help='Rescale images during cropping')
+parser.add_argument('--crop_images', default=True, type=bool,help='Rescale images during cropping')
+parser.add_argument('--subsample', default=1, type=int,help='Rescale images during cropping')
+
 args = parser.parse_args()
 print(args)
 
@@ -254,11 +264,11 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
         #     pos_masks = generate_positive_masks(soft_positives_per_query, batch_indices, device='cuda')
         # else:
         #     pos_masks = None
-        pos_masks = torch.eye(len(batch_indices), dtype=torch.bool, device='cuda')
+        pos_masks = torch.eye(len(batch_indices), dtype=torch.bool, device=global_device)
         # if test:
         #     import pdb; pdb.set_trace()
-        img_teacher = transform_images(teacher_modality,images[teacher_modality],teacher_patch_size).to('cuda')
-        img_student = transform_images(student_modality,images[student_modality],student_patch_size).to('cuda')
+        img_teacher = transform_images(teacher_modality,images[teacher_modality],teacher_patch_size).to(global_device)
+        img_student = transform_images(student_modality,images[student_modality],student_patch_size).to(global_device)
 
         if args.unfreeze_teacher:
             teacher_output = teacher_model.forward_train(img_teacher,return_local_features=False)
@@ -287,12 +297,13 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
         student_output_norm_mean, student_output_norm_std = torch.mean(torch.norm(student_output,dim=-1)), torch.std(torch.norm(student_output,dim=-1))
 
         mode = "val" if test else "train"
-        wandb.log({
-            f"{mode}/teacher_output_norm_mean": teacher_output_norm_mean.item(),
-            f"{mode}/teacher_output_norm_std": teacher_output_norm_std.item(),
-            f"{mode}/student_output_norm_mean": student_output_norm_mean.item(),
-            f"{mode}/student_output_norm_std": student_output_norm_std.item(),
-        })
+        if args.wandb_use:
+            wandb.log({
+                f"{mode}/teacher_output_norm_mean": teacher_output_norm_mean.item(),
+                f"{mode}/teacher_output_norm_std": teacher_output_norm_std.item(),
+                f"{mode}/student_output_norm_mean": student_output_norm_mean.item(),
+                f"{mode}/student_output_norm_std": student_output_norm_std.item(),
+            })
         if soft_positives_per_query is None:
             del img_teacher, img_student, teacher_output, student_output, loss, contrastive_loss_output, cosine_loss_output
             return contrastive_item,cosine_loss_item,None,None
@@ -302,59 +313,14 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
             del img_teacher, img_student, teacher_output, student_output, loss, contrastive_loss_output, cosine_loss_output
 
             return contrastive_item, cosine_loss_item,positive_loss, negative_loss
-
+    
 def train():
     # Load the dataset
 
     train_dataloader, val_dataloader = build_dataset(args)
     print("Train dataset size: ", len(train_dataloader.dataset))
     print("Val dataset size: ", len(val_dataloader.dataset))
-    # teacher_modality = args.teacher_modality
-    # student_modality = args.student_modality
-    # if args.dataset == "ms2":
-    #     print("Using MS2 dataset")
-    #     train_seq_list = return_ms2_split("train")
-    #     val_seq_list = return_ms2_split("val")
-    #     data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
-    #     train_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=args.augment)
-    #     val_dataset = MS2(db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False) #no augmentation for val dataset
-    # elif args.dataset == "wisard":
-    #     print("Using Wisard dataset")
-    #     dataset = Wisard_Dataset(args.dataset_path)
-    # elif args.dataset == "cart":
-    #     print("Using CART dataset")
-    #     if args.train_easy:
-    #         print("Using easy training split")
-    #         train_seq_list = return_cart_split("train_easy")
-    #     else:
-    #         print("Using normal training split")
-    #         train_seq_list = return_cart_split("train")
-    #     val_seq_list = return_cart_split("val")
-    #     data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
-    #     frame_list_root = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
-    #     train_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=train_seq_list, augment=args.augment)
-    #     val_dataset = CART(root_frame_dir=frame_list_root,db_modality=teacher_modality,q_modality=student_modality,datasets_folder=data_root,seq=val_seq_list, augment=False,vpr_train= True)
 
-    # elif args.dataset == "tartanair":
-    #     print("Using TartanAir dataset")
-    #     modality_map = {
-    #         "rgb": "image",
-    #         "depth": "depth"
-    #     }
-    #     teacher_modality = modality_map[teacher_modality]
-    #     student_modality = modality_map[student_modality]
-    #     dataset = Custom_TartanAirDataset(tartanair_data_root = tartanair_data_root,modalities=[teacher_modality, student_modality],
-    #                                         # envs=['ModernCityDowntown','Gascola','Supermarket','Rome'],
-    #                                         # difficulties=['easy'],
-    #                                         frame_skip = 10     
-    #                                     )
-    # else:
-    #     raise ValueError("Invalid dataset name. Please choose 'ms2', 'wisard', 'cart' or 'tartanair'.")
-
-    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.num_workers,persistent_workers=True)
-    # val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
-
-    
     
     # Load the checkpoint if resuming training
     start_epoch = args.resume_epoch_num
@@ -362,8 +328,8 @@ def train():
         save_path = args.save_path
         checkpoint = torch.load(os.path.join(args.save_path, "model" +str(start_epoch) + '.pth'))
         if args.unfreeze_teacher:
-            teacher_model.load_state_dict(checkpoint['teacher_model_state_dict'])
-        student_model.load_state_dict(checkpoint['student_model_state_dict'])
+            teacher_model.model.load_state_dict(checkpoint['teacher_model_state_dict'])
+        student_model.model.load_state_dict(checkpoint['student_model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         if args.lr_scheduler:
@@ -384,100 +350,111 @@ def train():
             yaml.dump(vars(args), f)
     viz_debug_dir = os.path.join(save_path, "viz_debug") if args.viz_debug else None
 
-    if hasattr(val_dataloader.dataset, 'soft_positives'):
-        val_soft_positives_per_query = val_dataloader.dataset.soft_positives
-    else:
-        val_soft_positives_per_query = None 
-    
-    if hasattr(train_dataloader.dataset, 'soft_positives'):
-        train_soft_positives_per_query = train_dataloader.dataset.soft_positives
-    else:
-        train_soft_positives_per_query = None 
+    val_soft_positives_per_query = getattr(val_dataloader.dataset, 'soft_positives', None)
+    train_soft_positives_per_query = getattr(train_dataloader.dataset, 'soft_positives', None)
 
-    # Train the model
     for epoch in range(start_epoch, args.epochs):
         start_time = time.time()
-        num_batches = len(train_dataloader)
-        train_iterator = iter(train_dataloader)
-        val_iterator = iter(val_dataloader)
+        train_running_contrastive_loss = 0.0
+        train_running_cosine_loss = 0.0
+        train_running_cosine_loss_positive = 0.0
+        train_running_cosine_loss_negative = 0.0
 
-        reset_training_loss = True
-        for i in tqdm(range(len(train_dataloader))):
-            if reset_training_loss:
-                train_running_contrastive_loss = 0.0
-                train_running_cosine_loss = 0.0
-                train_running_cosine_loss_positive = 0.0
-                train_running_cosine_loss_negative = 0.0
-                reset_training_loss = False
-            train_item = next(train_iterator)
-            images,_ = train_item["item"]
+        batch_contrastive_loss = 0.0
+        batch_cosine_loss = 0.0
+        batch_cosine_loss_positive = 0.0
+        batch_cosine_loss_negative = 0.0
+
+        for i, train_item in enumerate(tqdm(train_dataloader)):
+            images, _ = train_item["item"]
             train_index = train_item["batch_id"]
             if args.viz_debug:
                 save_viz_debug_images(images, train_index, epoch, i, "train", viz_debug_dir)
             
-            train_contrastive_loss, train_cosine_loss,train_positive_cosine_loss,train_negative_cosine_loss = inference(args,teacher_model,student_model, args.teacher_modality,args.student_modality,train_item,soft_positives_per_query=train_soft_positives_per_query)
+            train_contrastive_loss, train_cosine_loss, train_pos_loss, train_neg_loss = inference(
+                args, teacher_model, student_model, args.teacher_modality, args.student_modality,
+                train_item, soft_positives_per_query=train_soft_positives_per_query)
+
             train_running_contrastive_loss += train_contrastive_loss
             train_running_cosine_loss += train_cosine_loss
-            if train_positive_cosine_loss is not None and train_negative_cosine_loss is not None:
-                train_running_cosine_loss_positive += train_positive_cosine_loss
-                train_running_cosine_loss_negative += train_negative_cosine_loss
-            torch.cuda.empty_cache()
-            if i % 10 == 9:
-                train_running_contrastive_loss = train_running_contrastive_loss / 10
-                train_running_cosine_loss = train_running_cosine_loss / 10
-                train_running_cosine_loss_positive = train_running_cosine_loss_positive / 10
-                train_running_cosine_loss_negative = train_running_cosine_loss_negative / 10
-                try:
-                    val_item = next(val_iterator)
-                except StopIteration:
-                    val_iterator = iter(val_dataloader)
-                    val_item = next(val_iterator)
-                
-                val_images, _ = val_item["item"]
-                val_index = val_item["batch_id"]
-                
-                if args.viz_debug:
-                    save_viz_debug_images(val_images, val_index, epoch, i, "val", viz_debug_dir)
+            if train_pos_loss is not None and train_neg_loss is not None:
+                train_running_cosine_loss_positive += train_pos_loss
+                train_running_cosine_loss_negative += train_neg_loss
 
-                val_contrastive_loss, val_cosine_loss,val_positive_cosine_loss,val_negative_cosine_loss = inference(args,teacher_model,student_model, args.teacher_modality,args.student_modality,val_item,test=True,soft_positives_per_query=val_soft_positives_per_query)
-                print('[Epoch: %d, Batch: %d/%d] train loss: %.3f val loss: %.3f\n' % (epoch + 1, i + 1,num_batches, train_running_cosine_loss, val_cosine_loss))
+            batch_contrastive_loss += train_contrastive_loss
+            batch_cosine_loss += train_cosine_loss
+            if train_pos_loss is not None and train_neg_loss is not None:
+                batch_cosine_loss_positive += train_pos_loss
+                batch_cosine_loss_negative += train_neg_loss
+
+            if (i + 1) % 10 == 0:
+                print(f"[Epoch {epoch+1}, Batch {i+1}] Running Losses: Cosine={batch_cosine_loss/10:.4f}, Contrastive={batch_contrastive_loss/10:.4f}")
+                batch_contrastive_loss = 0.0
+                batch_cosine_loss = 0.0
+                batch_cosine_loss_positive = 0.0
+                batch_cosine_loss_negative = 0.0
+
+            torch.cuda.empty_cache()
+
+        # ==== Run validation over the full val_dataloader ====
+        val_total_contrastive = 0.0
+        val_total_cosine = 0.0
+        val_total_pos = 0.0
+        val_total_neg = 0.0
+        val_batches = 0
+
+        for j, val_item in enumerate(tqdm(val_dataloader, desc=f"Validation Epoch {epoch+1}")):
+            images, _ = val_item["item"]
+            val_index = val_item["batch_id"]
+            if args.viz_debug:
+                save_viz_debug_images(images, val_index, epoch, j, "val", viz_debug_dir)
+
+            val_contrastive_loss, val_cosine_loss, val_pos_loss, val_neg_loss = inference(
+                args, teacher_model, student_model,
+                args.teacher_modality, args.student_modality,
+                val_item, test=True, soft_positives_per_query=val_soft_positives_per_query)
+            val_total_contrastive += val_contrastive_loss
+            val_total_cosine += val_cosine_loss
+            if val_pos_loss is not None:
+                val_total_pos += val_pos_loss
+                val_total_neg += val_neg_loss
+            val_batches += 1
+
+        val_avg_contrastive = val_total_contrastive / val_batches
+        val_avg_cosine = val_total_cosine / val_batches
+        val_avg_pos = val_total_pos / val_batches if val_total_pos > 0 else None
+        val_avg_neg = val_total_neg / val_batches if val_total_neg > 0 else None
                 
-                if args.wandb_use:
-                    log_dict= {
-                        "train_contrastive_loss": train_running_contrastive_loss,
-                        "train_cosine_loss": train_running_cosine_loss,
-                        "val_contrastive_loss": val_contrastive_loss,
-                        "val_cosine_loss": val_cosine_loss,
-                        "val_positive_cosine_loss": val_positive_cosine_loss,
-                        "val_negative_cosine_loss": val_negative_cosine_loss,
+        if args.wandb_use:
+            log_dict = {
                         "epoch": epoch,
-                    }
-                    if train_positive_cosine_loss is not None and train_negative_cosine_loss is not None:
-                        log_dict["train_positive_cosine_loss"] = train_running_cosine_loss_positive
-                        log_dict["train_negative_cosine_loss"] = train_running_cosine_loss_negative
-                    if args.lr_scheduler:
-                        log_dict["lr"] = scheduler.get_last_lr()[0]
-                    wandb.log(log_dict)
-                reset_training_loss = True
-            gc.collect()
-            torch.cuda.empty_cache()
+                "avg_train_contrastive_loss": train_running_contrastive_loss / len(train_dataloader),
+                "avg_train_cosine_loss": train_running_cosine_loss / len(train_dataloader),
+                "avg_val_contrastive_loss": val_avg_contrastive,
+                "avg_val_cosine_loss": val_avg_cosine,
+            }
+            if val_avg_pos is not None:
+                log_dict["avg_val_positive_cosine_loss"] = val_avg_pos
+                log_dict["avg_val_negative_cosine_loss"] = val_avg_neg
+            if train_pos_loss is not None:
+                log_dict["avg_train_positive_cosine_loss"] = train_running_cosine_loss_positive / len(train_dataloader)
+                log_dict["avg_train_negative_cosine_loss"] = train_running_cosine_loss_negative / len(train_dataloader)
+                if args.lr_scheduler:
+                    log_dict["lr"] = scheduler.get_last_lr()[0]
+            wandb.log(log_dict)
         
-        del images, train_iterator, val_iterator
-        if args.lr_scheduler:
-            scheduler.step()
+        print(f"[Epoch {epoch+1}] Avg Train Cosine: {train_running_cosine_loss/len(train_dataloader):.4f}, Avg Val Cosine: {val_avg_cosine:.4f}")
 
-        # Save the model
         torch.save({
             'epoch': epoch,
             'student_model_type': args.model_name,
             'student_model_state_dict': student_model.model.state_dict(),
-            # 'teacher_model_state_dict': teacher_model.model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             "train_contrastive_loss": train_running_contrastive_loss,
             "train_cosine_loss": train_running_cosine_loss,
-            "val_contrastive_loss": val_contrastive_loss,
-            "val_cosine_loss": val_cosine_loss
-        }, os.path.join(save_path, "model" +str(epoch) + '.pth'))
+            "val_contrastive_loss": val_avg_contrastive,
+            "val_cosine_loss": val_avg_cosine
+        }, os.path.join(save_path, "model" + str(epoch) + '.pth'))
 
         print("Epoch {} of {} took {:.3f}s\n".format(epoch+1, args.epochs, time.time() - start_time))
 

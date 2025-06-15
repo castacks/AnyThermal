@@ -17,16 +17,18 @@ sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_reco
 sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition")
 from salad.models.helper import get_aggregator
 
+global_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class MMDistillDinov2():
     def __init__(self, model_type, modality, un_frozen_layer_index,backbone_path=""):
         self.model_type = model_type
         self.modality = modality
         self.un_frozen_layer_index = un_frozen_layer_index
-        self.model = torch.hub.load("facebookresearch/dinov2", self.model_type).cuda()
+        self.model = torch.hub.load("facebookresearch/dinov2", self.model_type).to(global_device)
         if backbone_path != "":
             print(f"Loading backbone from {backbone_path}")
-            state_dict = torch.load(backbone_path, map_location='cuda')["student_model_state_dict"]
+            state_dict = torch.load(backbone_path, map_location=global_device)["student_model_state_dict"]
             self.model.load_state_dict(state_dict)
         # freeze the layer by setting requires_grad to False
         for name, param in self.model.named_parameters():
@@ -184,13 +186,15 @@ class DistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
 
 
 class MMDistillSegmentationModel(BaseSegmentationModel):
-    def __init__(self, pre_upscale,model_type, frozen_backbone,frozen_head,device,num_classes,backbone_path="",model_path="",   **kwargs):
+    def __init__(self,model_type, frozen_backbone,frozen_head,device,num_classes,backbone_path="",model_path="",pre_upscale=None,   **kwargs):
         self.model_type = model_type
         self.frozen_backbone = frozen_backbone
         self.backbone_path = backbone_path
         self.frozen_head = frozen_head
         self.model_path = model_path
         self.pre_upscale = pre_upscale
+        if self.model_path =="" and self.pre_upscale == None:
+            raise ValueError("Please provide a model_path or set pre_upscale")
         super().__init__(device, num_classes)
 
     def build_model(self):
@@ -206,7 +210,9 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
             print(f"Loading backbone and head model from {self.model_path}")
             head_state_dict = torch.load(self.model_path, map_location=self.device)["seg_head"]
             backbone_path = torch.load(self.model_path, map_location=self.device)["backbone_path"]
+            self.pre_upscale = torch.load(self.model_path, map_location=self.device)["pre_upscale"]
             backbone_state_dict = torch.load(backbone_path, map_location=self.device)["student_model_state_dict"]
+
             backbone.load_state_dict(backbone_state_dict)
             head.load_state_dict(head_state_dict)
         if self.pre_upscale:
@@ -286,7 +292,7 @@ class MMDistillVPRModel(BaseFeatureExtractor):
 
         elif self.model_path != "" and self.backbone_path == "":
             print(f"Loading backbone and head model from {self.model_path}")
-            head_state_dict = torch.load(self.model_path, map_location=self.device)["vpr_head"]
+            head_state_dict = torch.load(self.model_path, map_location=self.device)["thermal_vpr_head"]
             head.load_state_dict(head_state_dict)
             backbone_path = torch.load(self.model_path, map_location=self.device)["backbone_path"]
             backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
@@ -315,6 +321,7 @@ class MMDistillVPRModel(BaseFeatureExtractor):
         return self.model(x, frozen_backbone=self.frozen_backbone)
 
     def extract_feature(self, images,keep_ratio=False,resize=True, test=True):
+        # import pdb; pdb.set_trace()
         images = self.preprocess(images,keep_ratio=keep_ratio,resize=resize).to(self.device)
         with torch.no_grad() if test else contextlib.nullcontext():
             feature = self.forward(images)

@@ -3,8 +3,8 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 new_benchmark_vpr.py \
-    --model_names netvlad_mmdistill_dinov2_ms2\
-    --dataset ms2\
+    --model_names salad combined_mmdistill\
+    --dataset vivid\
     --top_k_vals 1 5 10 \
     --batch_size 16 \
     --save_qual \
@@ -16,5 +16,4 @@ python3 new_benchmark_vpr.py \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
     --exclude_exact_query_in_db \
-    --dataset_splits val train \
-    --crop_images
+    --dataset_splits val train

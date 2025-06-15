@@ -156,7 +156,18 @@ def get_model_from_string(name: str,task,**kwargs):
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
                 return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-06-09_19-43-06/model19.pth')
+        elif name.startswith("combined_mmdistill"):
+            modality = name.split('_')[-1]
+            if modality not in ['rgb', 'thermal']:
+                raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+            if modality == 'rgb':
+                from .mmdistill_dinov2_model import VariableRGBDistillDINOv2FeatureExtractor
+                return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
+            elif modality == 'thermal':
+                from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart_ms2_freiburg_sthereo_vivid/rgb_thr/2025-06-10_14-56-00/model20.pth')
         
+
         elif name.startswith("netvlad_mmdistill_dinov2_cart"):
             modality = name.split('_')[-1]
             if modality not in ['rgb', 'thermal']:
@@ -169,21 +180,18 @@ def get_model_from_string(name: str,task,**kwargs):
                 return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_15.pth')
         elif name.startswith("netvlad_mmdistill_dinov2_ms2"):
             modality = name.split('_')[-1]
+            head_config={"agg_arch":"NetVLAD"}
             if modality not in ['rgb', 'thermal']:
                 raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
             if modality == 'rgb':
                 from .mmdistill_dinov2_model import MMDistillVPRModel
-                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="rgb",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_5.pth') 
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="rgb",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/ms2/2025-06-14_22-36-30/model_0.pth', head_config=head_config)
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import MMDistillVPRModel
-                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/model_5.pth')
+                return MMDistillVPRModel(frozen_backbone=True, frozen_head=True,modality="thermal",model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/ms2/2025-06-14_22-36-30/model_0.pth', head_config=head_config)
         else:
             raise ValueError(f"Model name '{name}' not recognized.")
     elif task == 'segmentation':
-        if name =="mmdistill_dinov2_cart_train_normal":
+        if name =="mmdistill_dinov2_cart":
             from .mmdistill_dinov2_model import MMDistillSegmentationModel
-            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250602-170533/model3.pth', **kwargs)
-        if name =="mmdistill_dinov2_cart_train_easy":
-            from .mmdistill_dinov2_model import MMDistillSegmentationModel
-            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250602-170533/model3.pth', **kwargs)
-            #PARV_TODO - Change the model path to the one you want to use
+            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250613-230300/model44.pth', **kwargs)

@@ -51,6 +51,8 @@ class BenchmarkArgs:
     use_odom: bool = True
     vpr_test: bool = True
     common_database: bool = False
+    crop_images: bool = False
+
 
 def extract_all_features(model, dataset, batch_size=1):
     features = []
@@ -141,7 +143,7 @@ def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_fea
         index = faiss.IndexFlatIP(d)
 
     index.add(db_feats.numpy())
-    _, indices = index.search(query_feats.numpy(), max(top_k_vals))
+    _, indices = index.search(query_feats.numpy(), max(top_k_vals)+1)
 
     for i, retrieved in enumerate(indices):
         if no_positive_matches_for_queries[i]:
@@ -149,12 +151,13 @@ def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_fea
         gt = pos_per_query[i]
         for k in top_k_vals:
             if exclude_exact_query_in_db:
-                topk_plus1 = retrieved[:k+1] # if exact query in the top k frames, then look at k+1 frames and Exclude the alligned query itself
-                filtered = [idx for idx in topk_plus1 if idx != i]
-                if any(idx in gt for idx in filtered[:k]):
-                    recalls[k] += 1
+                gt = [idx for idx in gt if idx != i]  # Exclude the query itself from ground truth
+                # if exact query in the top k frames, then look at k+1 frames and Exclude the alligned query itself
+                filtered = [idx for idx in retrieved[:k+1] if idx != i]
+                filtered = filtered[:k]  # Ensure we only consider the top k after filtering
             else:
-                if any(idx in gt for idx in retrieved[:k]):
+                filtered = retrieved[:k]
+            if any(idx in gt for idx in filtered):
                     recalls[k] += 1
 
     total = np.sum(~no_positive_matches_for_queries)
@@ -222,7 +225,7 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        rgb_t_methods = ["ms2_mmdistill","imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart","netvlad_mmdistill_dinov2_ms2"]
+        rgb_t_methods = ["combined_mmdistill","ms2_mmdistill","imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart","netvlad_mmdistill_dinov2_ms2"]
         method_is_rgbt_method_flag = False 
         for method in rgb_t_methods:
             if method not in model_name:

@@ -3,71 +3,55 @@ import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from typing import Tuple
 
-def return_cart_split_segmentation(split):
+def return_cart_split_segmentation_geographic(split,area,mode):
     """
     Returns the split for the ms2 dataset.
     """
-    if split == "train_easy":
-        train_seq_list = ['2022-04-03-12-16-33', '2022-04-03-12-20-57', 
-                                '2022-04-03-17-12-07', '2022-04-03-17-16-17', 
-                                '2022-05-08-11-30-40','2022-05-08-11-34-00', '2022-05-08-11-37-09',
-                                '2022-05-15-06-00-09', '2022-05-15-06-14-42','2022-05-15-06-26-50', '2022-05-15-06-39-43', 
-                                "2023-03-21-09-59-39","2023-03-21-14-06-04","2023-03-21-18-20-21","2023-03-21-19-55-11",
-                                # "2023-03-22-08-44-31",
-                                "2023-03-22-14-31-06","2023-03-22-14-41-46",
-                                '2022-12-20-11-40-28' #PARV_TODO - currently using 1 traj from the lake data - val split - figure this out
-                                ]
-        return train_seq_list
-    elif split == "train":
-        train_seq_list = ['2022-04-03-12-16-33', '2022-04-03-12-20-57', 
-                                '2022-04-03-17-12-07', '2022-04-03-17-16-17', 
-                                '2022-05-08-11-30-40','2022-05-08-11-34-00', '2022-05-08-11-37-09',
-                                '2022-05-15-06-00-09', '2022-05-15-06-14-42','2022-05-15-06-26-50', '2022-05-15-06-39-43', 
-                                "2023-03-21-09-59-39","2023-03-21-14-06-04","2023-03-21-18-20-21","2023-03-21-19-55-11",
-                                # "2023-03-22-08-44-31",
-                                "2023-03-22-14-31-06","2023-03-22-14-41-46",
-                                # '2022-12-20-11-40-28' #PARV_TODO - currently using 1 traj from the lake data - val split - figure this out
-                                ]
-        return train_seq_list
+
+    assert mode in ["thermal","rgbt"], "Please provide a valid mode. Currently only thermal are supported"
+
+
+    root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/geographic_splits"
+    if area =="socal":
+        train_seq_list = [f"socal_train_{mode}.txt"]
+        val_seq_list = [f"socal_val_{mode}.txt"]
+        test_seq_list = [f"socal_test_{mode}.txt"]
+    elif area == "northcarolina":
+        train_seq_list = [f"northcarolina_train_{mode}.txt"]
+        val_seq_list = [f"northcarolina_val_{mode}.txt"]
+        test_seq_list = [f"northcarolina_test_{mode}.txt"]
+    elif area == "kentucky":
+        train_seq_list = [f"kentucky_train_{mode}.txt"]
+        val_seq_list = [f"kentucky_val_{mode}.txt"]
+        test_seq_list = [f"kentucky_test_{mode}.txt"]
+
+    if split =="train":
+        return [os.path.join(root_dir,x) for x in train_seq_list]
     elif split == "val":
-        val_seq_list = [ '2022-12-20-12-16-02', '2022-12-20-12-48-59','2022-12-20-13-37-37'
-                             ]
-        return val_seq_list
-    else:
-        raise ValueError("Please provide a valid split name. Options are train or val")
+        return [os.path.join(root_dir,x) for x in val_seq_list]
+    elif split == "test":
+        return [os.path.join(root_dir,x) for x in test_seq_list]
 
 def return_cart_split(split):
     """
     Returns the split for the ms2 dataset.
     """
     if split == "train_easy":
-        train_seq_list = ['2022-04-03-12-16-33', '2022-04-03-12-20-57', 
-                                '2022-04-03-17-12-07', '2022-04-03-17-16-17', 
-                                '2022-05-08-11-30-40','2022-05-08-11-34-00', '2022-05-08-11-37-09',
-                                '2022-05-15-06-00-09', '2022-05-15-06-14-42','2022-05-15-06-26-50', '2022-05-15-06-39-43', 
-                                '2022-07-26-10-39-11',"2022-07-26-10-50-52", '2022-07-26-11-00-21',"2022-07-26-11-05-36","2022-07-26-11-22-00","2022-10-06-12-23-29","2022-10-06-13-11-26",
-                                "2023-03-21-09-59-39","2023-03-21-14-06-04",
-                                # "2023-03-21-18-20-21","2023-03-21-19-55-11", nothing visible in RGB, PARV_TODO can use for themral only supervision 
-                                "2023-03-22-08-44-31",
-                                "2023-03-22-14-31-06","2023-03-22-14-41-46",
-                                "2022-12-20-11-40-28" #PARV_TODO - currently using 1 traj from the lake data - val split - figure this out
-                                ]
-        return train_seq_list
+        raise ValueError("train_easy split is not supported for the CART dataset. Please use train or val split.")
     elif split == "train":
         train_seq_list = ['2022-04-03-12-16-33', '2022-04-03-12-20-57', 
                                 '2022-04-03-17-12-07', '2022-04-03-17-16-17', 
                                 '2022-05-08-11-30-40','2022-05-08-11-34-00', '2022-05-08-11-37-09',
                                 '2022-05-15-06-00-09', '2022-05-15-06-14-42','2022-05-15-06-26-50', '2022-05-15-06-39-43', 
                                 '2022-07-26-10-39-11',"2022-07-26-10-50-52", '2022-07-26-11-00-21',"2022-07-26-11-05-36","2022-07-26-11-22-00","2022-10-06-12-23-29","2022-10-06-13-11-26",
-                                "2023-03-21-09-59-39","2023-03-21-14-06-04",
-                                # "2023-03-21-18-20-21","2023-03-21-19-55-11", nothing visible in RGB, PARV_TODO can use for themral only supervision 
-                                "2023-03-22-08-44-31",
-                                "2023-03-22-14-31-06","2023-03-22-14-41-46",
-                                # "2022-12-20-11-40-28" #PARV_TODO - currently using 1 traj from the lake data - val split - figure this out
+                                '2022-12-20-11-40-28','2022-12-20-12-16-02', '2022-12-20-12-48-59','2022-12-20-13-37-37',
                                 ]
         return train_seq_list
     elif split == "val":
-        val_seq_list = ['2022-12-20-12-16-02', '2022-12-20-12-48-59','2022-12-20-13-37-37']
+        val_seq_list = ["2023-03-21-09-59-39","2023-03-21-14-06-04","2023-03-22-08-44-31","2023-03-22-14-31-06","2023-03-22-14-41-46"]
+
+        # "2023-03-21-18-20-21","2023-03-21-19-55-11", nothing visible in RGB, PARV_TODO can use for themral only supervision 
+
         return val_seq_list
     else:
         raise ValueError("Please provide a valid split name. Options are train or val")
@@ -80,19 +64,16 @@ def seq_has_gps(seq, datasets_folder):
     return os.path.exists(gps_file)
 
 
-resize_transform = T.Compose([
-    T.Resize((300, 450), interpolation=T.InterpolationMode.NEAREST),  # Resize to 300x450
-    # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    # normalization is done in the model since it can be different for each modal
-])
-
-
 class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=True,crop_during_vpr_test=False):
+    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt=""):
         self.root_frame_dir = root_frame_dir
+        self.seq_as_txt = seq_as_txt
+
+        assert self.seq_as_txt in ['', 'thermal', 'rgbt'], "Please provide a valid seq_as_txt. Currently only thermal and rgbt are supported"
+
         if vpr_train or vpr_test:
             seq_filtered = [seq_single for seq_single in seq if seq_has_gps(seq_single, datasets_folder)]
             if len(seq_filtered) == 0:
@@ -104,7 +85,7 @@ class CART(BaseDataset):
                         print(f"Sequence {seq_single} does not have GPS data and is filtered out.")
         else:
             seq_filtered = seq
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered,rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test)
+        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered,rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
     def generate_read_fn(self):
         return {
@@ -122,54 +103,128 @@ class CART(BaseDataset):
         frame_list = [x.strip() for x in frame_list]
         frame_list = [x for x in frame_list if x.endswith('.png')]
         return frame_list
+
+    def read_segmentation_frame_list(self, seq,mode):
+        """
+        Reads a list of frames from the given path.
+        """
+        with open(seq, 'r') as f:
+            frame_list = f.readlines()
+        frame_list = [x.strip() for x in frame_list]
+        frame_list = [x.split(",") for x in frame_list]
+
+        if mode == "thermal":
+            thermal_frames = [x[0] for x in frame_list]
+            seg_frames = [x[1] for x in frame_list]
+            return None,thermal_frames,seg_frames
+        else:
+            rgb_frames = [x[0] for x in frame_list]
+            thermal_frames = [x[1] for x in frame_list]
+            seg_frames = [x[2] for x in frame_list]
+            return rgb_frames,thermal_frames,seg_frames
+    def generate_seq_as_txt_paths(self,db_abs_paths,q_abs_paths,mode):
+        """
+        Generates image paths for the dataset in segmentation mode. Return the updated db_abs_paths and q_abs_paths
+        """
+        all_rgb_frames = []
+        all_thermal_frames = []
+        all_seg_frames = []
+
+        for seq in self.seq:
+            rgb_frames,thermal_frames,seg_frames = self.read_segmentation_frame_list(seq,mode)
+            if len(thermal_frames) != len(seg_frames):
+                raise ValueError(f"Please provide a valid sequence name. {seq} does not have matching thermal and segmentation frames")
+            if not thermal_frames or not seg_frames:
+                raise ValueError(f"Please provide a valid sequence name. {seq} does not have any frames in the segmentation mode")
+            if rgb_frames is not None and len(rgb_frames) != len(thermal_frames):
+                raise ValueError(f"Please provide a valid sequence name. {seq} does not have matching rgb and thermal frames")
+            if rgb_frames is not None:
+                all_rgb_frames.extend(rgb_frames)
+            all_thermal_frames.extend(thermal_frames)
+            all_seg_frames.extend(seg_frames)
+        
+        if len(all_thermal_frames) != len(all_seg_frames):
+            raise ValueError("Please provide a valid sequence name. The number of thermal frames and segmentation frames do not match")
+        
+        return all_rgb_frames,all_thermal_frames, all_seg_frames
+        
+
     def generate_image_paths(self,db_abs_paths,q_abs_paths):
         """
         Generates image paths for the dataset. Return the updated db_abs_paths and q_abs_paths
         """
-        self.seq_wise_length=[]
-        for seq in self.seq:
 
-            if "thr" in [self.db_modality, self.q_modality]:
-                thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list.txt")
-                thermal_frames = self.read_frame_list(thermal_file)
-            
-            if "thr_seg" in [self.db_modality, self.q_modality]:
-                thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list_seg_pair.txt")
-                thermal_frames = self.read_frame_list(thermal_file)
-
-            if "rgb" in [self.db_modality, self.q_modality]:
-                rgb_file = os.path.join(self.root_frame_dir,f"{seq}_rgb_frame_list.txt")
-                rgb_frames = self.read_frame_list(rgb_file)
-            
-            if "seg_mask" in [self.db_modality, self.q_modality]:
-                seg_mask_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_segmentation_frame_list.txt")
-                seg_mask_frames = self.read_frame_list(seg_mask_file)
-
-            self.seq_wise_length.append(len(rgb_frames))  # Assuming rgb_frames and thermal_frames are of the same length
-
-            if self.db_modality == "rgb":                
-                db_abs_paths.extend(rgb_frames)
+        if self.seq_as_txt != "":
+            rgb_paths, thermal_paths, mask_paths = self.generate_seq_as_txt_paths(db_abs_paths, q_abs_paths,self.seq_as_txt)
+            if self.db_modality == "rgb":
+                db_abs_paths.extend(rgb_paths)
             elif self.db_modality == "thr" or self.db_modality == "thr_seg":
-                db_abs_paths.extend(thermal_frames)
+                db_abs_paths.extend(thermal_paths)
             elif self.db_modality == "seg_mask":
-                db_abs_paths.extend(seg_mask_frames)
+                db_abs_paths.extend(mask_paths)
             else:
                 raise ValueError("Please provide a valid db_modality. Currently only rgb and thr are supported")
+            
             if self.q_modality == "rgb":
-                q_abs_paths.extend(rgb_frames)
+                q_abs_paths.extend(rgb_paths)
             elif self.q_modality == "thr" or self.q_modality == "thr_seg":
-                q_abs_paths.extend(thermal_frames)
+                q_abs_paths.extend(thermal_paths)
             elif self.q_modality == "seg_mask":
-                q_abs_paths.extend(seg_mask_frames)
+                q_abs_paths.extend(mask_paths)
             else:
                 raise ValueError("Please provide a valid q_modality. Currently only rgb and thr are supported")
+            
+            return db_abs_paths, q_abs_paths
+        else:
+            self.seq_wise_length=[]
+            for seq in self.seq:
+
+                if "thr" in [self.db_modality, self.q_modality]:
+                    thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list.txt")
+                    thermal_frames = self.read_frame_list(thermal_file)
+                
+                if "thr_seg" in [self.db_modality, self.q_modality]:
+                    thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list_seg_pair.txt")
+                    thermal_frames = self.read_frame_list(thermal_file)
+
+                if "rgb" in [self.db_modality, self.q_modality]:
+                    rgb_file = os.path.join(self.root_frame_dir,f"{seq}_rgb_frame_list.txt")
+                    rgb_frames = self.read_frame_list(rgb_file)
+                
+                if "seg_mask" in [self.db_modality, self.q_modality]:
+                    seg_mask_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_segmentation_frame_list.txt")
+                    seg_mask_frames = self.read_frame_list(seg_mask_file)
+
+                self.seq_wise_length.append(len(rgb_frames))  # Assuming rgb_frames and thermal_frames are of the same length
+
+                if self.db_modality == "rgb":                
+                    db_abs_paths.extend(rgb_frames)
+                elif self.db_modality == "thr" or self.db_modality == "thr_seg":
+                    db_abs_paths.extend(thermal_frames)
+                elif self.db_modality == "seg_mask":
+                    db_abs_paths.extend(seg_mask_frames)
+                else:
+                    raise ValueError("Please provide a valid db_modality. Currently only rgb and thr are supported")
+                if self.q_modality == "rgb":
+                    q_abs_paths.extend(rgb_frames)
+                elif self.q_modality == "thr" or self.q_modality == "thr_seg":
+                    q_abs_paths.extend(thermal_frames)
+                elif self.q_modality == "seg_mask":
+                    q_abs_paths.extend(seg_mask_frames)
+                else:
+                    raise ValueError("Please provide a valid q_modality. Currently only rgb and thr are supported")
 
         return db_abs_paths,q_abs_paths
     def check_seq_list(self,seq):
         for s in seq:
-            if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:
-                import pdb; pdb.set_trace()  # Debugging line to inspect the sequence name
-                raise ValueError(f"Please provide a valid sequence name. {s} does not exist")
+            if not self.seq_as_txt:
+                if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:
+                    import pdb; pdb.set_trace()  # Debugging line to inspect the sequence name
+                    raise ValueError(f"Please provide a valid sequence name. {s} does not exist")
+            else:
+                if os.path.isfile(s) == False:
+                    import pdb; pdb.set_trace()
+                    raise ValueError(f"Please provide a valid sequence name. {s} does not exist or is not a file")
     def extract_frame_number(self,filename):
         # Extract the frame number from the filename
         # Assuming the filename format is like "image_color-00001.jpg"
@@ -242,6 +297,7 @@ class CART(BaseDataset):
         img = cv2.imread(path)
         img = base_transform(img)
 
+        # print("Thermal image path:", path)
         return img
     
     def read_segmentation_mask(self, path):
@@ -251,7 +307,9 @@ class CART(BaseDataset):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         img = np.expand_dims(img, axis=0)  # Add channel dimension
         img = torch.tensor(img).float()  # Convert to tensor
+        img = img-2
         # print(f"Segmentation mask shape: {img.shape}")  # Debugging line to check the shape
+        # print("Segmentation mask path:", path)
         return img
     
     def augment_function(self, modality1: str, modality2: str, img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image, Image.Image]:
@@ -287,15 +345,15 @@ class CART(BaseDataset):
             img2 = F.hflip(img2)
 
         # ----- Random Resized Crop -----
-        _, H, W = img1.shape
-        scale = (0.8, 1.0)
-        ratio = (0.75, 1.33)
+        # _, H, W = img1.shape
+        # scale = (0.8, 1.0)
+        # ratio = (0.75, 1.33)
 
-        crop_params = T.RandomResizedCrop.get_params(img1, scale=scale, ratio=ratio)
-        i, j, h, w = crop_params
+        # crop_params = T.RandomResizedCrop.get_params(img1, scale=scale, ratio=ratio)
+        # i, j, h, w = crop_params
 
-        img1 = F.resized_crop(img1, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.BILINEAR)
-        img2 = F.resized_crop(img2, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.NEAREST) # Use nearest for segmentation mask
+        # img1 = F.resized_crop(img1, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.BILINEAR)
+        # img2 = F.resized_crop(img2, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.NEAREST) # Use nearest for segmentation mask
 
         # Brightness and contrast (thermal input only)
         brightness_factor = random.uniform(0.9, 1.1)
@@ -307,8 +365,8 @@ class CART(BaseDataset):
         return img1, img2
     def semantic_classes_num_and_map_to_rgb(self):
         ID_TO_RGB = {
-            0: (255, 36, 0),        # Unknown
-            1: (0, 0, 0),           # Background
+            # 0: (255, 36, 0),        # Unknown
+            # 1: (0, 0, 0),           # Background
             2: (242, 216, 196),     # Bare ground
             3: (89, 70, 54),        # Rocky terrain
             4: (166, 166, 166),     # Developed structures
@@ -320,4 +378,4 @@ class CART(BaseDataset):
             10: (255, 249, 0),      # Vehicles
             11: (254, 0, 170),      # Person
         }
-        return 12,ID_TO_RGB
+        return 10,ID_TO_RGB

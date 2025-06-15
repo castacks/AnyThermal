@@ -17,6 +17,11 @@ class NetVLADHead(nn.Module):
         self.dim = dim
         self.output_dim = output_dim
 
+        if self.output_dim is not None:
+            self.final_output_dim = num_clusters * self.output_dim  
+        else:
+            self.final_output_dim = num_clusters * dim
+
         self.clusters = nn.Parameter(torch.rand(num_clusters, dim))
         self.cluster_weights = nn.Linear(dim, num_clusters, bias=False)
 
