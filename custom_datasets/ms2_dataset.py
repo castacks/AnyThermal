@@ -176,6 +176,7 @@ class MS2(BaseDataset):
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.thr_res_after_crop[1], self.thr_res_after_crop[0]),interpolation=cv2.INTER_AREA)  # Resize to a fixed size
         img = base_transform(img)
         # print("RGB Image shape:", img.shape)

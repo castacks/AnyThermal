@@ -1,6 +1,8 @@
 from .base_dataset import *
+import torchvision.transforms.functional as torch_F
+import torchvision
 
-def return_freiburg_split(split):
+def return_freiburg_split(split,segmentation=False):
     all_sequences = [
         'train_seq_00_day_00', 'train_seq_00_day_01', 'train_seq_00_day_02', 'train_seq_00_day_03', 'train_seq_00_day_04',
         'train_seq_00_night_00', 'train_seq_00_night_01', 'train_seq_00_night_02', 'train_seq_00_night_03', 'train_seq_00_night_04', 'train_seq_00_night_05',
@@ -11,6 +13,9 @@ def return_freiburg_split(split):
         'train_seq_03_day_00', 'train_seq_03_day_01', 'train_seq_03_day_02', 'train_seq_03_day_03', 'train_seq_03_day_04', 'train_seq_03_day_05',
         'train_seq_04_day_00', 'train_seq_04_day_01', 'train_seq_04_day_02', 'train_seq_04_day_03', 'train_seq_04_day_04', 'train_seq_04_day_05', 'train_seq_04_day_06', 'train_seq_04_day_07',
     ]
+
+    if segmentation:
+        all_sequences = [s for s in all_sequences if 'day' in s]
 
     val_prefixes = ['train_seq_01_night', 'train_seq_02_day']
 
@@ -69,6 +74,7 @@ class Freiburg(BaseDataset):
         return {
             "rgb": self.read_rgb,
             "thr": self.read_thermal,
+            "thr_seg" : self.read_thermal,
             "seg_mask": self.read_seg_mask
         }
 
@@ -99,24 +105,27 @@ class Freiburg(BaseDataset):
             frame_list = self.frame_list_from_seq(seq)
             if self.db_modality == "rgb":
                 db_folder = "fl_rgb/fl_rgb_"
-            elif self.db_modality == "thr":
+            elif self.db_modality == "thr" or self.db_modality == "thr_seg":
                 if self.use_clahe:
                     db_folder = "thermal8_clahe/fl_ir_aligned_"              
                 else:
                     db_folder = "thermal8_aligned_RGB/fl_ir_aligned_"
             elif self.db_modality == "seg_mask":
                 db_folder = "fl_rgb_labels/fl_rgb_labels_"
+            else:
+                raise ValueError("Please provide a valid db_modality. Options are 'rgb', 'thr', 'seg_mask'")
 
             if self.q_modality == "rgb":
                 q_folder = "fl_rgb/fl_rgb_"
-            elif self.q_modality == "thr":
+            elif self.q_modality == "thr" or self.q_modality == "thr_seg":
                 if self.use_clahe:
                     q_folder = "thermal8_clahe/fl_ir_aligned_"              
                 else:
                     q_folder = "thermal8_aligned_RGB/fl_ir_aligned_"
             elif self.q_modality == "seg_mask":
                 q_folder = "fl_rgb_labels/fl_rgb_labels_"
-
+            else:
+                raise ValueError("Please provide a valid q_modality. Options are 'rgb', 'thr', 'seg_mask'")
 
             for frame in frame_list:
                 db_abs_paths.append(os.path.join(seq_path,db_folder+frame))
@@ -126,7 +135,7 @@ class Freiburg(BaseDataset):
     
     def semantic_classes_num_and_map_to_rgb(self):
         coding = {}
-        coding[-1] = [100,100,100]
+        # coding[-1] = [100,100,100]
         coding[0] = [0, 0, 0]
         coding[1] = [200, 100, 50]
         coding[2] = [0, 0, 255]
@@ -139,22 +148,23 @@ class Freiburg(BaseDataset):
         coding[9] = [80, 10, 100]
         coding[10] = [20, 150, 220]
         coding[11] = [230, 120, 10]
-        coding[12] = [255, 0, 0]
-        return 13,coding
+        # coding[12] = [255, 0, 0]
+        return 12,coding
 
     def read_rgb(self, path):
         """
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert to RGB
         if img is None:
             raise ValueError(f"Image at {path} could not be read. Please check the path.")
         #apply the crop box from the metadata
+        img = cv2.resize(img, (1920, 640), interpolation=cv2.INTER_LINEAR)
+        img = cv2.resize(img, (960, 320), interpolation=cv2.INTER_LINEAR)
         img = img[self.row_start:self.row_end, self.col_start:self.col_end]
-        # print("rgb pre base_transform shape",img.shape)
 
         img = base_transform(img)
-        # print("rgb base_transform shape",img.shape)
 
         return img
     
@@ -164,9 +174,9 @@ class Freiburg(BaseDataset):
         """
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE) 
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)  # Convert to grayscale
-        # print("thermal pre base_transform shape",img.shape)
         img = base_transform(img)
-        # print("thermal base_transform shape",img.shape)
+        img = torch_F.resize(img, (int(img.shape[-2]/2), int(img.shape[-1]/2)), antialias=True,interpolation=torchvision.transforms.InterpolationMode.BILINEAR)
+        img = torch_F.resize(img, (320, img.shape[-1]), antialias=True,interpolation=torchvision.transforms.InterpolationMode.BILINEAR)
         return img
     
     def read_seg_mask(self, path):
@@ -178,7 +188,10 @@ class Freiburg(BaseDataset):
             raise ValueError(f"Segmentation mask at {path} could not be read. Please check the path.")
         #apply the crop box from the metadata
         img = img[self.row_start:self.row_end, self.col_start:self.col_end]
-        img = base_transform(img)
+        img = np.expand_dims(img, axis=0)  # Add channel dimension
+        img = torch.tensor(img).float()  # Convert to tensor
+        invalid_mask = (img >= self.semantic_classes)
+        img[invalid_mask] = -1
         return img
     
     def form_gt_positives(self):

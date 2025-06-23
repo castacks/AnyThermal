@@ -286,6 +286,7 @@ class CART(BaseDataset):
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
         img = base_transform(img)
 
         return img
@@ -307,62 +308,11 @@ class CART(BaseDataset):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         img = np.expand_dims(img, axis=0)  # Add channel dimension
         img = torch.tensor(img).float()  # Convert to tensor
-        img = img-2
+        img = img-2 # removing the background and unknown class
         # print(f"Segmentation mask shape: {img.shape}")  # Debugging line to check the shape
         # print("Segmentation mask path:", path)
         return img
     
-    def augment_function(self, modality1: str, modality2: str, img1: Image.Image, img2: Image.Image) -> Tuple[Image.Image, Image.Image]:
-        if modality1 == "thr" and modality2 == "rgb":
-            img2, img1 = self.rgb_thermal_augment(img2, img1)
-        elif modality1 == "rgb" and modality2 == "thr":
-            img1, img2 = self.rgb_thermal_augment(img1, img2)
-        elif modality1 == "thr_seg" and modality2 == "seg_mask":
-            img1, img2 = self.thermal_seg_augment(img1,img2)
-        else:
-            raise ValueError(f"Unsupported modality combination: {modality1}, {modality2}")
-        return img1, img2  # No augmentation if modalities are not recognized
-    
-    def thermal_seg_augment(self, img1: torch.Tensor, img2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Augments thermal and segmentation mask images (tensor format only).
-        Args:
-            img1 (Tensor): Thermal image tensor (C, H, W) or (1, H, W)
-            img2 (Tensor): Segmentation mask tensor (1, H, W) or (H, W)
-        Returns:
-            Tuple of augmented tensors (img1, img2)
-        """
-
-        # Ensure both images are 3D tensors (C, H, W)
-        if img1.ndim == 2:
-            img1 = img1.unsqueeze(0)
-        if img2.ndim == 2:
-            img2 = img2.unsqueeze(0)
-
-        # Random horizontal flip
-        if random.random() > 0.5:
-            img1 = F.hflip(img1)
-            img2 = F.hflip(img2)
-
-        # ----- Random Resized Crop -----
-        # _, H, W = img1.shape
-        # scale = (0.8, 1.0)
-        # ratio = (0.75, 1.33)
-
-        # crop_params = T.RandomResizedCrop.get_params(img1, scale=scale, ratio=ratio)
-        # i, j, h, w = crop_params
-
-        # img1 = F.resized_crop(img1, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.BILINEAR)
-        # img2 = F.resized_crop(img2, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.NEAREST) # Use nearest for segmentation mask
-
-        # Brightness and contrast (thermal input only)
-        brightness_factor = random.uniform(0.9, 1.1)
-        contrast_factor = random.uniform(0.9, 1.1)
-
-        img1 = F.adjust_brightness(img1, brightness_factor)
-        img1 = F.adjust_contrast(img1, contrast_factor)
-
-        return img1, img2
     def semantic_classes_num_and_map_to_rgb(self):
         ID_TO_RGB = {
             # 0: (255, 36, 0),        # Unknown

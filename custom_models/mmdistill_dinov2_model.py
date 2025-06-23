@@ -7,7 +7,7 @@ from .dinov2_model import DINOv2FeatureExtractor
 from torch.nn import functional as F
 from torchvision import transforms as T
 from tqdm import tqdm
-from .dinov2_segmentation_model import SegmentationHead, BaseDinov2SegmentationModel,BaseDinov2SegmentationModelPreUpscaled
+from .dinov2_segmentation_model import seg_head_str_to_dict, BaseDinov2SegmentationModel
 from .dinov2_vpr_model import NetVLADHead
 import contextlib
 from abc import ABC, abstractmethod
@@ -31,11 +31,25 @@ class MMDistillDinov2():
             state_dict = torch.load(backbone_path, map_location=global_device)["student_model_state_dict"]
             self.model.load_state_dict(state_dict)
         # freeze the layer by setting requires_grad to False
+        print("Unfreezing dinov2 layers:", self.un_frozen_layer_index)
         for name, param in self.model.named_parameters():
-            if "blocks" in name and int(name.split('.')[1]) not in self.un_frozen_layer_index:
-                param.requires_grad = False
+            if "blocks" in name:
+                if int(name.split('.')[1]) not in self.un_frozen_layer_index:
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
+            elif "patch_embed" in name:
+                if "patch_embed" not in self.un_frozen_layer_index:
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
+            elif "norm" in name:
+                if "norm" not in self.un_frozen_layer_index:
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
             else:
-                param.requires_grad = True
+                param.requires_grad = False
             # print(f"Setting requires_grad for {name} to {param.requires_grad}")
 
         print(f"Using model {self.model_type} with un_frozen_layer_index {self.un_frozen_layer_index} for modality {self.modality}")
@@ -91,15 +105,19 @@ class MMDistillDinov2():
     def train(self):
         self.model.train()
     
-    def parameters(self):
-        return self.model.parameters()
+    def unfrozen_parameters(self):
+        output = []
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                output.append(param)
+        return output
             
 
     def preprocess(self, images):
         if self.modality == 'rgb':
-            return preprocess_dinov2(images, normalise_model = 'imagenet')
+            return preprocess_dinov2(images, normalise_model = 'vit')
         elif self.modality == 'thr':
-            return preprocess_dinov2(images, normalise_model = 'imagenet',normalise=False)
+            return preprocess_dinov2(images, normalise_model = 'vit',normalise=True) #normalising thermal also
         else:
             raise ValueError(f"Unsupported modality: {self.modality}. Supported modalities are 'rgb' and 'thr'.")
 
@@ -143,13 +161,11 @@ class FixedThermalDistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
         return model
 
     def preprocess(self, images,keep_ratio=False,resize=True):
-        #PARV_TODO this shoudl ideally be ViT but the training was done with imagenet mean
-        return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio,size=518,resize=resize,normalise=False)
+        return default_preprocessing(images, normalise_model = 'vit',keep_ratio=keep_ratio,size=518,resize=resize,normalise=True)
 
 class VariableThermalDistillDINOv2FeatureExtractor(FixedThermalDistillDINOv2FeatureExtractor):
     def preprocess(self, images,keep_ratio=False,resize=True):
-        #PARV_TODO this shoudl ideally be ViT but the training was done with imagenet mean
-        return preprocess_dinov2(images, normalise_model = 'imagenet', normalise=False) 
+        return preprocess_dinov2(images, normalise_model = 'vit', normalise=True) 
 
 
 class FixedRGBDistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
@@ -159,13 +175,11 @@ class FixedRGBDistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
         return model
 
     def preprocess(self, images,keep_ratio=False,resize=True):
-        #PARV_TODO this shoudl ideally be ViT but the training was done with imagenet mean
-        return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio,size=518,resize=resize)
+        return default_preprocessing(images, normalise_model = 'vit',keep_ratio=keep_ratio,size=518,resize=resize)
 
 class VariableRGBDistillDINOv2FeatureExtractor(FixedRGBDistillDINOv2FeatureExtractor):
     def preprocess(self, images,keep_ratio=False,resize=True):
-        #PARV_TODO this shoudl ideally be ViT but the training was done with imagenet mean
-        return preprocess_dinov2(images, normalise_model = 'imagenet')
+        return preprocess_dinov2(images, normalise_model = 'vit')
 
 
 class DistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
@@ -180,57 +194,64 @@ class DistillDINOv2FeatureExtractor(DINOv2FeatureExtractor):
         return model
 
     def preprocess(self, images,keep_ratio=False,resize=True):
-        #PARV_TODO this shoudl ideally be ViT but the training was done with imagenet mean
-        return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio,size=518,resize=resize)
+        return default_preprocessing(images, normalise_model = 'vit',keep_ratio=keep_ratio,size=518,resize=resize)
 
 
 
 class MMDistillSegmentationModel(BaseSegmentationModel):
-    def __init__(self,model_type, frozen_backbone,frozen_head,device,num_classes,backbone_path="",model_path="",pre_upscale=None,   **kwargs):
-        self.model_type = model_type
-        self.frozen_backbone = frozen_backbone
+    def __init__(self,head_model, un_frozen_layer_index,frozen_head,modality,device,num_classes,upscale_method,backbone_path="",model_path="",   **kwargs):
+        self.head_model = head_model
+        self.un_frozen_layer_index = un_frozen_layer_index
+        
         self.backbone_path = backbone_path
         self.frozen_head = frozen_head
         self.model_path = model_path
-        self.pre_upscale = pre_upscale
-        if self.model_path =="" and self.pre_upscale == None:
-            raise ValueError("Please provide a model_path or set pre_upscale")
+        self.modality = modality
+        self.upscale_method = upscale_method
         super().__init__(device, num_classes)
 
     def build_model(self):
-        backbone = torch.hub.load("facebookresearch/dinov2", self.model_type).to(self.device)
-        head = SegmentationHead(in_channels=768, num_classes=self.num_classes).to(self.device)
+        assert self.head_model in seg_head_str_to_dict, f"Unsupported head model: {self.head_model}. Supported models are: {list(seg_head_str_to_dict.keys())}"
+        head_type  = seg_head_str_to_dict[self.head_model]
+        head = head_type(in_channels=768, num_classes=self.num_classes).to(self.device)
+        backbone_path = self.backbone_path
+        backbone_model_type = "dinov2_vitb14"
         if self.backbone_path!= "" and self.model_path != "":
             raise ValueError("Both backbone_path and model_path cannot be set at the same time. Please set only one of them.")
         if self.backbone_path!= "":
             print(f"Loading backbone from {self.backbone_path}")
-            state_dict = torch.load(self.backbone_path, map_location=self.device)["student_model_state_dict"]
-            backbone.load_state_dict(state_dict)
+            backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
+
+            # state_dict = torch.load(self.backbone_path, map_location=self.device)["student_model_state_dict"]
+            # backbone.load_state_dict(state_dict)
         elif self.model_path != "":
             print(f"Loading backbone and head model from {self.model_path}")
             head_state_dict = torch.load(self.model_path, map_location=self.device)["seg_head"]
             backbone_path = torch.load(self.model_path, map_location=self.device)["backbone_path"]
-            self.pre_upscale = torch.load(self.model_path, map_location=self.device)["pre_upscale"]
-            backbone_state_dict = torch.load(backbone_path, map_location=self.device)["student_model_state_dict"]
-
-            backbone.load_state_dict(backbone_state_dict)
+            if backbone_path != "":
+                backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
+            # backbone.load_state_dict(backbone_state_dict)
             head.load_state_dict(head_state_dict)
-        if self.pre_upscale:
-            model = BaseDinov2SegmentationModelPreUpscaled(backbone, head).to(self.device)
-        else:
-            model = BaseDinov2SegmentationModel(backbone, head).to(self.device)
 
-        if self.frozen_backbone:
-            model.backbone.eval()
+        
+        backbone = MMDistillDinov2(backbone_model_type, self.modality, backbone_path=backbone_path,un_frozen_layer_index=self.un_frozen_layer_index)
+
+        model = BaseDinov2SegmentationModel(backbone, head,self.upscale_method).to(self.device)
         if self.frozen_head:
             model.head.eval()
         return model
     
-    def preprocess(self, images, keep_ratio=False, resize=True):
-        return images
+    def preprocess(self, images):
+        return None
     
     def forward(self, x):
-        return self.model(x, frozen_backbone=self.frozen_backbone)
+        return self.model(x)
+    
+    def unfrozen_parameters(self):
+        output = self.model.backbone.unfrozen_parameters()
+        if not self.frozen_head:
+            output.extend(list(self.model.head.parameters()))
+        return output
 
 
 default_agg_dict = {
@@ -311,9 +332,9 @@ class MMDistillVPRModel(BaseFeatureExtractor):
     
     def preprocess(self, images, keep_ratio=False, resize=True):
         if self.modality == 'rgb':
-            return preprocess_dinov2(images, normalise_model = 'imagenet')
+            return preprocess_dinov2(images, normalise_model = 'vit')
         elif self.modality == 'thermal':
-            return preprocess_dinov2(images, normalise_model = 'imagenet',normalise=False)
+            return preprocess_dinov2(images, normalise_model = 'vit',normalise=True) #normalising thermal also
         else:
             raise ValueError(f"Unsupported modality: {self.modality}. Supported modalities are 'rgb' and 'thermal'.")
     

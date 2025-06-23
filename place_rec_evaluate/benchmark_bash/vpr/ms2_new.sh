@@ -3,7 +3,7 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 new_benchmark_vpr.py \
-    --model_names netvlad_mmdistill_dinov2_ms2\
+    --model_names combined_5_with_cosine combined_5_nocosine\
     --dataset ms2\
     --top_k_vals 1 5 10 \
     --batch_size 16 \

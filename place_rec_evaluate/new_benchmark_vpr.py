@@ -131,9 +131,8 @@ def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_fea
 
     try:
         if use_gpu:
-            index = faiss.IndexFlatIP(d)
             res = faiss.StandardGpuResources()
-            index = faiss.index_cpu_to_gpu(res, 0, index)
+            index = faiss.GpuIndexFlatL2(res, d)
             print("🔋 FAISS running on GPU")
         else:
             raise RuntimeError("GPU disabled by user")
@@ -225,7 +224,7 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        rgb_t_methods = ["combined_mmdistill","ms2_mmdistill","imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart","netvlad_mmdistill_dinov2_ms2"]
+        rgb_t_methods = ["combined_5_with_cosine","combined_5_nocosine","combined_mmdistill","ms2_mmdistill","imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart","netvlad_mmdistill_dinov2_ms2"]
         method_is_rgbt_method_flag = False 
         for method in rgb_t_methods:
             if method not in model_name:

@@ -83,9 +83,9 @@ def get_miner(args, feats, labels, gps_coords=None):
 
 def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], exclude_self=True):
     
-    sim = torch.matmul(query_feats, db_feats.T)  # (N, M)
+    # sim = torch.matmul(query_feats, db_feats.T)  # (N, M)
     recall = {k: 0 for k in ks}
-    top_k = torch.topk(sim, k=max(ks), dim=1).indices
+    # top_k = torch.topk(sim, k=max(ks), dim=1).indices
 
     # try:
     #     if use_gpu:
@@ -98,11 +98,14 @@ def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], excl
 
     # except (ImportError, AttributeError, RuntimeError) as e:
     #     print(f"⚠️ FAISS GPU not available, falling back to CPU. Reason: {e}")
+    res = faiss.StandardGpuResources()  # uses all available GPUs
+
     d = db_feats.shape[1]
-    index = faiss.IndexFlatIP(d)
+    index = faiss.GpuIndexFlatL2(res, d)
+    # index = faiss.IndexFlatIP(d)
     
-    index.add(db_feats.numpy())
-    _, indices = index.search(query_feats.numpy(), max(ks)+1)
+    index.add(db_feats.detach().numpy())
+    _, indices = index.search(query_feats.detach().numpy(), max(ks)+1)
 
     total_valid = 0
     for i, positives in enumerate(ground_truth):
@@ -341,7 +344,7 @@ def main(args):
     #append date and time 
     args.save_dir = os.path.join(args.save_dir, time.strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(args.save_dir, exist_ok=True)
-    wandb_name = f"{args.name}_{dataset_name}_{args.head_arch}_{args.miner_type}_same_backbone{args.same_backbone}_memory_bank_{args.memory_bank}_frozen_backbone_{args.frozen_backbone}_un_frozen_layer_index_{'_'.join(map(str, args.un_frozen_layer_index))}_pos_thresh_{args.pos_sim_threshold}_neg_thresh_{args.neg_sim_threshold}_pos_dist_{args.pos_threshold}_neg_dist_{args.neg_threshold}_margin_{args.margin}"
+    wandb_name = f"{args.name}_{dataset_name}_{args.head_arch}_{args.miner_type}_same_backbone{args.same_backbone}_memory_bank_{args.memory_bank}_frozen_backbone_{args.frozen_backbone}_un_frozen_layer_index_{'_'.join(map(str, args.un_frozen_layer_index))}"
     wandb.init(project="mm_vpr", name=wandb_name)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

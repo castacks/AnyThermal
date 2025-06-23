@@ -134,6 +134,7 @@ class MS2(BaseDataset):
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = base_transform(img)
         return img
     

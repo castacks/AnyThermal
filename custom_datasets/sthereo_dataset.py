@@ -134,6 +134,7 @@ class STHEREO(BaseDataset):
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.thr_res[1],self.thr_res[0]),interpolation=cv2.INTER_AREA)  # Resize to the desired resolution
         img = base_transform(img)
         return img

@@ -118,6 +118,7 @@ class Vivid(BaseDataset):
         Reads rgb image from the path.
         """
         img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert to RGB
         h,w = img.shape[:2]
         img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right]
         if img is None:

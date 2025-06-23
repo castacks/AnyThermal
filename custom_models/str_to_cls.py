@@ -166,6 +166,26 @@ def get_model_from_string(name: str,task,**kwargs):
             elif modality == 'thermal':
                 from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
                 return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/cart_ms2_freiburg_sthereo_vivid/rgb_thr/2025-06-10_14-56-00/model20.pth')
+        elif name.startswith("combined_5_nocosine"):
+            modality = name.split('_')[-1]
+            if modality not in ['rgb', 'thermal']:
+                raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+            if modality == 'rgb':
+                from .mmdistill_dinov2_model import VariableRGBDistillDINOv2FeatureExtractor
+                return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
+            elif modality == 'thermal':
+                from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2_sthereo_vivid_boson_freiburg/rgb_thr/2025-06-18_01-16-56_no_cosine/model15.pth')
+        elif name.startswith("combined_5_with_cosine"):
+            modality = name.split('_')[-1]
+            if modality not in ['rgb', 'thermal']:
+                raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
+            if modality == 'rgb':
+                from .mmdistill_dinov2_model import VariableRGBDistillDINOv2FeatureExtractor
+                return VariableRGBDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False)
+            elif modality == 'thermal':
+                from .mmdistill_dinov2_model import VariableThermalDistillDINOv2FeatureExtractor
+                return VariableThermalDistillDINOv2FeatureExtractor(model_type="dinov2_vitb14",use_intermediate_layers=False,backbone_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2_sthereo_vivid_boson_freiburg/rgb_thr/2025-06-18_01-19-58_cosine_also/model15.pth')
         
 
         elif name.startswith("netvlad_mmdistill_dinov2_cart"):
@@ -195,3 +215,39 @@ def get_model_from_string(name: str,task,**kwargs):
         if name =="mmdistill_dinov2_cart":
             from .mmdistill_dinov2_model import MMDistillSegmentationModel
             return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250613-230300/model44.pth', **kwargs)
+        elif name =="mmdistill_dinov2_cart_only_contrastive":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250618-132308/model39.pth', **kwargs)
+        elif name =="mmdistill_dinov2_ms2_only_patch_nce":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250618-132431/model39.pth', **kwargs)
+        elif name =="mmdistill_dinov2_ms2_allign_1":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250618-132359/model39.pth', **kwargs)
+        elif name =="mmdistill_dinov2_ms2_allign_1000":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,model_type='dinov2_vitb14',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/dinov2_vitb14/20250618-132324/model39.pth', **kwargs)
+        elif name =="mmdistill_dinov2_cart_only_contrastive_weighted_ce":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,head_model='base',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250620-221832_decart_weighted_ce_base_head_padding/model20.pth', **kwargs)
+        elif name =="mmdistill_dinov2_combined_model_weighted_ce":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,head_model='base',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250620-222151_combined_model_wo_cart_base_weighted_ce/model20.pth', **kwargs)
+        elif name =="mmdistill_dinov2_cart_only_contrastive_weighted_ce_dpt":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(frozen_backbone=True,head_model='dpt',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250620-223200_cart_weighted_ce_dpt/model18.pth', **kwargs)
+        elif name =="frozen_rgb_deep_seg_head":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(upscale_method='bilinear',un_frozen_layer_index=[],head_model='base',modality="rgb",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250621-180417_cart_rgb_frozen/model39.pth', **kwargs)
+        elif name =="frozen_thr_deep_seg_head":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(upscale_method='bilinear',un_frozen_layer_index=[],head_model='base',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250621-174137_cart_thr_final_norm_trained_bilinear/model39.pth', **kwargs)
+        elif name =="frozen_thr_non_linear_128_head_dice":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(upscale_method='bilinear',un_frozen_layer_index=[],head_model='non_linear_128',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250621-204548_cart_thr_non_linear_128_final_norm_trained_bilinear_dice_also/model37.pth', **kwargs)
+        elif name =="frozen_thr_non_linear_64_head_dice":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(upscale_method='bilinear',un_frozen_layer_index=[],head_model='non_linear_64',modality="thr",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250621-211800_cart_thr_non_linear_64_final_norm_trained_bilinear_dice_also/model36.pth', **kwargs)
+        elif name =="frozen_rgb_non_linear_128_head_dice":
+            from .mmdistill_dinov2_model import MMDistillSegmentationModel
+            return MMDistillSegmentationModel(upscale_method='bilinear',un_frozen_layer_index=[],head_model='non_linear_128',modality="rgb",device='cuda', model_path='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250621-220006_cart_rgb_non_linear_128_final_norm_trained_bilinear_dice_also/model37.pth', **kwargs)

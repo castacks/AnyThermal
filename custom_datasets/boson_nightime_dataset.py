@@ -80,7 +80,7 @@ class BosonNightimeBaseDataset(BaseDataset):
         )
 
         database_folder_h5_df = h5py.File(self.database_folder_h5_path, "r", swmr=True)
-        self.database_folder_map_df = F.to_tensor(Image.open(self.database_folder_map_path))
+        self.database_folder_map_df = F.to_tensor(Image.open(self.database_folder_map_path).convert("RGB"))
         queries_folder_h5_df = h5py.File(self.queries_folder_h5_path, "r", swmr=True)
 
         # Map name to index
@@ -243,7 +243,7 @@ class BosonNightimeBaseDataset(BaseDataset):
         knn.fit(self.db_coords)
         dist,soft_positives_per_query = knn.radius_neighbors(
             self.q_coords,
-            radius=dist_thresh,
+            radius=self.dist_thresh,
             return_distance=True,
         )
 

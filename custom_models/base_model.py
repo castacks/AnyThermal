@@ -58,6 +58,7 @@ class BaseSegmentationModel(ABC):
         """Return the segmentation model."""
         pass
 
+    @abstractmethod
     def forward(self, images):
         """Forward pass through the model."""
-        return self.model(images)
+        pass
