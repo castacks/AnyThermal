@@ -222,7 +222,7 @@ class BaseDataset(Dataset):
         target_height, target_width = size
 
         if original_height < target_height or original_width < target_width:
-            print("Warning: Image is smaller than target size, returning original images without cropping, original size:", (original_height, original_width), "target size:", (target_height, target_width))
+            # print("Warning: Image is smaller than target size, returning original images without cropping, original size:", (original_height, original_width), "target size:", (target_height, target_width))
             return img1, img2  # Return original images if they are smaller than the target size
 
         top = random.randint(0, original_height - target_height)

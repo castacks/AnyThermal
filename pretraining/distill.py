@@ -64,76 +64,47 @@ def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher
         if i % viz_freq != 0:
             continue
         # attn_map shape: (Heads, N, N)
-        # import pdb; pdb.set_trace()
-        patch_tokens = {
-            "teacher": {},
-            "student": {},
-        }
-        patch_tokens["teacher"]["pred"] = teacher_prediction[0][i]
-        patch_tokens["student"]["pred"] = student_prediction[0][i]
+        for layer in teacher_prediction.keys():
+            patch_tokens = {
+                "teacher": {},
+                "student": {},
+            }
+            patch_tokens["teacher"]["pred"] = teacher_prediction[layer][0][i]
+            patch_tokens["student"]["pred"] = student_prediction[layer][0][i]
 
-        patch_tokens["teacher"]["dim_size"] = teacher_prediction[0][i].shape[0]
-        patch_tokens["student"]["dim_size"] = student_prediction[0][i].shape[0]
+            patch_tokens["teacher"]["dim_size"] = teacher_prediction[layer][0][i].shape[0]
+            patch_tokens["student"]["dim_size"] = student_prediction[layer][0][i].shape[0]
 
-        patch_tokens_shape = patch_tokens["student"]["pred"].shape[1:]
-        
-
-        # for key in ["teacher", "student"]:
-        #     dim_size = patch_tokens[key]["pred"].shape[0]
-        #     patch_tokens_shape = patch_tokens[key]["pred"].shape[1:]  # (H, W)
-        #     attention_map = teacher_map if key == "teacher" else student_map
-        #     num_heads = attention_map.shape[0]  # Number of attention heads
+            patch_tokens_shape = patch_tokens["student"]["pred"].shape[1:]
             
-        #     cls_attn = attention_map[:, 0, 1:]  # (Heads, Patches)
-        #     cls_attn = cls_attn.reshape(num_heads, *(patch_tokens_shape))  # Assume 14x14 patches for ViT-B/14
 
-        #     upsampled_attn = [cv2.resize(h.cpu().numpy(), (image_shape[1],image_shape[0]), interpolation=cv2.INTER_CUBIC) for h in cls_attn]
+            # for key in ["teacher", "student"]:
+            #     dim_size = patch_tokens[key]["pred"].shape[0]
+            #     patch_tokens_shape = patch_tokens[key]["pred"].shape[1:]  # (H, W)
+            #     attention_map = teacher_map if key == "teacher" else student_map
+            #     num_heads = attention_map.shape[0]  # Number of attention heads
+                
+            #     cls_attn = attention_map[:, 0, 1:]  # (Heads, Patches)
+            #     cls_attn = cls_attn.reshape(num_heads, *(patch_tokens_shape))  # Assume 14x14 patches for ViT-B/14
 
-        #     # Plot
-        #     fig, axs = plt.subplots(1, num_heads, figsize=(20, 5))
-        #     for j, attention_map in enumerate(upsampled_attn):
-        #         axs[j].imshow(attention_map, cmap="inferno")
-        #         axs[j].axis("off")
-        #         axs[j].set_title(f"Head {j}")
-        #     plt.tight_layout()
-        #     if not os.path.exists(os.path.join(save_dir, "attention_map",key)):
-        #         os.makedirs(os.path.join(save_dir, "attention_map",key), exist_ok=True)
-        #     plt.savefig(os.path.join(save_dir, "attention_map",key, f"head_{batch_index[i]:06d}.png"))
-        #     plt.close(fig)
+            #     upsampled_attn = [cv2.resize(h.cpu().numpy(), (image_shape[1],image_shape[0]), interpolation=cv2.INTER_CUBIC) for h in cls_attn]
+
+            #     # Plot
+            #     fig, axs = plt.subplots(1, num_heads, figsize=(20, 5))
+            #     for j, attention_map in enumerate(upsampled_attn):
+            #         axs[j].imshow(attention_map, cmap="inferno")
+            #         axs[j].axis("off")
+            #         axs[j].set_title(f"Head {j}")
+            #     plt.tight_layout()
+            #     if not os.path.exists(os.path.join(save_dir, "attention_map",key)):
+            #         os.makedirs(os.path.join(save_dir, "attention_map",key), exist_ok=True)
+            #     plt.savefig(os.path.join(save_dir, "attention_map",key, f"head_{batch_index[i]:06d}.png"))
+            #     plt.close(fig)
 
 
-        reshaped_teacher_patch_tokens = patch_tokens["teacher"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["teacher"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
-        reshaped_student_patch_tokens = patch_tokens["student"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["student"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
+            reshaped_teacher_patch_tokens = patch_tokens["teacher"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["teacher"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
+            reshaped_student_patch_tokens = patch_tokens["student"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["student"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
 
-
-        if args.viz_attention_pca == "combined_pca":
-            # import pdb;pdb.set_trace()
-            foreground_pca = PCA(n_components=1)
-            # Apply PCA to reduce to 3D
-            pca_teacher = foreground_pca.fit_transform(reshaped_teacher_patch_tokens)  # Shape: (196, 1)
-            pca_student = foreground_pca.fit_transform(reshaped_student_patch_tokens)  # Shape: (196, 1)
-
-            foreground_mask_student = np.arange(reshaped_student_patch_tokens.shape[0])  # Use all patches for student
-            foreground_mask_teacher = np.arange(reshaped_teacher_patch_tokens.shape[0])  # Use all patches for teacher
-
-            # Concatenate teacher and student patch tokens
-            concat_patch_tokens = np.concatenate((reshaped_teacher_patch_tokens[foreground_mask_teacher], reshaped_student_patch_tokens[foreground_mask_student]), axis=0)  # Shape: (2*N, D), N: Number of patches in the image
-            pca = PCA(n_components=3)
-            concat_pca_feats = pca.fit_transform(concat_patch_tokens)  # Shape: (196, 3)
-
-            # Normalize to 0-1
-            concat_pca_feats -= concat_pca_feats.min(0)
-            concat_pca_feats /= concat_pca_feats.max(0)
-
-            teacher_pca_img = np.zeros((patch_tokens_shape[0], patch_tokens_shape[1], 3), dtype=np.float32)
-            student_pca_img = np.zeros((patch_tokens_shape[0], patch_tokens_shape[1], 3), dtype=np.float32)
-
-            # Fill the PCA features into the image
-            for idx, teacher_idx in enumerate(foreground_mask_teacher):
-                teacher_pca_img[teacher_idx // patch_tokens_shape[1], teacher_idx % patch_tokens_shape[1]] = concat_pca_feats[idx]
-            for idx, student_idx in enumerate(foreground_mask_student):
-                student_pca_img[student_idx // patch_tokens_shape[1], student_idx % patch_tokens_shape[1]] = concat_pca_feats[len(foreground_mask_teacher) + idx]
-        elif args.viz_attention_pca == "teacher_pca":
             pca = PCA(n_components=3).fit(reshaped_teacher_patch_tokens)
             teacher_pca_img = pca.transform(reshaped_teacher_patch_tokens)  # Shape: (N, 3)
             student_pca_img = pca.transform(reshaped_student_patch_tokens)  # Shape: (N, 3)
@@ -146,23 +117,21 @@ def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher
             teacher_pca_img = teacher_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
             student_pca_img = student_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
 
-        else:
-            raise ValueError("Invalid viz_attention_pca option. Please choose 'combined_pca' or 'teacher_pca'.")
+            teacher_pca_img = cv2.resize(teacher_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_NEAREST)
+            student_pca_img = cv2.resize(student_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_NEAREST)
 
-
-        teacher_pca_img = cv2.resize(teacher_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_NEAREST)
-        student_pca_img = cv2.resize(student_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_NEAREST)
-
-        fig, axs = plt.subplots(1, 2, figsize=(20, 5))
-        axs[0].imshow(teacher_pca_img)
-        axs[0].axis("off")
-        axs[0].set_title(f"Teacher PCA of patch tokens")
-        axs[1].imshow(student_pca_img)
-        axs[1].axis("off")
-        axs[1].set_title(f"Student PCA of patch tokens")
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, "pca",f"{batch_index[i]:06d}.png"))
-        plt.close(fig)
+            fig, axs = plt.subplots(1, 2, figsize=(20, 5))
+            axs[0].imshow(teacher_pca_img)
+            axs[0].axis("off")
+            axs[0].set_title(f"Teacher PCA of patch tokens")
+            axs[1].imshow(student_pca_img)
+            axs[1].axis("off")
+            axs[1].set_title(f"Student PCA of patch tokens")
+            plt.tight_layout()
+            file_name = os.path.join(save_dir, "pca",layer,f"{batch_index[i]:06d}.png")
+            os.makedirs(os.path.join(save_dir, "pca",layer), exist_ok=True)
+            plt.savefig(file_name)
+            plt.close(fig)
 
 def init_model(args,modality,un_frozen_layer_index):
     if args.model_name == "dinov2_vits14":
@@ -181,10 +150,10 @@ def init_model(args,modality,un_frozen_layer_index):
         if unfreeze_layers != []:
             if args.unfreeze_patch_embed:
                 unfreeze_layers = ["patch_embed"] + unfreeze_layers
-            if args.unfreeze_final_norm:
+            if not args.not_unfreeze_final_norm:
                 unfreeze_layers.append("norm")
 
-        model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= unfreeze_layers)
+        model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= unfreeze_layers,layers_to_hook=args.loss_object.layers)
     elif args.model_name == "dinov2_vitb16":
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb16').cuda()
         patch_size = 16
@@ -253,11 +222,11 @@ parser.add_argument('--vpr_test', default=False,type=bool, help='Rescale images 
 parser.add_argument('--no_shuffle', action='store_true', help='Rescale images during cropping')
 parser.add_argument('--crop_images', default=True, type=bool,help='Rescale images during cropping')
 parser.add_argument('--subsample', default=1, type=int,help='Rescale images during cropping')
-parser.add_argument('--viz_attention_pca',default="",type=str, help='Visualize attention map and PCA')
-parser.add_argument('--intra_dataset_batch', action='store_true', help='Visualize attention map and PCA')
+parser.add_argument('--viz_attention_pca',action='store_true', help='Visualize attention map and PCA')
+parser.add_argument('--intra_dataset_batch', default=True, type=bool, help='Visualize attention map and PCA')
 parser.add_argument('--dry_run', action='store_true', help='No training, but calculates loss and saves images')
 parser.add_argument('--unfreeze_patch_embed', action='store_true', help='Unfreeze the patch embedding layer of the student model')
-parser.add_argument('--unfreeze_final_norm', action='store_true', help='Unfreeze the final normalization layer of the student model')
+parser.add_argument('--not_unfreeze_final_norm', action='store_true', help='Unfreeze the final normalization layer of the student model')
 
 
 args = parser.parse_args()
@@ -275,6 +244,7 @@ if args.wandb_use:
 
 # Load models
 # import pdb; pdb.set_trace()
+args.loss_object = LossManager(args.loss_file)
 teacher_model,teacher_patch_size = init_model(args,modality=args.teacher_modality,un_frozen_layer_index=[])
 student_model,student_patch_size = init_model(args,modality=args.student_modality,un_frozen_layer_index=args.un_frozen_layer_index)
 
@@ -431,8 +401,6 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
                 teacher_output = teacher_model.forward_train(images[teacher_modality],return_local_features=True)
         
         student_output = student_model.forward_train(images[student_modality],return_local_features=True, preprocess=True)
-        assert isinstance(student_output, tuple) and len(student_output) ==2, "Student model should return a tuple of (local_features,global_features)"
-        assert isinstance(teacher_output, tuple) and len(teacher_output) ==2, "Teacher model should return a tuple of (local_features,global_features)"
         # if args.loss_type == "mse":
         #     loss = loss_fn_mse(student_output, teacher_output)
         # elif args.loss_type == "ce":
@@ -450,8 +418,8 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
             total_loss.backward()
             optimizer.step()
 
-        teacher_output_norm_mean, teacher_output_norm_std = torch.mean(torch.norm(teacher_output[1],dim=-1)), torch.std(torch.norm(teacher_output[1],dim=-1))
-        student_output_norm_mean, student_output_norm_std = torch.mean(torch.norm(student_output[1],dim=-1)), torch.std(torch.norm(student_output[1],dim=-1))
+        teacher_output_norm_mean, teacher_output_norm_std = torch.mean(torch.norm(teacher_output["block_final_output"][1],dim=-1)), torch.std(torch.norm(teacher_output["block_final_output"][1],dim=-1))
+        student_output_norm_mean, student_output_norm_std = torch.mean(torch.norm(student_output["block_final_output"][1],dim=-1)), torch.std(torch.norm(student_output["block_final_output"][1],dim=-1))
 
         mode = "val" if test else "train"
         if args.wandb_use:
@@ -461,13 +429,7 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
                 f"{mode}/student_output_norm_mean": student_output_norm_mean.item(),
                 f"{mode}/student_output_norm_std": student_output_norm_std.item(),
             })
-        if soft_positives_per_query is None:
-            return teacher_output,student_output,individual_losses,None,None
-        else:
-            positive_loss, negative_loss = cosine_positive_negative_loss(student_output, teacher_output, 
-                                                                        positive_mask=pos_masks)
-            return teacher_output,student_output,individual_losses,positive_loss, negative_loss
-
+        return teacher_output,student_output,individual_losses,None,None
 
 def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, test=False, epoch=0, soft_positives_per_query=None):
     """
@@ -476,7 +438,8 @@ def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, tes
 
     total_individual_losses = {}
     for name in args.loss_object.losses.keys():
-        total_individual_losses[name] = 0.0
+        for layer in args.loss_object.layers:
+            total_individual_losses[f"{name}_layer_{layer}"] = 0.0
 
     total_positive_cosine_loss = 0.0
     total_negative_loss = 0.0
@@ -549,12 +512,11 @@ def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, tes
 
     return total_individual_losses, avg_positive_cosine_loss, avg_negative_cosine_loss
     
-def train_better():
+def train():
     # Load the dataset
 
-    args.loss_object = LossManager(args.loss_file)
-
-    train_dataloader, val_dataloader = build_dataset(args)
+    
+    train_dataloader, val_dataloader = build_dataset(args,m2p2_rgb_only=True) #PARV_DEBUG using only M2P2 RGB
     print("Train dataset size: ", len(train_dataloader.dataset))
     print("Val dataset size: ", len(val_dataloader.dataset))
 
@@ -610,9 +572,9 @@ def train_better():
                 "epoch": epoch,
             }
             for name, loss in train_individual_losses.items():
-                log_dict[f"avg_train_{name}"] = loss
+                log_dict[f"train/{name}"] = loss
             for name, loss in val_individual_losses.items():
-                log_dict[f"avg_val_{name}"] = loss
+                log_dict[f"val/{name}"] = loss
             if val_pos_cosine_loss is not None:
                 log_dict["avg_val_positive_cosine_loss"] = val_pos_cosine_loss
                 log_dict["avg_val_negative_cosine_loss"] = val_neg_cosine_loss
@@ -642,4 +604,4 @@ def train_better():
 
 
 if __name__ == "__main__":
-    train_better()
+    train()

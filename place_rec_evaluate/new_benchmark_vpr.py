@@ -41,7 +41,7 @@ class BenchmarkArgs:
     exclude_exact_query_in_db: bool = False
     combine_all_seq_only : bool = False
     combine_all_seq_also : bool = False
-    db_q_mode: Literal["RGB_THERMAL","THERMAL_RGB"] = "RGB_THERMAL"
+    db_q_mode: Literal["RGB_THERMAL","THERMAL_RGB","THERMAL_THERMAL"] = "RGB_THERMAL"
     keep_aspect_ratio_during_preprocess: bool = False
     train: bool = False
     dataset_splits: List[str] = field(default_factory=lambda: ["val"])
@@ -52,6 +52,7 @@ class BenchmarkArgs:
     vpr_test: bool = True
     common_database: bool = False
     crop_images: bool = False
+    dist_thresh: int = 25
 
 
 def extract_all_features(model, dataset, batch_size=1):
@@ -236,6 +237,9 @@ def run(args: BenchmarkArgs):
             elif args.db_q_mode == "THERMAL_RGB":
                 db_model = get_model_from_string(f"{model_name}_thermal","vpr")
                 qu_model = get_model_from_string(f"{model_name}_rgb","vpr")
+            elif args.db_q_mode == "THERMAL_THERMAL":
+                db_model = get_model_from_string(f"{model_name}_thermal","vpr")
+                qu_model = get_model_from_string(f"{model_name}_thermal","vpr")
             else:
                 raise ValueError(f"Mode {args.db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
             break
@@ -260,6 +264,9 @@ def run(args: BenchmarkArgs):
             elif args.db_q_mode == "THERMAL_RGB":
                 db_modality = "thr"
                 q_modality = "rgb"
+            elif args.db_q_mode == "THERMAL_THERMAL":
+                db_modality = "thr"
+                q_modality = "thr"
 
             args.dataset_split_for_eval = split
             

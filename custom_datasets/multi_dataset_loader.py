@@ -3,8 +3,10 @@ from collections import defaultdict
 from .ms2_dataset import MS2, return_ms2_split
 from .cart_dataset import CART, return_cart_split_segmentation_geographic
 from .freiburg_dataset import Freiburg, return_freiburg_split
-from.vivid_dataset import Vivid, return_vivid_split
-from.sthereo_dataset import STHEREO, return_sthereo_split
+from .vivid_dataset import Vivid, return_vivid_split
+from .sthereo_dataset import STHEREO, return_sthereo_split
+from .boson_nightime_dataset import BosonNightimeBaseDataset
+from .m2p2_dataset import M2P2, return_m2p2_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -114,25 +116,24 @@ def str_to_dataset(name):
     elif name == "freiburg":
         return Freiburg
     elif name == "vivid":
-        from .vivid_dataset import Vivid
         return Vivid
     elif name == "sthereo":
-        from .sthereo_dataset import STHEREO
         return STHEREO
     elif name == "boson":
-        from .boson_nightime_dataset import BosonNightimeBaseDataset
         return BosonNightimeBaseDataset
+    elif name == "m2p2":
+        return M2P2
     else:
         raise ValueError(f"Unknown dataset name: {name}")
 
 
-def build_dataset(args,return_dataloader=True):
+def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False):
 
     if args.train:
         mode_list = ["train", "val"]
     else:
         mode_list = [args.dataset_split_for_eval]
-        if args.dataset_split_for_eval not in ["train", "val"]:
+        if args.dataset_split_for_eval not in ["train", "val","test"]:
             raise ValueError("ddataset_idataset_split_for_eval must be either 'train' or 'val'")
     
     if not return_dataloader and len(mode_list) > 1:
@@ -196,6 +197,12 @@ def build_dataset(args,return_dataloader=True):
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/boson_nightime"
                 if mode == "train":
                     dataset_init_dict["subsample"] = args.subsample if hasattr(args, 'subsample') else 1
+            elif ds_name == "m2p2":
+                print("Using M2P2 dataset")
+                # rgb_only = args.teacher_modality == "rgb" and args.student_modality == "rgb"
+                #PARV_DEBUG figure out how to use rgb only
+                seq_list = return_m2p2_split(mode, rgb_only=m2p2_rgb_only)
+                data_root = "/ocean/projects/cis220039p/mdt2/datasets/M2P2/extracted_data_new"
             augment = False
             if args.train and mode == 'train' and args.augment:
                 augment = True
@@ -223,6 +230,9 @@ def build_dataset(args,return_dataloader=True):
                 "crop_during_vpr_test": crop_during_vpr_test,
                 "crop_images": args.crop_images
             })
+
+            if hasattr(args, 'dist_thresh'):
+                dataset_init_dict["dist_thresh"] = args.dist_thresh
 
             print(f"For mode {mode} Dataset init dict:", dataset_init_dict)
             combined_datasets[mode].append(ds_instace(**dataset_init_dict))

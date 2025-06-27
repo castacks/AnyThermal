@@ -21,17 +21,19 @@ global_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MMDistillDinov2():
-    def __init__(self, model_type, modality, un_frozen_layer_index,backbone_path=""):
+    def __init__(self, model_type, modality, un_frozen_layer_index,layers_to_hook,backbone_path=""):
         self.model_type = model_type
         self.modality = modality
         self.un_frozen_layer_index = un_frozen_layer_index
         self.model = torch.hub.load("facebookresearch/dinov2", self.model_type).to(global_device)
+        self.patch_size = 14
         if backbone_path != "":
             print(f"Loading backbone from {backbone_path}")
             state_dict = torch.load(backbone_path, map_location=global_device)["student_model_state_dict"]
             self.model.load_state_dict(state_dict)
         # freeze the layer by setting requires_grad to False
         print("Unfreezing dinov2 layers:", self.un_frozen_layer_index)
+        self.layers_to_hook = layers_to_hook
         for name, param in self.model.named_parameters():
             if "blocks" in name:
                 if int(name.split('.')[1]) not in self.un_frozen_layer_index:
@@ -53,50 +55,13 @@ class MMDistillDinov2():
             # print(f"Setting requires_grad for {name} to {param.requires_grad}")
 
         print(f"Using model {self.model_type} with un_frozen_layer_index {self.un_frozen_layer_index} for modality {self.modality}")
-    def forward(self,x,preprocess=False,debug=False):
-        #implement a forward method that uses un_frozen_layer_index and self.model
-        # if self.modality =='thr':
-        #     debug =True
-        if debug:
-            print("x.requires_grad:", x.requires_grad)
-
+    def forward_train(self, x, preprocess=False,return_local_features=False):
         if preprocess:
             x = self.preprocess(x)
-            if debug:
-                print("After preprocess, x.requires_grad:", x.requires_grad)
+        output_tokens_dict = self.extract_vit_tokens(x)
 
-        B, C, H, W = x.shape
-        x = self.model.prepare_tokens_with_masks(x)
-        if debug:
-            print("After prepare_tokens_with_masks, x.requires_grad:", x.requires_grad)
-        for idx,blk in enumerate(self.model.blocks):
-            # with torch.no_grad() if idx not in self.un_frozen_layer_index else contextlib.nullcontext():
-            if debug:
-                if idx in self.un_frozen_layer_index:
-                    print(f"UnFreezing layer {idx} for modality {self.modality}")
-                print("x.requires_grad:", x.requires_grad)
-            x = blk(x)
-        
-        x = self.model.norm(x)
-        
-        t = x[:, 0]
-        f = x[:, 1:]
-
-        # Reshape to (B, C, H, W)
-        f = f.reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2)
-        return f, t
-
-    
-    def forward_train(self, x, preprocess=False,return_local_features=False,end_to_end=False):
-        batch = x.shape[0]
-        # import pdb; pdb.set_trace()
-        if end_to_end:
-            return self.model(x)
-        f,t = self.forward(x, preprocess=preprocess)
-        # temp = self.model(x.clone())
-        # import pdb; pdb.set_trace()
         if return_local_features:
-            return f,t
+            return output_tokens_dict
         else:
             return t
         
@@ -121,7 +86,57 @@ class MMDistillDinov2():
         else:
             raise ValueError(f"Unsupported modality: {self.modality}. Supported modalities are 'rgb' and 'thr'.")
 
+    
 
+    def extract_vit_tokens(self,x):
+        """
+        Extracts CLS and patch tokens at specified intermediate transformer layers
+        and final output after the norm — all from a single forward pass.
+
+        Returns:
+            tokens_dict with keys:
+                block_{i}_cls, block_{i}_patch,
+                final_cls, final_patch
+        """
+        B,H,W = x.shape[0],x.shape[-2],x.shape[-1]
+        tokens_dict = {}
+        hooks = {}
+
+        def make_hook(i):
+            if i == len(self.model.blocks)-1:
+                def hook_fn_final(module, input, output):
+                    # output: (B, N+1, C)
+                    tokens_dict[f"block_{i}_output"] = (output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2),output[:, 0])  # Patch tokens
+                    hooks["final_input"] = output
+                return hook_fn_final
+            else:
+                def hook_fn(module, input, output):
+                    # output: (B, N+1, C)
+                    tokens_dict[f"block_{i}_output"] = (output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2),output[:, 0])  # Patch tokens
+                return hook_fn
+        
+        
+
+        # Register hooks
+        hook_handles = []
+        for i in self.layers_to_hook:
+            h = self.model.blocks[i].register_forward_hook(make_hook(i))
+            hook_handles.append(h)
+
+        # Single forward pass
+        _ = self.model(x)
+
+        # Apply final norm manually to last hooked output
+        if "final_input" not in hooks:
+            raise ValueError("Last layer not hooked; cannot compute final tokens.")
+        final_output = self.model.norm(hooks["final_input"])  # (B, N+1, C)
+        tokens_dict["block_final_output"] = (final_output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2) , final_output[:, 0])
+
+        # Cleanup
+        for h in hook_handles:
+            h.remove()
+
+        return tokens_dict
 
 class BaseDinov2VPRModel(nn.Module):
     def __init__(self, backbone: MMDistillDinov2, head):

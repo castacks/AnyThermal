@@ -4,6 +4,7 @@ losses:
     report_only: true
     params:
       mode: "kl"
+    layers: [0,4,8,11]
 
   # patch_nce:
   #   weight: 1.0
@@ -15,15 +16,17 @@ losses:
 
   global_contrastive:
     weight: 1.0
-    report_only: false
+    report_only: true
     params:
       temperature: 0.07
+    layers: [0,4,8,11]
 
   global_cosine:
     weight: 1.0
-    report_only: true
+    report_only: false
     params:
       return_mean: true
+    layers: [0,4,8,11]
   
   patch_nce_single_positive:
     weight: 1.0
@@ -32,3 +35,4 @@ losses:
       temperature: 0.07
       patch_radius: 1
       exclude_anchor_from_denominator: false
+    layers: [0,4,8,11]

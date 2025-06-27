@@ -1,7 +1,7 @@
 import argparse
 import torch
 import torch.nn as nn
-import torch.nn.functional as torch_F
+from torch.nn.functional import  softmax, one_hot
 from torch.utils.data import DataLoader
 import os
 import wandb
@@ -84,8 +84,8 @@ def dice_loss(pred, target, eps=1e-6):
         scalar Dice loss
     """
     N, C = pred.shape
-    pred_soft = torch_F.softmax(pred, dim=1)          # (N, C)
-    target_one_hot = torch_F.one_hot(target, num_classes=C).float()  # (N, C)
+    pred_soft = softmax(pred, dim=1)          # (N, C)
+    target_one_hot = one_hot(target, num_classes=C).float()  # (N, C)
 
     intersection = (pred_soft * target_one_hot).sum(dim=0)     # (C,)
     union = pred_soft.sum(dim=0) + target_one_hot.sum(dim=0)   # (C,)
