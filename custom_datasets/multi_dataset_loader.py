@@ -13,6 +13,127 @@ import random
 import os
 import math
 
+import torch
+import torchvision.transforms.functional as TF
+import random
+import numpy as np
+import cv2
+
+class RAMEfficient2DMatrixGPU:
+    """This class behaves similarly to a numpy.ndarray initialized
+    with np.zeros(), but is implemented to save RAM when the rows
+    within the 2D array are sparse. In this case it's needed because
+    we don't always compute features for each image, just for few of
+    them"""
+
+    def __init__(self, shape, dtype=torch.float32, device=None):
+        self.shape = shape
+        self.dtype = dtype
+        self.device = device
+        self.matrix = [None] * shape[0]
+
+    def __len__(self):
+        return len(self.matrix)
+
+    def __setitem__(self, indexes, vals):
+        assert vals.shape[1] == self.shape[1], f"{vals.shape[1]} {self.shape[1]}"
+        for i, val in zip(indexes, vals):
+            self.matrix[i] = val.type(self.dtype).to(self.device)
+
+    def __getitem__(self, index):
+        if hasattr(index, "__len__"):
+            return torch.stack([self.matrix[i] for i in index])
+        else:
+            return self.matrix[index]
+
+class ThermalAugmentations:
+    def __init__(self,
+                 crop_scale=(0.6, 1.0),
+                 brightness=0.2,
+                 contrast=0.2,
+                 rotation=15,
+                 flip_prob=0.5,
+                 blur_prob=0.2,
+                 blur_kernel=3,
+                 clahe_prob=0.2,
+                 enabled_transforms=None):
+        self.crop_scale = crop_scale
+        self.brightness = brightness
+        self.contrast = contrast
+        self.rotation = rotation
+        self.flip_prob = flip_prob
+        self.blur_prob = blur_prob
+        self.blur_kernel = blur_kernel
+        self.clahe_prob = clahe_prob
+
+        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
+        all_transforms = {"crop", "flip", "rotate", "brightness", "contrast", "clahe", "blur"}
+        if enabled_transforms is None:
+            self.enabled = all_transforms
+        else:
+            self.enabled = set(enabled_transforms) & all_transforms
+
+    def apply_clahe(self, img):
+        """Apply CLAHE to a single-channel tensor image (1, H, W)"""
+        img_np = img[0].cpu().numpy() #taking the first channel
+        img_uint8 = np.clip(img_np * 255.0, 0, 255).astype(np.uint8)
+        img_eq = self.clahe.apply(img_uint8)
+        img_eq = torch.tensor(img_eq, dtype=torch.float32, device=img.device) / 255.0
+        img_eq = img_eq.repeat(3,1,1)
+        return img_eq
+
+    def random_resized_crop_preserve_shape(self, img, scale):
+        """Crop a region of the image and resize back to original shape"""
+        C, H, W = img.shape
+        target_area = random.uniform(*scale) * H * W
+        aspect_ratio = W / H
+
+        new_h = int(round((target_area / aspect_ratio) ** 0.5))
+        new_w = int(round(new_h * aspect_ratio))
+        new_h = min(new_h, H)
+        new_w = min(new_w, W)
+
+        top = random.randint(0, H - new_h)
+        left = random.randint(0, W - new_w)
+
+        return TF.resized_crop(img, top, left, new_h, new_w, size=(H, W),
+                               interpolation=TF.InterpolationMode.BILINEAR)
+
+    def __call__(self, img):
+
+        """Apply augmentations to a single image (C, H, W)"""
+        if "crop" in self.enabled:
+            img = self.random_resized_crop_preserve_shape(img, self.crop_scale)
+
+        if "flip" in self.enabled and random.random() < self.flip_prob:
+            img = TF.hflip(img)
+
+        if "rotate" in self.enabled and self.rotation > 0:
+            angle = random.uniform(-self.rotation, self.rotation)
+            fill_val = img.mean().item()
+            img = TF.rotate(img, angle, interpolation=TF.InterpolationMode.BILINEAR, fill=fill_val)
+
+        if "brightness" in self.enabled and self.brightness > 0:
+            factor = random.uniform(1 - self.brightness, 1 + self.brightness)
+            img = img * factor
+
+        if "contrast" in self.enabled and self.contrast > 0:
+            mean = img.mean()
+            factor = random.uniform(1 - self.contrast, 1 + self.contrast)
+            img = (img - mean) * factor + mean
+
+        if "clahe" in self.enabled and random.random() < self.clahe_prob:
+            img = self.apply_clahe(img)
+
+        if "blur" in self.enabled and random.random() < self.blur_prob:
+            img = TF.gaussian_blur(img, kernel_size=self.blur_kernel)
+
+        img = torch.clamp(img, 0.0, 1.0)
+
+        return img
+
+
 class IntraDatasetBatchSampler:
     def __init__(self, dataset_to_indices, batch_size):
         self.dataset_to_indices = dataset_to_indices
@@ -37,12 +158,13 @@ class IntraDatasetBatchSampler:
 
 
 class MultiDatasetWrapper(Dataset):
-    def __init__(self, datasets, dataset_names, mode, use_odom=False, dist_thresh=25,build_common_dataset = False):
+    def __init__(self, args,datasets, dataset_names, mode, use_odom=False, dist_thresh=25,build_common_dataset = False):
         self.datasets = datasets
         self.dataset_names = dataset_names
         self.mapping = []
         self.mode = mode
         self.use_odom = use_odom
+        self.args = args
         for d_idx, d in enumerate(datasets):
             self.mapping.extend([(d_idx, i) for i in range(len(d))])
 
@@ -82,6 +204,12 @@ class MultiDatasetWrapper(Dataset):
             else:
                 raise ValueError("Soft positives not available. Check dataset classes.")
 
+        if hasattr(args, 'student_modality_dual') and args.student_modality_dual:
+            self.thermal_augmentations = ThermalAugmentations(enabled_transforms=args.thermal_aug_list)
+        else:
+            self.thermal_augmentations = None
+        print("self.thermal_augmentations:", self.thermal_augmentations)
+
         self.database_num = len(self.mapping)
         self.db_dataset, self.qu_dataset = self.concat_datasets_separately()
 
@@ -92,6 +220,9 @@ class MultiDatasetWrapper(Dataset):
         dataset_idx, local_idx = self.mapping[idx]
         item = {}
         item["item"] = self.datasets[dataset_idx][local_idx]
+        if self.thermal_augmentations:
+            if "thr" in item["item"][0]:
+                item["item"][0]["thr_dual"] = self.thermal_augmentations(item["item"][0]["thr"])
         item["dataset_name"] = self.dataset_names[dataset_idx]
         item["batch_id"] = idx
         item["dataset_id"] = dataset_idx  # NEW: used to group batch by dataset
@@ -244,7 +375,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False):
     else:
         print("NOT Building combined datasets for gps_coords ")
     for mode in mode_list:
-        wrapped_dataset = MultiDatasetWrapper(combined_datasets[mode], dataset_names[mode], mode=mode, use_odom=args.use_odom,build_common_dataset=build_common_dataset)
+        wrapped_dataset = MultiDatasetWrapper(args,combined_datasets[mode], dataset_names[mode], mode=mode, use_odom=args.use_odom,build_common_dataset=build_common_dataset)
 
         if not return_dataloader:
             return wrapped_dataset
@@ -259,6 +390,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False):
             sample_weights.extend([weight] * len(dataset))
 
         num_workers = args.train_num_workers if mode == 'train' else args.eval_num_workers
+        batch_size = args.batch_size if mode == 'train' else args.eval_batch_size
 
         if getattr(args, 'intra_dataset_batch', False):
             # Group indices by dataset
@@ -274,20 +406,20 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False):
             #     all_samplers.extend(list(batch_sampler))
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using IntraDatasetBatchSampler for {mode} mode")
-                batch_sampler = IntraDatasetBatchSampler(dataset_to_indices, args.batch_size)
+                batch_sampler = IntraDatasetBatchSampler(dataset_to_indices, batch_size)
                 combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_sampler=batch_sampler, num_workers=num_workers)
             else:
                 print(f"Using no shuffle for {mode} mode")
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=args.batch_size, shuffle=False, num_workers=num_workers)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
             # import pdb;pdb.set_trace()
         else:
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using WeightedRandomSampler for {mode} mode")
                 sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=args.batch_size, sampler=sampler, num_workers=num_workers,drop_last=False)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, sampler=sampler, num_workers=num_workers,drop_last=False)
             else:
                 print(f"Using no shuffle for {mode} mode")
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=args.batch_size, shuffle=False, num_workers=num_workers,drop_last=False)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers,drop_last=False)
     if args.train:
         return combined_dataloader["train"], combined_dataloader["val"]
     else:

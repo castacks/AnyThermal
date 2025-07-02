@@ -6,10 +6,8 @@ class GlobalContrastiveLoss(nn.Module):
         super().__init__()
         self.temperature = temperature
 
-    def forward(self, student_output, teacher_output):
-        teacher_embed = teacher_output[1]  # (B, D)
-        student_embed = student_output[1]  # (B, D)
-        teacher_embed = F.normalize(teacher_embed.detach(), dim=-1)
+    def calculate_contrastive_loss(self, student_embed, teacher_embed):
+        teacher_embed = F.normalize(teacher_embed, dim=-1)
         student_embed = F.normalize(student_embed, dim=-1)
 
         logits = torch.matmul(teacher_embed, student_embed.T) / self.temperature
@@ -18,3 +16,12 @@ class GlobalContrastiveLoss(nn.Module):
 
         pos_mask = torch.eye(logits.size(0), dtype=torch.float, device=logits.device)
         return -(log_probs * pos_mask).sum() / (pos_mask.sum() + 1e-8)
+
+
+    def forward(self, student_output, teacher_output):
+        #teacher_output[0][1] is the cls token for the complete 768 dimensional embedding
+        teacher_embed = teacher_output[0][1].detach()  # (B, D)
+        student_embed = student_output[0][1]  # (B, D)
+        
+        return self.calculate_contrastive_loss(student_embed, teacher_embed)
+

@@ -1,38 +1,92 @@
-losses:
-  attention_alignment:
-    weight: 1.0
-    report_only: true
+losses:  
+  modality_shared_and_specific_pos:
+    type: modality_shared_and_specific_pos
+    weight: 2.0
+    report_only: false
     params:
-      mode: "kl"
-    layers: [0,4,8,11]
-
-  # patch_nce:
-  #   weight: 1.0
-  #   report_only: true
-  #   params:
-  #     temperature: 0.07
-  #     patch_radius: 1
-  #     max_patches: 1024
-
-  global_contrastive:
-    weight: 1.0
-    report_only: true
-    params:
-      temperature: 0.07
-    layers: [0,4,8,11]
-
-  global_cosine:
+      margin: 0.
+      mode: global
+    layers: [final]
+  
+  modality_shared_and_specific_neg:
+    type: modality_shared_and_specific_neg
     weight: 1.0
     report_only: false
     params:
-      return_mean: true
-    layers: [0,4,8,11]
-  
-  patch_nce_single_positive:
+      margin: 0.
+      mode: global
+    layers: [final]
+
+  invariance_loss_shared:
+    type: invariance_loss
     weight: 1.0
-    report_only: true
+    report_only: false
     params:
-      temperature: 0.07
-      patch_radius: 1
-      exclude_anchor_from_denominator: false
-    layers: [0,4,8,11]
+      use_shared_specific: shared
+      mode: global
+    layers: [final]
+  invariance_loss_specific:
+    type: invariance_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: specific
+      mode: global
+    layers: [final]
+  
+  variance_loss_shared:
+    type: variance_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: shared
+      mode: global
+    layers: [final]
+  
+  variance_loss_specific:
+    type: variance_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: specific
+      mode: global
+    layers: [final]
+  
+  covariance_loss_shared:
+    type: covariance_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: shared
+      mode: global
+    layers: [final]
+  covariance_loss_specific:
+    type: covariance_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: specific
+      mode: global
+    layers: [final]
+  
+  cosine_repulsion_loss_shared:
+    type: cosine_repulsion_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: shared
+      mode: global
+      cosine_repulsion_margin: 0.4
+    layers: [final]
+  
+  cosine_repulsion_loss_specific:
+    type: cosine_repulsion_loss
+    weight: 1.0
+    report_only: false
+    params:
+      use_shared_specific: specific
+      mode: global
+      cosine_repulsion_margin: 0.4
+    layers: [final]
+
+  

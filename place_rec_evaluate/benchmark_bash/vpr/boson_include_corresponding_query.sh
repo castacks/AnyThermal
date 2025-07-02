@@ -15,6 +15,5 @@ python3 new_benchmark_vpr.py \
     --wandb_entity parv \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
-    --exclude_exact_query_in_db \
     --dataset_splits test \
     --dist_thresh 50

@@ -91,3 +91,52 @@ class PatchNCELossSinglePositive(nn.Module):
             loss += -(pos_logits - denom).mean()
 
         return loss / B
+
+class GlobalAndPatchCosine(nn.Module):
+    def __init__(self, temperature=0.07):
+        super().__init__()
+
+    def forward(self, student_output, teacher_output):
+        student_feats = student_output[0]  # (B, D, H, W)
+        teacher_feats = teacher_output[0]  # (B, D, H, W)
+
+        B, D, H, W = student_feats.shape
+        N = H * W
+        student_feats = F.normalize(student_feats, dim=1)
+        teacher_feats = F.normalize(teacher_feats, dim=1)
+
+        student_flat = student_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
+        teacher_flat = teacher_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
+
+        student_global = student_output[1]  # (B, D)
+        teacher_global = teacher_output[1]
+
+        student_global = F.normalize(student_global, dim=1)  # (B, D)
+        teacher_global = F.normalize(teacher_global, dim=1)
+
+        student_flat_final = torch.cat([student_global, student_flat], dim=0)
+        teacher_flat_final = torch.cat([teacher_global, teacher_flat], dim=0)
+        
+        cos_sim = F.cosine_similarity(student_flat_final, teacher_flat_final, dim=-1)
+        loss = 1 - cos_sim
+        return loss.mean()
+
+class PatchCosine(nn.Module):
+    def __init__(self, temperature=0.07):
+        super().__init__()
+
+    def forward(self, student_output, teacher_output):
+        student_feats = student_output[0]  # (B, D, H, W)
+        teacher_feats = teacher_output[0]  # (B, D, H, W)
+
+        B, D, H, W = student_feats.shape
+        N = H * W
+        student_feats = F.normalize(student_feats, dim=1)
+        teacher_feats = F.normalize(teacher_feats, dim=1)
+
+        student_flat = student_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
+        teacher_flat = teacher_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
+        
+        cos_sim = F.cosine_similarity(student_flat, teacher_flat, dim=-1)
+        loss = 1 - cos_sim
+        return loss.mean()

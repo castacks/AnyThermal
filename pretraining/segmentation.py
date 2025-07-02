@@ -211,7 +211,7 @@ def train_segmentation_pipeline(args):
         train_seq_list = return_cart_split_segmentation_geographic("train", "socal", "thermal")
         val_seq_list = return_cart_split_segmentation_geographic("val", "socal", "thermal")
         db_modality = "thr_seg"
-        train_dataset = CART(root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=True, seq_as_txt="thermal", crop_images=False)
+        train_dataset = CART(root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
         val_dataset = CART(root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
     elif args.dataset == "freiburg":
         print("Using FREIBURG dataset")
@@ -219,7 +219,7 @@ def train_segmentation_pipeline(args):
         val_seq_list = return_freiburg_split("val",segmentation=True)
         data_root = "/ocean/projects/cis220039p/mdt2/datasets/freiburg"
         db_modality = "thr_seg"
-        train_dataset = Freiburg(db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list, augment=False, crop_images=False)
+        train_dataset = Freiburg(db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list, augment=args.augment, crop_images=False)
         val_dataset = Freiburg(db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=val_seq_list, augment=False, crop_images=False)
     else:
         raise ValueError("Unsupported dataset")
@@ -352,6 +352,7 @@ if __name__ == "__main__":
     parser.add_argument('--unfreeze_last_norm', action='store_true')
     parser.add_argument('--modality', default='thr', type=str, choices=['thr', 'rgb'], help='Loss function to use')
     parser.add_argument('--upscale_method', default='bilinear', type=str, choices=['bilinear', 'loftup'], help='Loss function to use')
+    parser.add_argument('--augment', action='store_true')
 
     args = parser.parse_args()
 

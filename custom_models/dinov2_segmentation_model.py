@@ -162,7 +162,10 @@ class BaseDinov2SegmentationModel(nn.Module):
             out_upscaled = self.head(features_scaled)
         elif self.upscale_method == "bilinear":
             out = self.head(features)
-            out_upscaled = self.upscale_fn(out,x, size=(w_new,h_new))
+            if self.head.upscale:
+                out_upscaled = self.upscale_fn(out,x, size=(w_new,h_new))
+            else:
+                out_upscaled = out
         # if self.head.upscale:
         #     out_upscaled = self.upscale_fn(out,x, size=(w_new,h_new))
         # else:
@@ -179,7 +182,7 @@ class BaseDinov2SegmentationModel(nn.Module):
         return self.upscale_model(out, x)
     
     def backbone_forward(self, imgs):
-        return self.backbone.forward_train(imgs, preprocess = True,return_local_features= True)[0] #B,C,H,W
+        return self.backbone.forward_train(imgs, preprocess = True,return_local_features= True)['block_final_output'][0] #B,C,H,W
 
 seg_head_str_to_dict = {
     'dpt': DPTSegmentationHead,

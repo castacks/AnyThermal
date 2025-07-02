@@ -21,16 +21,26 @@ global_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MMDistillDinov2():
-    def __init__(self, model_type, modality, un_frozen_layer_index,layers_to_hook,backbone_path=""):
+    def __init__(self, model_type, modality, un_frozen_layer_index,layers_to_hook,backbone_path="",proj_head=""):
         self.model_type = model_type
         self.modality = modality
         self.un_frozen_layer_index = un_frozen_layer_index
+        self.proj_head = proj_head
+        if self.proj_head =="linear":
+            self.modality_specific_proj_head = nn.Linear(768, 384).to(global_device)
+            self.modality_shared_proj_head = nn.Linear(768, 384).to(global_device)
+        elif self.proj_head == "":
+            self.modality_specific_proj_head = None
+            self.modality_shared_proj_head = None
+        else:
+            raise ValueError(f"Unsupported proj_head: {self.proj_head}. Supported proj_heads are 'linear' and ''.")
+
         self.model = torch.hub.load("facebookresearch/dinov2", self.model_type).to(global_device)
-        self.patch_size = 14
+        self.patch_size = 14    
         if backbone_path != "":
             print(f"Loading backbone from {backbone_path}")
             state_dict = torch.load(backbone_path, map_location=global_device)["student_model_state_dict"]
-            self.model.load_state_dict(state_dict)
+            self.load_model(state_dict)
         # freeze the layer by setting requires_grad to False
         print("Unfreezing dinov2 layers:", self.un_frozen_layer_index)
         self.layers_to_hook = layers_to_hook
@@ -54,6 +64,20 @@ class MMDistillDinov2():
                 param.requires_grad = False
             # print(f"Setting requires_grad for {name} to {param.requires_grad}")
 
+        if self.proj_head!= "":
+            if 'proj_head' in self.un_frozen_layer_index:
+                for param in self.modality_specific_proj_head.parameters():
+                    param.requires_grad = True
+                for param in self.modality_shared_proj_head.parameters():
+                    param.requires_grad = True
+            else:
+                if self.un_frozen_layer_index != []:
+                    raise ValueError("un_frozen_layer_index should contain 'proj_head' if proj_head is set. Please set it to ['proj_head'] or include 'proj_head' in the un_frozen_layer_index list.")
+                for param in self.modality_specific_proj_head.parameters():
+                    param.requires_grad = False
+                for param in self.modality_shared_proj_head.parameters():
+                    param.requires_grad = False
+
         print(f"Using model {self.model_type} with un_frozen_layer_index {self.un_frozen_layer_index} for modality {self.modality}")
     def forward_train(self, x, preprocess=False,return_local_features=False):
         if preprocess:
@@ -65,16 +89,110 @@ class MMDistillDinov2():
         else:
             return t
         
-    def eval(self):
+    def load_model(self, model_dict):
+        """
+        Loads the model state dict from a dictionary.
+        """
+        self.model.load_state_dict(model_dict["backbone_model_state_dict"])
+        if self.proj_head != "":
+            self.modality_specific_proj_head.load_state_dict(model_dict["modality_specific_proj_head_state_dict"])
+            self.modality_shared_proj_head.load_state_dict(model_dict["modality_shared_proj_head_state_dict"])
+        else:
+            if "modality_specific_proj_head_state_dict" in model_dict:
+                raise ValueError("modality_specific_proj_head_state_dict not found in model_dict. Please check the model_dict.")
+        print("Model loaded successfully")
+
+    
+    def return_model_dict_for_saving(self):
+        output = {}
+        output["backbone_model_state_dict"] = self.model.state_dict()
+        if self.modality_specific_proj_head is not None:
+            output["modality_specific_proj_head_state_dict"] = self.modality_specific_proj_head.state_dict()
+            output["modality_shared_proj_head_state_dict"] = self.modality_shared_proj_head.state_dict()
+        return output
+
+    def eval(self, set_grad=False):
         self.model.eval()
+        if self.modality_specific_proj_head is not None:
+            self.modality_specific_proj_head.eval()
+        if self.modality_shared_proj_head is not None:
+            self.modality_shared_proj_head.eval()
+
+        if set_grad:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+            if self.proj_head != "":
+                for param in self.modality_specific_proj_head.parameters():
+                    param.requires_grad = True
+                for param in self.modality_shared_proj_head.parameters():
+                    param.requires_grad = True
+
+        
     def train(self):
         self.model.train()
+        if self.modality_specific_proj_head is not None:
+            self.modality_specific_proj_head.train()
+        if self.modality_shared_proj_head is not None:
+            self.modality_shared_proj_head.train()
+    
+    def shared(self,x):
+        """
+        Returns the shared projection head output
+        """
+        if len(x.shape) ==2:
+            assert x.shape[1] == self.model.embed_dim, f"Expected input shape to be (B, {self.model.embed_dim}), but got {x.shape}"
+            return self.modality_shared_proj_head(x)
+        elif len(x.shape) == 4:
+            assert x.shape[1] == self.model.embed_dim, f"Expected input shape to be (B, {self.model.embed_dim}, H, W), but got {x.shape}"
+            return self.modality_shared_proj_head(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)  # Permute to (B, C', H, W)
+        else:
+            raise ValueError(f"Unsupported input shape: {x.shape}. Expected shape to be (B, C) or (B, C, H, W).")
+    
+    def specific(self,x):
+        """
+        Returns the modality specific projection head output
+        """
+
+        if len(x.shape) ==2:
+            assert x.shape[1] == self.model.embed_dim, f"Expected input shape to be (B, {self.model.embed_dim}), but got {x.shape}"
+            return self.modality_specific_proj_head(x)
+        elif len(x.shape) == 4:
+            assert x.shape[1] == self.model.embed_dim, f"Expected input shape to be (B, {self.model.embed_dim}, H, W), but got {x.shape}"
+            return self.modality_specific_proj_head(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        else:
+            raise ValueError(f"Unsupported input shape: {x.shape}. Expected shape to be (B, C) or (B, C, H, W).")
+            
     
     def unfrozen_parameters(self):
         output = []
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 output.append(param)
+        if self.proj_head != "":
+            for param in self.modality_specific_proj_head.parameters():
+                if param.requires_grad:
+                    output.append(param)
+            for param in self.modality_shared_proj_head.parameters():
+                if param.requires_grad:
+                    output.append(param)
+        return output
+    
+    def unfrozen_named_parameters(self):
+        output = []
+
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                output.append((name, param))
+
+        if self.proj_head != "":
+            for name, param in self.modality_specific_proj_head.named_parameters():
+                if param.requires_grad:
+                    output.append((f"specific_proj_head.{name}", param))
+            for name, param in self.modality_shared_proj_head.named_parameters():
+                if param.requires_grad:
+                    output.append((f"shared_proj_head.{name}", param))
+
         return output
             
 
@@ -100,19 +218,19 @@ class MMDistillDinov2():
         """
         B,H,W = x.shape[0],x.shape[-2],x.shape[-1]
         tokens_dict = {}
-        hooks = {}
 
         def make_hook(i):
-            if i == len(self.model.blocks)-1:
+            if i == 'final':
                 def hook_fn_final(module, input, output):
                     # output: (B, N+1, C)
-                    tokens_dict[f"block_{i}_output"] = (output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2),output[:, 0])  # Patch tokens
-                    hooks["final_input"] = output
+                    tokens_dict["final_input"] = output
                 return hook_fn_final
             else:
                 def hook_fn(module, input, output):
                     # output: (B, N+1, C)
                     tokens_dict[f"block_{i}_output"] = (output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2),output[:, 0])  # Patch tokens
+                    tokens_dict[f"block_{i}_shared_output"] = self.shared(tokens_dict[f"block_{i}_output"][0]),self.shared(tokens_dict[f"block_{i}_output"][1])  # Shared projection head output
+                    tokens_dict[f"block_{i}_specific_output"] = self.specific(tokens_dict[f"block_{i}_output"][0]),self.specific(tokens_dict[f"block_{i}_output"][1])  # Modality specific projection head output
                 return hook_fn
         
         
@@ -120,17 +238,23 @@ class MMDistillDinov2():
         # Register hooks
         hook_handles = []
         for i in self.layers_to_hook:
-            h = self.model.blocks[i].register_forward_hook(make_hook(i))
+            if i == 'final':
+                h = self.model.blocks[-1].register_forward_hook(make_hook(i))
+            else:
+                h = self.model.blocks[i].register_forward_hook(make_hook(i))
             hook_handles.append(h)
 
         # Single forward pass
         _ = self.model(x)
 
         # Apply final norm manually to last hooked output
-        if "final_input" not in hooks:
+        if "final_input" not in tokens_dict:
             raise ValueError("Last layer not hooked; cannot compute final tokens.")
-        final_output = self.model.norm(hooks["final_input"])  # (B, N+1, C)
+        final_output = self.model.norm(tokens_dict["final_input"])  # (B, N+1, C)
+        tokens_dict.pop("final_input")  # Remove the raw output of the last layer
         tokens_dict["block_final_output"] = (final_output[:, 1:].reshape((B, H // 14, W // 14, self.model.embed_dim)).permute(0, 3, 1, 2) , final_output[:, 0])
+        tokens_dict["block_final_shared_output"] = self.shared(tokens_dict["block_final_output"][0]),self.shared(tokens_dict["block_final_output"][1])  # Shared projection head output
+        tokens_dict["block_final_specific_output"] = self.specific(tokens_dict["block_final_output"][0]),self.specific(tokens_dict["block_final_output"][1])  # Modality specific projection head output
 
         # Cleanup
         for h in hook_handles:
@@ -249,7 +373,7 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
             head.load_state_dict(head_state_dict)
 
         
-        backbone = MMDistillDinov2(backbone_model_type, self.modality, backbone_path=backbone_path,un_frozen_layer_index=self.un_frozen_layer_index)
+        backbone = MMDistillDinov2(backbone_model_type, self.modality, backbone_path=backbone_path,un_frozen_layer_index=self.un_frozen_layer_index,layers_to_hook=['final'], proj_head='linear')
 
         model = BaseDinov2SegmentationModel(backbone, head,self.upscale_method).to(self.device)
         if self.frozen_head:
