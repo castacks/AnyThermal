@@ -19,18 +19,19 @@ import h5py
 import time
 import random
 
-from .base_dataset import *
+from base_dataset import *
 
 class BosonNightimeBaseDataset(BaseDataset):
     """Dataset with images from database and queries, used for inference (testing and building cache)."""
 
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False,subsample = 1):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 35, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False):
         self.dataset_name = dataset_name
-        self.extended = "extended" in seq
+        self.extended = "extended" in seq #PARV_TODO : how to use the extended data confirm in STHN
         self.resize = [512, 512]
         self.G_contrast = G_contrast
         self.force_ce = force_ce
-        self.subsample = subsample
+        self.val_positive_dist_threshold = 50
+
         super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
 
         for i in range(len(self.db_abs_paths)):
@@ -40,18 +41,6 @@ class BosonNightimeBaseDataset(BaseDataset):
         
         self.images_paths = list(self.db_abs_paths) + \
             list(self.q_abs_paths)
-
-
-
-        if False: #PARV_TODO: Enable this when we want to use hard negatives
-            if args.prior_location_threshold != -1: # Find hard_negatives_per_query. Hard negative is out of prior position threshold and we don't care
-                knn = NearestNeighbors(n_jobs=-1)
-                knn.fit(self.database_utms)
-                self.hard_negatives_per_query = knn.radius_neighbors(
-                    self.queries_utms,
-                    radius=args.prior_location_threshold,
-                    return_distance=False,
-                )
 
         # Close h5 and initialize for h5 reading in __getitem__
         self.database_folder_h5_df = None
@@ -106,8 +95,8 @@ class BosonNightimeBaseDataset(BaseDataset):
         # queries_folder  = join(self.dataset_folder, "queries")
         # if not os.path.exists(database_folder): raise FileNotFoundError(f"Folder {database_folder} does not exist")
         # if not os.path.exists(queries_folder) : raise FileNotFoundError(f"Folder {queries_folder} does not exist")
-        db_abs_paths = sorted(self.database_name_dict)[::self.subsample]
-        q_abs_paths = sorted(self.queries_name_dict)[::self.subsample]
+        db_abs_paths = sorted(self.database_name_dict)
+        q_abs_paths = sorted(self.queries_name_dict)
 
         db_abs_paths = db_abs_paths
         q_abs_paths = q_abs_paths

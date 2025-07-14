@@ -1,4 +1,4 @@
-from .base_dataset import *
+from base_dataset import *
 from pyproj import Transformer
 from natsort import natsorted
 

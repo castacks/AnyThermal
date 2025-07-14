@@ -1,5 +1,5 @@
-from .base_dataset import *
-from .ms2_utils import *
+from base_dataset import *
+from ms2_utils import *
 from pyproj import Transformer
 
 def sparse_to_dense(sparse, max_depth=100.):
@@ -55,6 +55,23 @@ def return_ms2_split(split):
     else:
         raise ValueError("Please provide a valid split name. Options are train or test")
 
+def return_ms2_split_debug(split):
+    """
+    Returns the split for the ms2 dataset.
+    """
+    if split == "train":
+        ms2_train_seq_list = [ '_2021-08-06-11-23-45'
+
+                                ]
+        return ms2_train_seq_list
+    elif split == "val":
+        ms2_val_seq_list = ['_2021-08-06-11-23-45', #Road2
+                            ]
+        return ms2_val_seq_list
+    else:
+        raise ValueError("Please provide a valid split name. Options are train or test")
+
+
 
 
 
@@ -62,7 +79,7 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=False,crop_during_vpr_test=False):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,crop_during_vpr_test=False):
         self.subsample =10
         self.zone = 52
         self.utm_transformer = self.get_utm_transformer(self.zone)
@@ -71,11 +88,7 @@ class MS2(BaseDataset):
         self.crop_bottom = 35
         self.crop_left = 28
         self.crop_right = 34
-        # lon = float("36.366181493439412975")
-        # lat = float("127.365607591950677602")
-        # easting, northing = self.utm_transformer.transform(lon, lat)
-        # # print("Easting:", easting)
-        # # print("Northing:", northing)
+        self.val_positive_dist_threshold = 25
         super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     def generate_read_fn(self):
         return {
@@ -179,7 +192,6 @@ class MS2(BaseDataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.thr_res_after_crop[1], self.thr_res_after_crop[0]),interpolation=cv2.INTER_AREA)  # Resize to a fixed size
         img = base_transform(img)
-        # print("RGB Image shape:", img.shape)
         return img
     
     def read_thermal(self, path):
@@ -190,9 +202,8 @@ class MS2(BaseDataset):
         img = process_one_image(img,type="hist_99")
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         h,w = img.shape[:2]
-        img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right]
+        img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right].copy()
         img = base_transform(img)
-        # print("Thermal Image shape:", img.shape)
         return img
     
     def read_lidar(self, path):

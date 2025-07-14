@@ -140,7 +140,8 @@ class R2FormerFeatureExtractor(BaseFeatureExtractor):
         total = np.sum(~no_positive_matches_for_queries)
         global_recalls = {k: v / total for k, v in recalls.items()}
         return global_recalls
-    def evaluate_retrieval(self,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=False,exclude_exact_query_in_db=False):
+    def evaluate_retrieval(self,qu_model,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=False,exclude_exact_query_in_db=False):
+        qu_model = None
         num_local=self.args.num_local
         rerank_dim = self.args.local_dim + 3
         rerank_top = 100

@@ -12,6 +12,8 @@ import wandb
 from tqdm import tqdm
 import sys
 sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
+sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
+
 from contextlib import nullcontext
 from itertools import chain
 from custom_datasets.multi_dataset_loader import *
@@ -49,13 +51,16 @@ def save_viz_debug_images(images_dict, index, epoch, batch_num, split, save_root
             filename = f"{index[i] if index is not None else i}.png"
             path = os.path.join(save_dir, filename)
             save_image(unnormalise_images(tensor[i], modality), path)
+            
 
-def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher_prediction,student_prediction, student_dual_prediction,save_dir, epoch, batch_index,image_shape):
+def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher_prediction,teacher_prediction_on_student,student_prediction, student_dual_prediction,save_dir, epoch, batch_index,image_shape):
     """
     Visualize attention maps using PCA and save them to disk.
     """
     import matplotlib.pyplot as plt
     from sklearn.decomposition import PCA
+
+    assert student_dual_prediction is None, "Student dual prediction is not supported yet. Please disable the student_dual_prediction argument."
 
     save_dir = os.path.join(save_dir)
     if not os.path.exists(os.path.join(save_dir, "attention_map")):
@@ -63,6 +68,35 @@ def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher
     if not os.path.exists(os.path.join(save_dir, "pca")):
         os.makedirs(os.path.join(save_dir, "pca"), exist_ok=True)
 
+
+    def calculate_pca_map(patch_tokens, patch_tokens_shape, image_shape, pca=None):
+        reshaped_patch_tokens = patch_tokens.permute(1, 2, 0).reshape(-1, patch_tokens.shape[0]).cpu().detach().numpy()  # Reshape to (-1, D)
+        own_pca = PCA(n_components=3).fit(reshaped_patch_tokens)
+        
+        pca_img, own_pca_img = None, None
+
+        if pca is None:
+            pca_list = [own_pca]
+        else:
+            pca_list = [own_pca,pca]
+
+        output_list = []
+        
+        for cur_pca in pca_list:
+
+            temp_pca_img = cur_pca.transform(reshaped_patch_tokens)
+            temp_pca_img -= temp_pca_img.min(0)
+            temp_pca_img /= temp_pca_img.max(0)
+            temp_pca_img = temp_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
+            temp_pca_img = cv2.resize(temp_pca_img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_AREA)
+            output_list.append(temp_pca_img)
+
+        own_pca_img = output_list[0]
+        if len(output_list) > 1:
+            pca_img = output_list[1]
+        else:
+            pca_img = None            
+        return own_pca,own_pca_img, pca_img
     
     
 
@@ -71,123 +105,81 @@ def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher
             continue
         # attn_map shape: (Heads, N, N)
         for layer in teacher_prediction.keys():
+            is_shared_specific = False
             for discard_k in ["shared", "specific"]:
                 if discard_k in layer:
-                    continue
+                    is_shared_specific = True
+                    break
+            if is_shared_specific:
+                break
             patch_tokens = {
                 "teacher": {},
                 "student": {},
+                "teacher_on_student": {}
             }
             patch_tokens["teacher"]["pred"] = teacher_prediction[layer][0][i]
             patch_tokens["student"]["pred"] = student_prediction[layer][0][i]
+            patch_tokens["teacher_on_student"]["pred"] = teacher_prediction_on_student[layer][0][i]
 
             patch_tokens["teacher"]["dim_size"] = teacher_prediction[layer][0][i].shape[0]
             patch_tokens["student"]["dim_size"] = student_prediction[layer][0][i].shape[0]
+            patch_tokens["teacher_on_student"]["dim_size"] = teacher_prediction_on_student[layer][0][i].shape[0]
 
             patch_tokens_shape = patch_tokens["student"]["pred"].shape[1:]
             
+            teacher_pca,teacher_pca_img, _ = calculate_pca_map(patch_tokens["teacher"]["pred"], patch_tokens_shape, image_shape)
+            _,student_pca_img, student_pca_img_teacher_pca = calculate_pca_map(patch_tokens["student"]["pred"], patch_tokens_shape, image_shape, pca=teacher_pca)
+            _,teacher_on_student_pca_img, teacher_on_student_pca_img_teacher_pca = calculate_pca_map(patch_tokens["teacher_on_student"]["pred"], patch_tokens_shape, image_shape, pca=teacher_pca)
 
-            # for key in ["teacher", "student"]:
-            #     dim_size = patch_tokens[key]["pred"].shape[0]
-            #     patch_tokens_shape = patch_tokens[key]["pred"].shape[1:]  # (H, W)
-            #     attention_map = teacher_map if key == "teacher" else student_map
-            #     num_heads = attention_map.shape[0]  # Number of attention heads
-                
-            #     cls_attn = attention_map[:, 0, 1:]  # (Heads, Patches)
-            #     cls_attn = cls_attn.reshape(num_heads, *(patch_tokens_shape))  # Assume 14x14 patches for ViT-B/14
+            teacher_pca_img_list = [teacher_pca_img,teacher_pca_img]
+            student_pca_img_list = [student_pca_img,student_pca_img_teacher_pca]
+            teacher_prediction_on_student_pca_img_list = [teacher_on_student_pca_img,teacher_on_student_pca_img_teacher_pca]
 
-            #     upsampled_attn = [cv2.resize(h.cpu().numpy(), (image_shape[1],image_shape[0]), interpolation=cv2.INTER_CUBIC) for h in cls_attn]
-
-            #     # Plot
-            #     fig, axs = plt.subplots(1, num_heads, figsize=(20, 5))
-            #     for j, attention_map in enumerate(upsampled_attn):
-            #         axs[j].imshow(attention_map, cmap="inferno")
-            #         axs[j].axis("off")
-            #         axs[j].set_title(f"Head {j}")
-            #     plt.tight_layout()
-            #     if not os.path.exists(os.path.join(save_dir, "attention_map",key)):
-            #         os.makedirs(os.path.join(save_dir, "attention_map",key), exist_ok=True)
-            #     plt.savefig(os.path.join(save_dir, "attention_map",key, f"head_{batch_index[i]:06d}.png"))
-            #     plt.close(fig)
-
-
-            reshaped_teacher_patch_tokens = patch_tokens["teacher"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["teacher"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
-            reshaped_student_patch_tokens = patch_tokens["student"]["pred"].permute(1,2,0).reshape(-1,patch_tokens["student"]["dim_size"]).cpu().detach().numpy()  # Reshape to (-1, D)
-
-            pca = PCA(n_components=3).fit(reshaped_teacher_patch_tokens)
-            teacher_pca_img = pca.transform(reshaped_teacher_patch_tokens)  # Shape: (N, 3)
-            student_pca_img = pca.transform(reshaped_student_patch_tokens)  # Shape: (N, 3)
-
-            teacher_pca_img -= teacher_pca_img.min(0)
-            teacher_pca_img /= teacher_pca_img.max(0)
-            student_pca_img -= student_pca_img.min(0)
-            student_pca_img /= student_pca_img.max(0)
-
-            teacher_pca_img = teacher_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
-            student_pca_img = student_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
-
-            teacher_pca_img = cv2.resize(teacher_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_LINEAR)
-            student_pca_img = cv2.resize(student_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_LINEAR)
-
-            # calculate the same for student_dual also if student_dual_prediction is not None
-
-            if student_dual_prediction is not None:
-                reshaped_student_dual_patch_tokens = student_dual_prediction[layer][0][i].permute(1,2,0).reshape(-1,patch_tokens["student"]["dim_size"]).cpu().detach().numpy()
-                student_dual_pca_img = pca.transform(reshaped_student_dual_patch_tokens)  # Shape: (N, 3)
-                student_dual_pca_img -= student_dual_pca_img.min(0)
-                student_dual_pca_img /= student_dual_pca_img.max(0)
-                student_dual_pca_img = student_dual_pca_img.reshape(patch_tokens_shape[0], patch_tokens_shape[1], 3)
-                student_dual_pca_img = cv2.resize(student_dual_pca_img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_LINEAR)
+            
+            for j, (temp_teacher_pca_img, temp_student_pca_img, temp_teacher_on_student_pca_img) in enumerate(zip(teacher_pca_img_list, student_pca_img_list, teacher_prediction_on_student_pca_img_list)):
+                if j == 0:
+                    layer_name = "individual"
+                elif j == 1:
+                    layer_name = "common"
+                else:
+                    raise ValueError("Invalid index for layer name. Expected 0 or 1, got {}".format(j))
                 fig, axs = plt.subplots(1, 3, figsize=(20, 5))
-            else:
-                fig, axs = plt.subplots(1, 2, figsize=(20, 5))
 
-            axs[0].imshow(teacher_pca_img)
-            axs[0].axis("off")
-            axs[0].set_title(f"Teacher PCA of patch tokens")
-            axs[1].imshow(student_pca_img)
-            axs[1].axis("off")
-            axs[1].set_title(f"Student PCA of patch tokens")
-            if student_dual_prediction is not None:
-                axs[2].imshow(student_dual_pca_img)
+
+                axs[0].imshow(temp_teacher_pca_img)
+                axs[0].axis("off")
+                axs[0].set_title(f"Teacher PCA of patch tokens with ({layer_name}) PCA")
+                axs[1].imshow(temp_student_pca_img)
+                axs[1].axis("off")
+                axs[1].set_title(f"Student PCA of patch tokens with ({layer_name}) PCA")
+                axs[2].imshow(temp_teacher_on_student_pca_img)
                 axs[2].axis("off")
-                axs[2].set_title(f"Student Dual PCA of patch tokens")
-            plt.tight_layout()
-            file_name = os.path.join(save_dir, "pca",layer,f"{batch_index[i]:06d}.png")
-            os.makedirs(os.path.join(save_dir, "pca",layer), exist_ok=True)
-            plt.savefig(file_name)
-            plt.close(fig)
+                axs[2].set_title(f"Teacher on Student PCA of patch tokens with ({layer_name}) PCA")
+                plt.tight_layout()
+                file_name = os.path.join(save_dir, "pca",layer,f"{batch_index[i]:06d}_{layer_name}.png")
+                os.makedirs(os.path.join(save_dir, "pca",layer), exist_ok=True)
+                plt.savefig(file_name)
+                plt.close(fig)
 
 def init_model(args,modality,un_frozen_layer_index):
-    if args.model_name == "dinov2_vits14":
-        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
-        if global_device.type == 'cuda':
-            model = model.cuda()
-        patch_size = 14
-    elif args.model_name == "dinov2_vitb14":
-        # model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').cuda()
-        patch_size = 14
-        # import pdb; pdb.set_trace()
-        if un_frozen_layer_index == [-1]:
-            unfreeze_layers = list(range(0, 12))
-        else:
-            unfreeze_layers = un_frozen_layer_index
-        if unfreeze_layers != []:
-            if args.unfreeze_patch_embed:
-                unfreeze_layers = ["patch_embed"] + unfreeze_layers
-            if not args.not_unfreeze_final_norm:
-                unfreeze_layers.append("norm")
-        
-        if args.proj_head:
-            unfreeze_layers.append("proj_head")
+    if un_frozen_layer_index != []:
+        if args.unfreeze_patch_embed:
+            un_frozen_layer_index = ["patch_embed"] + un_frozen_layer_index
+        if not args.not_unfreeze_final_norm:
+            un_frozen_layer_index.append("norm")
+        if args.unfreeze_cls_token:
+            un_frozen_layer_index.append("cls_token")
+        if args.unfreeze_pos_embed:
+            un_frozen_layer_index.append("pos_embed")
+        if args.unfreeze_register_tokens:
+            un_frozen_layer_index.append("register_tokens")
+    
+    if args.proj_head:
+        un_frozen_layer_index.append("proj_head")
 
-        model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= unfreeze_layers,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head)
-    elif args.model_name == "dinov2_vitb16":
-        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb16').cuda()
-        patch_size = 16
-    else:
-        raise ValueError("Invalid model name")
-    return model, patch_size
+    model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= un_frozen_layer_index,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head)
+
+    return model, model.patch_size
 
 def transform_images(modality,images,patch_size=14):
     # Resize the images to the required input size
@@ -310,7 +302,7 @@ def detect_embedding_collapse(embedding: torch.Tensor, threshold: float = 1e-3):
         )
     }
 
-def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,batch_indices,test=False,soft_positives_per_query=None):
+def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,batch_indices,test=False,soft_positives_per_query=None, epoch =0):
     with (torch.inference_mode() if test else nullcontext()):
         if soft_positives_per_query is not None:
             pos_masks = generate_positive_masks(soft_positives_per_query, batch_indices, device='cuda')
@@ -319,23 +311,34 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
 
         pos_masks = torch.eye(len(batch_indices), dtype=torch.bool, device=global_device)
         if args.unfreeze_teacher:
-            teacher_output = teacher_model.forward_train(images[teacher_modality],return_local_features=True)
+            teacher_output = teacher_model.forward_train(images[teacher_modality])
         else:
-            #PARV_DEBUG - removing torch inference mode since projection heads even forRGB have to be learned
-            # with torch.inference_mode():
-            teacher_output = teacher_model.forward_train(images[teacher_modality],return_local_features=True)
+            #PARV_DEBUG - remove torch inference modes if you have to leanr projection heads proj_head 
+            with torch.inference_mode():
+                teacher_output = teacher_model.forward_train(images[teacher_modality])
+                teacher_output_on_student = teacher_model.forward_train(images[student_modality])
+
         
-        student_output = student_model.forward_train(images[student_modality],return_local_features=True, preprocess=True)
+        student_output = student_model.forward_train(images[student_modality])
         if args.student_modality_dual is not None:
-            student_dual_output = student_model.forward_train(images[args.student_modality_dual],return_local_features=True, preprocess=True)
+            student_dual_output = student_model.forward_train(images[args.student_modality_dual])
         else:
             student_dual_output = None
         
         total_loss, individual_losses = args.loss_object.compute(student_output, student_dual_output,teacher_output)
-        if not test and not args.dry_run:
+        if not test and not args.dry_run and epoch != 0:
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
+        del total_loss
+
+        output_list = [teacher_output, teacher_output_on_student, student_output, student_dual_output]
+        for i in range(len(output_list)):
+            if output_list[i] is None:
+                continue
+            for name, output in output_list[i].items():
+                if output_list[i][name][0] is not None:
+                    output_list[i][name] = (output_list[i][name][0].cpu(), output_list[i][name][1].cpu())
         
         mode = "val" if test else "train"
         if args.wandb_use:
@@ -344,13 +347,15 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
                 for name in output.keys():
                     if 'final' not in name:
                         continue
+                    if output[name][1] is None:
+                        continue
                     collapse_dict = detect_embedding_collapse(output[name][1])
                     for key, value in collapse_dict.items():
                         log_dict[f"collapse check for {mode} {modalty} {name}/{key}"] = value
             
             wandb.log(log_dict)
                 
-        return teacher_output,student_output,student_dual_output,individual_losses,None,None
+        return teacher_output,teacher_output_on_student,student_output,student_dual_output,individual_losses,None,None
 
 def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, test=False, epoch=0, soft_positives_per_query=None):
     """
@@ -367,9 +372,10 @@ def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, tes
     num_batches = len(dataloader)
     split = "val" if test else "train"
 
+    data_iter = iter(dataloader)
 
 
-    for batch_number, batch in enumerate(tqdm(dataloader)):
+    for batch_number, batch in enumerate(tqdm(data_iter)):
         viz_debug_dir = os.path.join(save_path, "viz_debug",f"epoch_{epoch:03d}", split) if args.viz_debug else None
 
         images_dict,_ = batch["item"]
@@ -397,17 +403,18 @@ def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, tes
             student_hook = student_model.model.blocks[-1].attn.attn_drop.register_forward_hook(student_hook_fn_forward)
             
 
-        teacher_output, student_output,student_dual_output,individual_losses, positive_loss, negative_loss = inference(
+        teacher_output,teacher_output_on_student, student_output,student_dual_output,individual_losses, positive_loss, negative_loss = inference(
             args, teacher_model, student_model,
             args.teacher_modality, args.student_modality,
             images=images, batch_indices=index.tolist(),test=test,
-            soft_positives_per_query=soft_positives_per_query)
+            soft_positives_per_query=soft_positives_per_query, epoch=epoch)
         
         if args.viz_attention_pca:
             teacher_hook.remove()
             student_hook.remove()
-            viz_attention_pca(args,teacher_attention_maps[0],student_attention_maps[0], teacher_output,student_output, student_dual_output,viz_debug_dir, epoch, index, images[args.teacher_modality].shape[-2:])
+            viz_attention_pca(args,teacher_attention_maps[0],student_attention_maps[0], teacher_output,teacher_output_on_student,student_output, student_dual_output,viz_debug_dir, epoch, index, images[args.teacher_modality].shape[-2:])
 
+        del teacher_output, student_output, student_dual_output, teacher_output_on_student
 
         for name, loss in individual_losses.items():
             if name not in total_individual_losses:
@@ -550,6 +557,9 @@ def train():
         args.wandb_id = wandb_id
         save_path = args.save_path
         dataset_name = "_".join(args.dataset)
+        if args.eval_dataset:
+            dataset_name += "_eval_" + "_".join(args.eval_dataset)
+
         wandb_name = args.model_name + "_" + dataset_name + "_" + args.student_modality + "_distill"
         if args.wandb_name != "":
             wandb_name += "_" + args.wandb_name
@@ -571,8 +581,10 @@ def train():
                 loss_config = yaml.safe_load(loss_f)
             yaml.dump(loss_config, f)
     
-    
+    args.crop_images = not args.no_crop_images
     args.intra_dataset_batch = not args.no_intra_dataset_batch
+
+    args.viz_debug = args.viz_debug or args.viz_attention_pca
     if loss_file is None:
         raise ValueError("Loss file is not specified. Please provide a valid loss file path.")
     args.loss_object = LossManager(loss_file)
@@ -614,6 +626,7 @@ def train():
         print("Unfrozen layers for optimisation: ", unfrozen_layers)
 
         if args.unfreeze_patch_embed:
+            raise ValueError("Unfreezing patch embed is not supported yet. Please use the default frozen patch embed. Else enable freezing and unfreew layers through optimisation take into account other params like cls_token, pos_embed, norm, etc.")
             param_list = [
                     {"params": student_model.model.patch_embed.parameters(), "lr": args.learning_rate * 0.1},  # 0.0001
                     {"params": student_model.model.blocks.parameters(), "lr": args.learning_rate},             # 0.001
@@ -627,7 +640,12 @@ def train():
             param_list =[{"params":chain(student_model.unfrozen_parameters()), "lr": args.learning_rate}]
 
         # Create the optimizer
-        optimizer = optim.AdamW(param_list, weight_decay=args.weight_decay)
+        if args.optimizer == "adamw":
+            optimizer = optim.AdamW(param_list, weight_decay=args.weight_decay)
+        elif args.optimizer == "sgd":
+            optimizer = optim.SGD(param_list, weight_decay=args.weight_decay)
+        else:
+            raise ValueError("Invalid optimizer name. Please use 'adamw' or 'sgd'.")
 
         if args.resume:
             optimizer.load_state_dict(optimizer_dict)
@@ -654,8 +672,10 @@ def train():
     for epoch in range(start_epoch, args.epochs+1):
 
         start_time = time.time()
-        with torch.no_grad() if args.dry_run else nullcontext():
+
+        with torch.no_grad() if ((args.dry_run or epoch==0) and not args.debug) else nullcontext():
             train_individual_losses, train_pos_cosine_loss, train_neg_cosine_loss = dataloader_loop(args,save_path, teacher_model, student_model, train_dataloader, test=False, epoch=epoch, soft_positives_per_query=train_soft_positives_per_query)
+
         val_individual_losses, val_pos_cosine_loss, val_neg_cosine_loss = dataloader_loop(args, save_path,teacher_model, student_model, val_dataloader, test=True, epoch=epoch, soft_positives_per_query=val_soft_positives_per_query)
 
         if args.wandb_use:
@@ -678,7 +698,7 @@ def train():
         
         print(f"[Epoch {epoch}] Train losses: {train_individual_losses}, Val losses: {val_individual_losses}")
 
-        if not args.dry_run:
+        if not args.dry_run and epoch!=0:
             save_dict = {
                 'epoch': epoch,
                 'student_model_type': args.model_name,
@@ -703,19 +723,19 @@ parser.add_argument('--eval_dataset', default=[],type=str, nargs='+',
 parser.add_argument('--teacher_modality', default='rgb', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
 parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained',action=StoreWithFlag)
 parser.add_argument('--unfreeze_teacher',nargs=0,default=False, help='modality for which encoder has to be trained',action=StoreWithFlag)
-parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training',action=StoreWithFlag)
-parser.add_argument('--eval_batch_size', default=64, type=int, help='Batch size for training',action=StoreWithFlag)
-parser.add_argument('--train_num_workers', type=int, default=4, help='Number of workers for training dataloader',action=StoreWithFlag)
-parser.add_argument('--eval_num_workers', type=int, default=4, help='Number of workers for evaluation dataloader',action=StoreWithFlag)
-parser.add_argument('--epochs', default=20, type=int, help='Number of epochs to train for',action=StoreWithFlag)
+parser.add_argument('--batch_size', default=256, type=int, help='Batch size for training',action=StoreWithFlag)
+parser.add_argument('--eval_batch_size', default=256, type=int, help='Batch size for training',action=StoreWithFlag)
+parser.add_argument('--train_num_workers', type=int, default=16, help='Number of workers for training dataloader',action=StoreWithFlag)
+parser.add_argument('--eval_num_workers', type=int, default=16, help='Number of workers for evaluation dataloader',action=StoreWithFlag)
+parser.add_argument('--epochs', default=100, type=int, help='Number of epochs to train for',action=StoreWithFlag)
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate',action=StoreWithFlag)
-parser.add_argument('--weight_decay', default=0.0, type=float, help='Weight decay',action=StoreWithFlag)
+parser.add_argument('--weight_decay', default=0.001, type=float, help='Weight decay',action=StoreWithFlag)
 parser.add_argument('--save_path', default='./checkpoints', type=str, help='Path to save the checkpoints',action=StoreWithFlag)
 parser.add_argument('--resume', nargs=0,default=False, help='Resume training from a checkpoint',action=StoreWithFlag)
-parser.add_argument('--resume_epoch_num', default=1, type=int, help='Epoch number to resume training from',action=StoreWithFlag)
+parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch number to resume training from',action=StoreWithFlag)
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity',action=StoreWithFlag)
 parser.add_argument('--loss_file', default="loss_config.yaml", type=str, help='Loss type: mse or similarity',action=StoreWithFlag)
-parser.add_argument('--wandb_use',nargs=0,default=False, help='Use wandb for logging',action=StoreWithFlag)
+parser.add_argument('--wandb_use',nargs=0,default=True, help='Use wandb for logging',action=StoreWithFlag)
 parser.add_argument('--model_name', default='dinov2_vitb14', type=str, help='Name of the encoder model',action=StoreWithFlag)
 parser.add_argument('--viz_debug', nargs=0,default=False, help='Save train and val images for debugging',action=StoreWithFlag)
 parser.add_argument('--lr_scheduler', nargs=0,default=False, help='Save train and val images for debugging',action=StoreWithFlag)
@@ -729,8 +749,8 @@ parser.add_argument('--use_odom', default=False,nargs=0, help='Mode to build dat
 parser.add_argument('--rescale_during_crop', default=False,nargs=0, help='Rescale images during cropping',action=StoreWithFlag)
 parser.add_argument('--vpr_test', default=False,nargs=0, help='Rescale images during cropping',action=StoreWithFlag)
 parser.add_argument('--no_shuffle', nargs=0,default=False, help='Rescale images during cropping',action=StoreWithFlag)
-parser.add_argument('--crop_images', default=True, nargs=0,help='Rescale images during cropping',action=StoreWithFlag)
-parser.add_argument('--subsample', default=1, type=int,help='Rescale images during cropping',action=StoreWithFlag)
+parser.add_argument('--no_crop_images', default=False, nargs=0,help='Rescale images during cropping',action=StoreWithFlag)
+parser.add_argument('--subsample', default=10, type=int,help='Rescale images during cropping',action=StoreWithFlag)
 parser.add_argument('--viz_attention_pca',nargs=0,default=False, help='Visualize attention map and PCA',action=StoreWithFlag)
 parser.add_argument('--no_intra_dataset_batch', nargs=0,default=False, help='Visualize attention map and PCA',action=StoreWithFlag)
 parser.add_argument('--dry_run', nargs=0,default=False, help='No training, but calculates loss and saves images',action=StoreWithFlag)
@@ -741,6 +761,14 @@ parser.add_argument('--thermal_aug_list', default=["blur"],type=str, nargs='+', 
 parser.add_argument('--proj_head', default="",type=str, choices=["", "linear"],
                     help='List of datasets to use in training and eval',action=StoreWithFlag)
 parser.add_argument('--wandb_id', default="",type=str, help='Placeholder for wandb id. This is not used in CLI',action=StoreWithFlag)
-
+parser.add_argument('--cart_split', default='vpr',type=str, help='Task to run, currently only vpr is supported')
+parser.add_argument('--debug', nargs=0,default=False, help='Rescale images during cropping',action=StoreWithFlag)
+parser.add_argument('--subsample_val', default=10, type=int, help='Batch size for training',action=StoreWithFlag)
+parser.add_argument('--unfreeze_cls_token', nargs=0,default=False, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
+parser.add_argument('--unfreeze_pos_embed', nargs=0,default=False, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
+parser.add_argument('--unfreeze_register_tokens', nargs=0,default=False, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
+parser.add_argument('--optimizer', default='sgd', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
+parser.add_argument('--sampling_weight', default='equal', type=str, help='Sampling weight for the dataset',action=StoreWithFlag)
+parser.add_argument('--sampling_temperature', default=1., type=float, help='Sampling temperature for the dataset',action=StoreWithFlag)
 if __name__ == "__main__":
     train()

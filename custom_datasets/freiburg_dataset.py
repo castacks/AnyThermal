@@ -1,4 +1,4 @@
-from .base_dataset import *
+from base_dataset import *
 import torchvision.transforms.functional as torch_F
 import torchvision
 
@@ -44,7 +44,6 @@ class Freiburg(BaseDataset):
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/frame_list"
         self.metadata = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/crop_box_metadata.txt"
         self.read_metadata()
-        #PARV_TODO: Change this if GPS data becomes available
         vpr_train = False
         vpr_test = False
         dist_thresh = -1
@@ -160,8 +159,7 @@ class Freiburg(BaseDataset):
         if img is None:
             raise ValueError(f"Image at {path} could not be read. Please check the path.")
         #apply the crop box from the metadata
-        img = cv2.resize(img, (1920, 640), interpolation=cv2.INTER_LINEAR)
-        img = cv2.resize(img, (960, 320), interpolation=cv2.INTER_LINEAR)
+        img = cv2.resize(img, (960, 320), interpolation=cv2.INTER_AREA)
         img = img[self.row_start:self.row_end, self.col_start:self.col_end]
 
         img = base_transform(img)
@@ -195,7 +193,6 @@ class Freiburg(BaseDataset):
         return img
     
     def form_gt_positives(self):
-        # PARV_TODO : Implement this if GPS data is available
         pass
     
     def check_seq_list(self,seq):

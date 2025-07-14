@@ -1,4 +1,4 @@
-from .base_dataset import *
+from base_dataset import *
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from typing import Tuple
@@ -56,6 +56,26 @@ def return_cart_split(split):
     else:
         raise ValueError("Please provide a valid split name. Options are train or val")
 
+def return_cart_split_debug(split):
+    """
+    Returns the split for the ms2 dataset.
+    """
+    if split == "train_easy":
+        raise ValueError("train_easy split is not supported for the CART dataset. Please use train or val split.")
+    elif split == "train":
+        train_seq_list = ['2022-12-20-11-40-28'
+                                ]
+        return train_seq_list
+    elif split == "val":
+        val_seq_list = ['2022-12-20-11-40-28']
+
+        # "2023-03-21-18-20-21","2023-03-21-19-55-11", nothing visible in RGB, PARV_TODO can use for themral only supervision 
+
+        return val_seq_list
+    else:
+        raise ValueError("Please provide a valid split name. Options are train or val")
+
+
 def seq_has_gps(seq, datasets_folder):
     """
     Checks if the sequence has GPS data.
@@ -68,9 +88,10 @@ class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt=""):
+    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt=""):
         self.root_frame_dir = root_frame_dir
         self.seq_as_txt = seq_as_txt
+        self.val_positive_dist_threshold = 25
 
         assert self.seq_as_txt in ['', 'thermal', 'rgbt'], "Please provide a valid seq_as_txt. Currently only thermal and rgbt are supported"
 

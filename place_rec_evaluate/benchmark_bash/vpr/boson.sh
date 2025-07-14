@@ -3,7 +3,7 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 new_benchmark_vpr.py \
-    --model_names salad sgm\
+    --model_names combined_mmdistill_contrastive_all_vlad_32 combined_mmdistill_contrastive_all_vlad_32 combined_mmdistill_both_cosine_all combined_mmdistill_both_cosine_all_vlad_32 frozen_dinov2 frozen_dinov2_vlad_32 salad \
     --dataset boson\
     --top_k_vals 1 5 10 \
     --batch_size 16 \
@@ -15,6 +15,7 @@ python3 new_benchmark_vpr.py \
     --wandb_entity parv \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
-    --exclude_exact_query_in_db \
-    --dataset_splits test \
-    --dist_thresh 50
+    --dataset_splits val train \
+    --dist_thresh 35 \
+    --exclude_exact_query_in_db
+    

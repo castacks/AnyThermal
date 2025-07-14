@@ -93,12 +93,13 @@ class PatchNCELossSinglePositive(nn.Module):
         return loss / B
 
 class GlobalAndPatchCosine(nn.Module):
-    def __init__(self, temperature=0.07):
+    def __init__(self, temperature=0.07,mode='global_and_patch'):
         super().__init__()
+        self.mode = mode
 
     def forward(self, student_output, teacher_output):
-        student_feats = student_output[0]  # (B, D, H, W)
-        teacher_feats = teacher_output[0]  # (B, D, H, W)
+        student_feats = student_output[0][0]  # (B, D, H, W)
+        teacher_feats = teacher_output[0][0].detach()  # (B, D, H, W)
 
         B, D, H, W = student_feats.shape
         N = H * W
@@ -108,35 +109,71 @@ class GlobalAndPatchCosine(nn.Module):
         student_flat = student_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
         teacher_flat = teacher_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
 
-        student_global = student_output[1]  # (B, D)
-        teacher_global = teacher_output[1]
+        student_global = student_output[0][1]  # (B, D)
+        teacher_global = teacher_output[0][1].detach()  # (B, D)
 
         student_global = F.normalize(student_global, dim=1)  # (B, D)
         teacher_global = F.normalize(teacher_global, dim=1)
-
-        student_flat_final = torch.cat([student_global, student_flat], dim=0)
-        teacher_flat_final = torch.cat([teacher_global, teacher_flat], dim=0)
+        
+        if self.mode == 'global':
+            student_flat_final = student_global
+            teacher_flat_final = teacher_global
+        elif self.mode == 'patch':
+            student_flat_final = student_flat
+            teacher_flat_final = teacher_flat
+        elif self.mode == 'global_and_patch':
+            student_flat_final = torch.cat([student_global, student_flat], dim=0)
+            teacher_flat_final = torch.cat([teacher_global, teacher_flat], dim=0)
         
         cos_sim = F.cosine_similarity(student_flat_final, teacher_flat_final, dim=-1)
         loss = 1 - cos_sim
         return loss.mean()
 
-class PatchCosine(nn.Module):
+class PatchContrastive(nn.Module):
     def __init__(self, temperature=0.07):
         super().__init__()
+        self.temperature = temperature
 
     def forward(self, student_output, teacher_output):
-        student_feats = student_output[0]  # (B, D, H, W)
-        teacher_feats = teacher_output[0]  # (B, D, H, W)
+        """
+        Args:
+            student_output: (B, D, H, W) - thermal features (student)
+            teacher_output: (B, D, H, W) - RGB features (teacher)
+        Returns:
+            Scalar loss
+        """
+        student_feats = student_output[0][0]  # (B, D, H, W)
+        teacher_feats = teacher_output[0][0]  # (B, D, H, W)
 
         B, D, H, W = student_feats.shape
         N = H * W
-        student_feats = F.normalize(student_feats, dim=1)
-        teacher_feats = F.normalize(teacher_feats, dim=1)
 
-        student_flat = student_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
-        teacher_flat = teacher_feats.view(B, D, -1).permute(0, 2, 1).view(-1, D)  # (B*N, D)
-        
-        cos_sim = F.cosine_similarity(student_flat, teacher_flat, dim=-1)
-        loss = 1 - cos_sim
-        return loss.mean()
+        # Normalize features
+        student_feats = F.normalize(student_feats, dim=1)  # (B, D, H, W)
+        teacher_feats = F.normalize(teacher_feats, dim=1)  # (B, D, H, W)
+
+        # Flatten patches
+        student_flat = student_feats.view(B, D, -1).permute(0, 2, 1).unsqueeze(2)  # (B, N,1, D)
+        teacher_flat = teacher_feats.view(B, D, -1).permute(2, 0, 1).unsqueeze(0)  # (1,N, B, D)
+
+        # Dot product along D
+        logits = []
+        for i in range(B):
+            logits.append(torch.sum(student_flat[[i]] * teacher_flat, dim=-1))
+        logits = torch.cat(logits, dim=0)
+
+        logits = logits / self.temperature
+
+        # For each patch in student (thermal), positive is teacher patch at same (B, N)
+        # negatives are patches at same (N) position in other images in batch
+        labels = torch.arange(B).to(student_feats.device)  # (B,)
+        labels = labels.repeat_interleave(N)  # (B*N,)
+
+        # Reshape logits: (B*N, B)
+        logits = logits.view(-1, B)
+
+        # Cross-entropy loss
+        # import pdb; pdb.set_trace()
+        loss = F.cross_entropy(logits, labels)
+
+        return loss

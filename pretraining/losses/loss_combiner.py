@@ -66,7 +66,7 @@ class LossManager:
                         loss_value = loss_module(input1_list, input2_list)
 
 
-                individual_losses[f"{name}_layer_{layer}"] = loss_value.detach().item()
+                individual_losses[f"{name}_layer_{layer}"] = loss_value.detach().cpu().item()
                 if not report_only:
                     total_loss += weight * loss_value
 

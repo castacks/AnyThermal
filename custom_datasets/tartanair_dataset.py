@@ -1,4 +1,4 @@
-from .thermal_dataloader import *
+from thermal_dataloader import *
 import torch
 
 class TartanAirDataset(CustomDataset):

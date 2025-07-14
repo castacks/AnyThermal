@@ -1,4 +1,4 @@
-from .base_dataset import *
+from base_dataset import *
 
 def return_vivid_split(split):
     """
@@ -54,7 +54,7 @@ class Vivid(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=True, crop_during_vpr_test=False):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False):
 
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/frame_lists"
         self.thr_res = (512, 640)
@@ -63,6 +63,7 @@ class Vivid(BaseDataset):
         self.crop_bottom = 122
         self.crop_left = 145
         self.crop_right = 108
+        self.val_positive_dist_threshold = 25
 
         super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
@@ -107,7 +108,6 @@ class Vivid(BaseDataset):
 
             db_abs_paths.extend(self.read_frame_lists(frame_list_dir,db_file_name))
             q_abs_paths.extend(self.read_frame_lists(frame_list_dir,q_file_name))
-            # import pdb;pdb.set_trace()
         return db_abs_paths,q_abs_paths
     
     def semantic_classes_num_and_map_to_rgb(self):
@@ -138,7 +138,6 @@ class Vivid(BaseDataset):
     
     
     def form_gt_positives(self):
-        # PARV_TODO : Implement this if GPS data is available
         self.db_coords = []
         self.q_coords = []
         # load files for the coordinates

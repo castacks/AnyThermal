@@ -135,8 +135,9 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
         loss_fn = MultiSimilarityLoss()
         create_label_graph = True
     elif args.miner_type == "gps_cosine":
-        loss_fn = TripletMarginLoss(margin=args.margin, p=2)
-    total_loss = 0
+        loss_fn = TripletMarginLoss(margin=args.margin, p=2, reduction='none')
+    total_loss_vpr = 0
+    total_loss_allignment = 0
     memory_feats, memory_labels = [], []
     
     all_ground_truth = [[] for _ in range(len(dataloader.dataset))]
@@ -147,6 +148,7 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
     db_modality = args.teacher_modality
     q_modality = args.student_modality
     positive_index_per_query = np.array(dataloader.dataset.soft_positives, dtype=object)
+    extra_margin_positive_index_per_query = np.array(dataloader.dataset.extra_margin_soft_positives, dtype=object)
     gps_database = torch.from_numpy(dataloader.dataset.db_coords)
 
     global_batch_with_hard_pairs = 0
@@ -206,7 +208,17 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
                     continue
 
                 a, p, n = triplets
-                loss = loss_fn(feats[a], feats[p], feats[n])
+                all_loss = loss_fn(feats[a], feats[p], feats[n])
+                active_losses = all_loss[all_loss > 0]
+                if train:
+                    wandb.log({"num_active_losses": len(active_losses), f"{mode}/num_triplets": len(a)})
+                    wand.log({"triplet/mean": all_loss.mean().item(),"triplet/active_mean": active_losses.mean().item()})
+                loss = active_losses.mean() if len(active_losses) > 0 else torch.tensor(0.0, device=device)
+                if len(active_losses) == 0:
+                    print(f"Warning: No active losses found for batch {indices}. Skipping this batch.")
+                    continue
+
+
 
                 with torch.no_grad():
                     d_ap = F.pairwise_distance(feats[a], feats[p])
@@ -219,10 +231,11 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
             else:
                 raise ValueError(f"Unknown miner type: {args.miner_type}")
 
-
+            allignmnet_loss = 1 - F.cosine_similarity(feats_rgb, feats_thr, dim=1).mean()
+            final_loss = loss + allignmnet_loss
             if train:
                 optimizer.zero_grad()
-                loss.backward()
+                final_loss.backward()
                 optimizer.step()
 
             if use_memory_bank:
@@ -236,7 +249,8 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
                 if memory_feats[0].shape[0] > args.memory_bank_size:
                     memory_feats[0] = memory_feats[0][-args.memory_bank_size:]
                     # # memory_labels[0] = memory_labels[0][-args.memory_bank_size:]
-            total_loss += loss.item()
+            total_loss_vpr += loss.item()
+            total_loss_allignment += allignmnet_loss.item()
 
 
         assert torch.all(all_rgb_feats[indices] == 0), "all_rgb_feats should be zero before filling"
@@ -313,7 +327,7 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, use_m
             plt.close(fig)
     
 
-    return total_loss / global_batch_with_hard_pairs
+    return total_loss_vpr / global_batch_with_hard_pairs , total_loss_allignment / global_batch_with_hard_pairs
 
 
 def build_head_dict(arch_name):
@@ -355,21 +369,20 @@ def main(args):
     agg_dict = build_head_dict(args.head_arch)
 
     if args.same_backbone:
-        rgb_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_path = args.backbone_path,head_config=agg_dict)
-        thr_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,model=rgb_model.model,modality='thermal', device=device,head_config=agg_dict)
+        rgb_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_path = args.backbone_path,head_config=agg_dict)
+        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,model=rgb_model.model,modality='thermal', device=device,head_config=agg_dict)
         head_params = chain(thr_model.model.head.parameters())
     else:
-        rgb_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_model_type="dinov2_vitb14",head_config=agg_dict)
-        thr_model = MMDistillVPRModel(frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thermal', device=device,head_config=agg_dict)
+        rgb_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_model_type="dinov2_vitb14",head_config=agg_dict)
+        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thermal', device=device,head_config=agg_dict)
 
         head_params = chain(thr_model.model.head.parameters(), rgb_model.model.head.parameters())
         
     
     backbone_params = chain(*[thr_model.model.backbone.blocks[i].parameters() for i in args.un_frozen_layer_index])
-    # import pdb; pdb.set_trace()  # Debugging line to inspect the model parameters
     optimizer = Adam(
             chain(head_params, backbone_params),
-            lr=0.001, weight_decay=0.01
+            lr=0.001, weight_decay=0.001
         )
     
     model_dict = {"rgb": rgb_model, "thr": thr_model}
@@ -387,12 +400,12 @@ def main(args):
             torch.save(save_dict, os.path.join(args.save_dir, f"model_{epoch}.pth"))
 
         if epoch>0:
-            train_loss = run(args,model_dict, train_dataloader, optimizer, device, epoch, train=True, use_memory_bank=args.memory_bank)
-            wandb.log({"epoch": epoch, "train/avg_loss": train_loss})
+            train_loss_vpr, train_loss_align = run(args,model_dict, train_dataloader, optimizer, device, epoch, train=True, use_memory_bank=args.memory_bank)
+            wandb.log({"epoch": epoch, "train/avg_loss_vpr": train_loss_vpr, "train/avg_loss_align": train_loss_align})
         
         with torch.no_grad():
-            val_loss = run(args,model_dict, val_dataloader, optimizer, device, epoch, train=False, use_memory_bank=args.memory_bank)
-            wandb.log({"epoch": epoch, "val/avg_loss": val_loss})
+            val_loss_vpr, val_loss_align = run(args,model_dict, val_dataloader, optimizer, device, epoch, train=False, use_memory_bank=args.memory_bank)
+            wandb.log({"epoch": epoch, "val/avg_loss": val_loss_vpr, "val/avg_loss_align": val_loss_align})
 
         if epoch >0:
             print(f"Epoch {epoch} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
@@ -442,6 +455,11 @@ if __name__ == '__main__':
     parser.add_argument('--no_crop_images', dest='crop_images', action='store_false', help='Disable image cropping')
     parser.set_defaults(crop_images=True)
     parser.add_argument('--no_shuffle', action='store_true', help='Disable shuffling of dataset')
+    parser.add_argument('--conv_output_dim', type=int, default=-1, help='Disable shuffling of dataset')
+    parser.add_argument('--fc_output_dim', type=int, default=-1, help='Disable shuffling of dataset')
+    parser.add_argument('--add_bn', action='store_true', help='Disable shuffling of dataset')
 
     args = parser.parse_args()
+
+    assert conv_output_dim<0 or fc_output_dim<0, "conv_output_dim and fc_output_dim cannot be both set."
     main(args)

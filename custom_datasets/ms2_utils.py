@@ -6,6 +6,7 @@ import matplotlib.cm as cm
 import torchvision.transforms as transforms
 import cv2
 import torch
+from PIL import Image
 
 def enhance_image(image):
     #after hist_99, do clache + bilateral filtering
@@ -154,8 +155,8 @@ def load_fireview_img(path):
 
 
 def load_as_float_img(path):
-    img = imread(path).astype(np.float32)
-    if len(img.shape) == 2:  # for NIR and thermal images
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED).astype(np.float32)
+    if img.ndim == 2:
         img = np.expand_dims(img, axis=2)
     return img
 

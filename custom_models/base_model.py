@@ -15,8 +15,10 @@ def default_preprocessing(images: torch.Tensor, keep_ratio,normalise_model,size 
 class BaseFeatureExtractor(ABC):
     def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
-        self.model = self.build_model().to(self.device)
-        self.model.eval()
+        self.model = self.build_model()
+        if self.model is not None:
+            self.model = self.model.to(self.device)
+            self.model.eval()
         self.own_recall_method = False
     
     @abstractmethod

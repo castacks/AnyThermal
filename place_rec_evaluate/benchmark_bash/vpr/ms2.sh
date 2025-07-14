@@ -3,14 +3,12 @@
     # --model_names mixvpr salad dinov2_vitb14_variable dinov2_vitb14_fixed mmdistill_dinov2_variable_dinov2_vitb14 mmdistill_dinov2_fixed_dinov2_vitb14 imagebind\
 
 python3 benchmark_vpr.py \
-    --model_names salad_mmdistill_dinov2\
+    --model_names grad_fixed_contrastive_all_ms2_mmdistill\
     --dataset_name ms2 \
-    --dataset_root /ocean/projects/cis220039p/shared/datasets/ms2_full \
     --top_k_vals 1 5 10 \
     --batch_size 8 \
     --save_qual \
     --qual_k 5 \
-    --output_dir ./qualitative_outputs/ms2/change_ratio \
     --use_faiss_gpu \
     --use_wandb \
     --wandb_project PlaceRecBench \
@@ -18,4 +16,5 @@ python3 benchmark_vpr.py \
     --wandb_group ClassificationModelBenchmark \
     --db_q_mode RGB_THERMAL \
     --exclude_exact_query_in_db \
-    --seq "_2021-08-06-16-45-28 _2021-08-06-11-37-46 _2021-08-06-17-21-04 _2021-08-13-16-08-46 _2021-08-13-22-03-03 _2021-08-13-21-58-13"
+    --seq _2021-08-06-16-45-28
+    # --seq "_2021-08-06-16-45-28 _2021-08-06-11-37-46 _2021-08-06-17-21-04 _2021-08-13-16-08-46 _2021-08-13-22-03-03 _2021-08-13-21-58-13"

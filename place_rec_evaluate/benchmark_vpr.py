@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 import sys 
 sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
+sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
 
 from torch.utils.data import DataLoader
 import faiss
@@ -45,6 +46,10 @@ class BenchmarkArgs:
     combine_all_seq_also : bool = False
     db_q_mode: Literal["RGB_THERMAL","THERMAL_RGB"] = "RGB_THERMAL"
     keep_aspect_ratio_during_preprocess: bool = False
+    cart_split: str = "vpr"
+    debug: bool = False
+    crop_images: bool = False
+    dist_thresh : int = 25 #in meters, used for MS2 dataset to form soft positives
 
 def extract_all_features(model, dataset, batch_size=1):
     features = []
@@ -213,24 +218,24 @@ def run(args: BenchmarkArgs):
     recall_dict = {}
 
     for model_name in args.model_names:
-        rgb_t_methods = ["imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart"]
+        rgb_t_methods = ["ms2_mmdistill","imagebind","mmdistill_dinov2_fixed","mmdistill_dinov2_variable","salad_mmdistill_dinov2","cart_train_normal","cart_train_easy","netvlad_mmdistill_dinov2_cart"]
         method_is_rgbt_method_flag = False 
         for method in rgb_t_methods:
             if method not in model_name:
                 continue
             method_is_rgbt_method_flag = True
             if args.db_q_mode == "RGB_THERMAL":
-                db_model = get_model_from_string(f"{model_name}_rgb","vpr")
-                qu_model = get_model_from_string(f"{model_name}_thermal","vpr")
+                db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                qu_model = get_model_from_string(args,f"{model_name}_thermal","vpr")
             elif args.db_q_mode == "THERMAL_RGB":
-                db_model = get_model_from_string(f"{model_name}_thermal","vpr")
-                qu_model = get_model_from_string(f"{model_name}_rgb","vpr")
+                db_model = get_model_from_string(args,f"{model_name}_thermal","vpr")
+                qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
             else:
                 raise ValueError(f"Mode {args.db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
             break
         if not method_is_rgbt_method_flag:
             print(f"initializing model {model_name}")
-            db_model = get_model_from_string(model_name,"vpr")
+            db_model = get_model_from_string(args,model_name,"vpr")
             qu_model = db_model
 
         print(f"🏁 Benchmarking: {model_name}")
@@ -258,7 +263,10 @@ def run(args: BenchmarkArgs):
                     q_modality=q_modality,
                     datasets_folder=dataset_root,
                     vpr_test=True,
-                    augment=False
+                    augment=False,
+                    crop_images=args.crop_images,
+                    crop_during_vpr_test =args.crop_images,
+                    dist_thresh = args.dist_thresh
                 )
             elif args.dataset_name == "cart":
                 data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"

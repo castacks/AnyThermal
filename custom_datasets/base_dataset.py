@@ -42,9 +42,6 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 from torchvision.transforms import functional as F
 import random
-# from utilities import CustomDataset
-def path_to_pil_img(path):
-    return Image.open(path).convert("RGB")
 
 base_transform = T.Compose([
     T.ToTensor(),
@@ -181,17 +178,6 @@ class BaseDataset(Dataset):
             img1 = F.hflip(img1)
             img2 = F.hflip(img2)
 
-        # ----- Random Resized Crop -----
-        # _, H, W = img1.shape
-        # scale = (0.8, 1.0)
-        # ratio = (0.75, 1.33)
-
-        # crop_params = T.RandomResizedCrop.get_params(img1, scale=scale, ratio=ratio)
-        # i, j, h, w = crop_params
-
-        # img1 = F.resized_crop(img1, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.BILINEAR)
-        # img2 = F.resized_crop(img2, i, j, h, w, size=(300, 450), interpolation=F.InterpolationMode.NEAREST) # Use nearest for segmentation mask
-
         # Brightness and contrast (thermal input only)
         brightness_factor = random.uniform(0.9, 1.1)
         contrast_factor = random.uniform(0.9, 1.1)
@@ -222,7 +208,6 @@ class BaseDataset(Dataset):
         target_height, target_width = size
 
         if original_height < target_height or original_width < target_width:
-            # print("Warning: Image is smaller than target size, returning original images without cropping, original size:", (original_height, original_width), "target size:", (target_height, target_width))
             return img1, img2  # Return original images if they are smaller than the target size
 
         top = random.randint(0, original_height - target_height)
@@ -232,6 +217,39 @@ class BaseDataset(Dataset):
         cropped2 = F.crop(img2, top, left, target_height, target_width)
 
         return cropped1, cropped2
+    
+    def crop_width_resize_fixed_size(self,img1: torch.Tensor, img2: torch.Tensor, target_size: int = 224) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Applies the same fixed-size random crop to two tensors (C, H, W).
+        Args:
+            img1: Tensor (C, H, W), e.g., RGB
+            img2: Tensor (C, H, W), e.g., thermal
+            target_size: final size to resize to (target_size x target_size)
+        Returns:
+            Tuple of cropped and resized tensors
+        """
+        _, H, W = img1.shape
+
+        # Ensure height <= width for horizontal crop
+        assert H <= W, "Image height should be <= width for this crop logic"
+
+        crop_size = H  # we take a square crop: height x height
+        max_left = W - crop_size
+
+        # Randomly choose horizontal crop start
+        left = random.randint(0, max_left)
+        top = 0  # no vertical crop
+
+        # Apply the crop
+        img1_cropped = F.crop(img1, top, left, crop_size, crop_size)
+        img2_cropped = F.crop(img2, top, left, crop_size, crop_size)
+
+        # Resize to target size
+        img1_resized = F.resize(img1_cropped, [target_size, target_size], interpolation=F.InterpolationMode.BILINEAR,antialias=True)
+         # Use bilinear interpolation for RGB images
+        img2_resized = F.resize(img2_cropped, [target_size, target_size], interpolation=F.InterpolationMode.BILINEAR,antialias=True)
+
+        return img1_resized, img2_resized
 
     def rgb_thermal_augment(self,rgb: Image.Image, thermal: Image.Image) -> Tuple[Image.Image, Image.Image]:
         # ----- Random Parameters -----
@@ -276,8 +294,7 @@ class BaseDataset(Dataset):
                 img = self.read_fn[self.db_modality](self.images_paths[index])
             
             if self.crop_during_vpr_test:
-                img = F.resize(img, size=(210,560))
-
+                raise ValueError("crop_during_vpr_test is not implemented yet")
             # print("Image shape:", img.shape)
 
             return img, index
@@ -287,13 +304,10 @@ class BaseDataset(Dataset):
             q_img = self.read_fn[self.q_modality](self.images_paths[self.database_num+index])
             if self.crop_images:
                 if self.rescale_during_crop:
-                    if random.random() < 0.5:
-                        # Random resized crop (augmentation)
-                        db_img, q_img = self.crop_and_resize(db_img, q_img)
-                    else:
-                        # Realistic crop (no resize)
-                        db_img, q_img = self.crop_pair_fixed_size(db_img, q_img)
+                    # Apply crop and resize with fixed size
+                    db_img, q_img = self.crop_width_resize_fixed_size(db_img, q_img)
                 else:
+                    # Apply fixed size crop without rescaling
                     db_img, q_img = self.crop_pair_fixed_size(db_img, q_img)
 
             if self.augment:

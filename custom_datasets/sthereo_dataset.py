@@ -1,5 +1,5 @@
-from .base_dataset import *
-from .ms2_utils import *
+from base_dataset import *
+from ms2_utils import *
 from pyproj import Transformer
 
 def return_sthereo_split(split):
@@ -25,7 +25,7 @@ class STHEREO(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False):
+    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False):
         self.subsample =10
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/frame_lists"
         self.use_clahe = use_clahe
@@ -34,6 +34,8 @@ class STHEREO(BaseDataset):
         self.crop_bottom = 107
         self.crop_left = 52
         self.crop_right = 30
+        self.val_positive_dist_threshold = 25
+
 
         super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     def generate_read_fn(self):
@@ -143,7 +145,6 @@ class STHEREO(BaseDataset):
         """
         Reads thermal image from the path.
         """
-        # pass # PARV_TODO : Implement this if RGB images are available
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         h,w = img.shape[:2]
