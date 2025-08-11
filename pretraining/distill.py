@@ -177,7 +177,7 @@ def init_model(args,modality,un_frozen_layer_index):
     if args.proj_head:
         un_frozen_layer_index.append("proj_head")
 
-    model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= un_frozen_layer_index,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head)
+    model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= un_frozen_layer_index,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head,backbone_path= args.initial_backbone_path)
 
     return model, model.patch_size
 
@@ -551,6 +551,8 @@ def train():
         print("Resuming training from epoch {}".format(start_epoch))
     else:
         args = dict_to_args(parser,all_args)
+        args.dataset = sorted(args.dataset)
+        args.eval_dataset = sorted(args.eval_dataset) if args.eval_dataset else []
         wandb_id = str(uuid.uuid4())
         if args.wandb_id != "":
             raise ValueError("wandb_id should not be set when not resuming. It will be automatically generated.")
@@ -563,6 +565,8 @@ def train():
         wandb_name = args.model_name + "_" + dataset_name + "_" + args.student_modality + "_distill"
         if args.wandb_name != "":
             wandb_name += "_" + args.wandb_name
+        if args.equal_samples:
+            wandb_name += "_equal_samples"
 
         save_path = os.path.join(save_path,dataset_name, f"{args.teacher_modality}_{args.student_modality}")
         #append currnet date and time to the save path
@@ -626,15 +630,15 @@ def train():
         print("Unfrozen layers for optimisation: ", unfrozen_layers)
 
         if args.unfreeze_patch_embed:
-            raise ValueError("Unfreezing patch embed is not supported yet. Please use the default frozen patch embed. Else enable freezing and unfreew layers through optimisation take into account other params like cls_token, pos_embed, norm, etc.")
+            named_parameters = student_model.unfrozen_named_parameters()
+
+            parameters_apart_from_patch_embed = [p for name, p in named_parameters if "patch_embed" not in name]
+            parameters_from_patch_embed = [p for name, p in named_parameters if "patch_embed" in name]
+
             param_list = [
-                    {"params": student_model.model.patch_embed.parameters(), "lr": args.learning_rate * 0.1},  # 0.0001
-                    {"params": student_model.model.blocks.parameters(), "lr": args.learning_rate},             # 0.001
-                    {"params": student_model.model.norm.parameters(), "lr": args.learning_rate},            # 0.001
+                    {"params": parameters_from_patch_embed, "lr": args.learning_rate * args.patch_embed_lr_factor},  # 0.0001
+                    {"params": parameters_apart_from_patch_embed, "lr": args.learning_rate},             # 0.001
                 ]
-            if student_model.modality_specific_proj_head is not None:
-                param_list.append({"params": student_model.modality_specific_proj_head.parameters(), "lr": args.learning_rate})
-                param_list.append({"params": student_model.modality_shared_proj_head.parameters(), "lr": args.learning_rate})
 
         else:
             param_list =[{"params":chain(student_model.unfrozen_parameters()), "lr": args.learning_rate}]
@@ -723,10 +727,10 @@ parser.add_argument('--eval_dataset', default=[],type=str, nargs='+',
 parser.add_argument('--teacher_modality', default='rgb', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
 parser.add_argument('--student_modality', default='thr', type=str, help='modality for which encoder has to be trained',action=StoreWithFlag)
 parser.add_argument('--unfreeze_teacher',nargs=0,default=False, help='modality for which encoder has to be trained',action=StoreWithFlag)
-parser.add_argument('--batch_size', default=256, type=int, help='Batch size for training',action=StoreWithFlag)
-parser.add_argument('--eval_batch_size', default=256, type=int, help='Batch size for training',action=StoreWithFlag)
-parser.add_argument('--train_num_workers', type=int, default=16, help='Number of workers for training dataloader',action=StoreWithFlag)
-parser.add_argument('--eval_num_workers', type=int, default=16, help='Number of workers for evaluation dataloader',action=StoreWithFlag)
+parser.add_argument('--batch_size', default=64, type=int, help='Batch size for training',action=StoreWithFlag)
+parser.add_argument('--eval_batch_size', default=64, type=int, help='Batch size for training',action=StoreWithFlag)
+parser.add_argument('--train_num_workers', type=int, default=8, help='Number of workers for training dataloader',action=StoreWithFlag)
+parser.add_argument('--eval_num_workers', type=int, default=8, help='Number of workers for evaluation dataloader',action=StoreWithFlag)
 parser.add_argument('--epochs', default=100, type=int, help='Number of epochs to train for',action=StoreWithFlag)
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate',action=StoreWithFlag)
 parser.add_argument('--weight_decay', default=0.001, type=float, help='Weight decay',action=StoreWithFlag)
@@ -770,5 +774,9 @@ parser.add_argument('--unfreeze_register_tokens', nargs=0,default=False, help='U
 parser.add_argument('--optimizer', default='sgd', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
 parser.add_argument('--sampling_weight', default='equal', type=str, help='Sampling weight for the dataset',action=StoreWithFlag)
 parser.add_argument('--sampling_temperature', default=1., type=float, help='Sampling temperature for the dataset',action=StoreWithFlag)
+parser.add_argument('--equal_samples', nargs=0,default=False, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
+parser.add_argument('--patch_embed_lr_factor', default=0.1, type=float, help='Learning rate factor for patch embedding layer',action=StoreWithFlag)
+parser.add_argument('--initial_backbone_path', default='', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
+
 if __name__ == "__main__":
     train()

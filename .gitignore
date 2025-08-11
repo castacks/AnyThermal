@@ -11,3 +11,6 @@ pretraining/wandb/**
 **/__pycache__/**
 place_rec_evaluate/qualitative_outputs/**
 place_rec_evaluate/.checkpoints
+
+**/GPS_coords/**
+**/wrong_ms2_split_old_checkpoints/**

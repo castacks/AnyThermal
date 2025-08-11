@@ -56,6 +56,25 @@ def return_cart_split(split):
     else:
         raise ValueError("Please provide a valid split name. Options are train or val")
 
+
+def return_handheld_cart_split(split):
+    """
+    Returns the split for the ms2 dataset.
+    """
+    if split == "train_easy":
+        raise ValueError("train_easy split is not supported for the CART dataset. Please use train or val split.")
+    elif split == "train":
+        raise ValueError("train split is not supported for the CART dataset. Please use val split.")
+    elif split == "val":
+        train_seq_list = ['2022-04-03-12-16-33', '2022-04-03-12-20-57', 
+                                '2022-04-03-17-12-07', '2022-04-03-17-16-17', 
+                                '2022-05-08-11-30-40','2022-05-08-11-34-00', '2022-05-08-11-37-09',
+                                ]
+        return train_seq_list
+    else:
+        raise ValueError("Please provide a valid split name. Options are train or val")
+
+
 def return_cart_split_debug(split):
     """
     Returns the split for the ms2 dataset.
@@ -76,10 +95,12 @@ def return_cart_split_debug(split):
         raise ValueError("Please provide a valid split name. Options are train or val")
 
 
-def seq_has_gps(seq, datasets_folder):
+def seq_has_gps(args,seq, datasets_folder):
     """
     Checks if the sequence has GPS data.
     """
+    if args.not_filter_on_gps:
+        return True
     gps_file = os.path.join(datasets_folder, seq, "csv/thermal_utm_coords.npy")
     return os.path.exists(gps_file)
 
@@ -88,15 +109,23 @@ class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt=""):
+    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=25):
+        
         self.root_frame_dir = root_frame_dir
         self.seq_as_txt = seq_as_txt
-        self.val_positive_dist_threshold = 25
+        self.val_positive_dist_threshold = val_positive_dist_threshold
+        self.cart_split = cart_split
+        args.not_filter_on_gps = False
+        self.dataset_shape = (512,640) # (w,h)
+        if cart_split  =="vpr":
+            self.vpr_resize = [300,480]
+        else:
+            self.vpr_resize = None
 
         assert self.seq_as_txt in ['', 'thermal', 'rgbt'], "Please provide a valid seq_as_txt. Currently only thermal and rgbt are supported"
 
         if vpr_train or vpr_test:
-            seq_filtered = [seq_single for seq_single in seq if seq_has_gps(seq_single, datasets_folder)]
+            seq_filtered = [seq_single for seq_single in seq if seq_has_gps(args,seq_single, datasets_folder)]
             if len(seq_filtered) == 0:
                 raise ValueError(f"No sequences with GPS data found. Please provide a valid sequence name., current seq is {seq}")
             if len(seq_filtered) < len(seq):
@@ -106,7 +135,7 @@ class CART(BaseDataset):
                         print(f"Sequence {seq_single} does not have GPS data and is filtered out.")
         else:
             seq_filtered = seq
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered,rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
+        super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,augment=augment,seq=seq_filtered,rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
     def generate_read_fn(self):
         return {
@@ -198,6 +227,9 @@ class CART(BaseDataset):
             return db_abs_paths, q_abs_paths
         else:
             self.seq_wise_length=[]
+            rgb_frames = None
+            thermal_frames = None
+            seg_mask_frames = None
             for seq in self.seq:
 
                 if "thr" in [self.db_modality, self.q_modality]:
@@ -207,17 +239,22 @@ class CART(BaseDataset):
                 if "thr_seg" in [self.db_modality, self.q_modality]:
                     thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list_seg_pair.txt")
                     thermal_frames = self.read_frame_list(thermal_file)
-
+                
                 if "rgb" in [self.db_modality, self.q_modality]:
                     rgb_file = os.path.join(self.root_frame_dir,f"{seq}_rgb_frame_list.txt")
                     rgb_frames = self.read_frame_list(rgb_file)
-                
+                    len_frames = len(rgb_frames)
                 if "seg_mask" in [self.db_modality, self.q_modality]:
                     seg_mask_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_segmentation_frame_list.txt")
                     seg_mask_frames = self.read_frame_list(seg_mask_file)
-
-                self.seq_wise_length.append(len(rgb_frames))  # Assuming rgb_frames and thermal_frames are of the same length
-
+                if thermal_frames is None and rgb_frames is None:
+                    raise ValueError(f"Please provide a valid sequence name. {seq} does not have any frames in the segmentation mode")
+                if rgb_frames is not None:
+                    self.seq_wise_length.append(len(rgb_frames))  # Assuming rgb_frames and thermal_frames are of the same length
+                elif thermal_frames is not None:
+                    self.seq_wise_length.append(len(thermal_frames))
+                else:
+                    raise ValueError(f"Please provide a valid sequence name. {seq} does not have any frames in the segmentation mode")
                 if self.db_modality == "rgb":                
                     db_abs_paths.extend(rgb_frames)
                 elif self.db_modality == "thr" or self.db_modality == "thr_seg":
@@ -300,7 +337,7 @@ class CART(BaseDataset):
         dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
                                                             radius= self.dist_thresh,
                                                             return_distance=True)
-        return dist , soft_positives_per_query         
+        return dist , soft_positives_per_query, 'cart'    
     
     def read_rgb(self, path):
         """
@@ -309,6 +346,8 @@ class CART(BaseDataset):
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
         img = base_transform(img)
+        if self.vpr_resize is not None:
+            img = F.resize(img, self.vpr_resize, interpolation=T.InterpolationMode.BILINEAR, antialias=True)
 
         return img
     
@@ -318,6 +357,8 @@ class CART(BaseDataset):
         """
         img = cv2.imread(path)
         img = base_transform(img)
+        if self.vpr_resize is not None:
+            img = F.resize(img, self.vpr_resize, interpolation=T.InterpolationMode.BILINEAR, antialias=True)
 
         # print("Thermal image path:", path)
         return img
@@ -338,15 +379,48 @@ class CART(BaseDataset):
         ID_TO_RGB = {
             # 0: (255, 36, 0),        # Unknown
             # 1: (0, 0, 0),           # Background
-            2: (242, 216, 196),     # Bare ground
-            3: (89, 70, 54),        # Rocky terrain
-            4: (166, 166, 166),     # Developed structures
-            5: (82, 89, 90),        # Road
-            6: (155, 230, 0),       # Shrubs
-            7: (0, 138, 53),        # Trees
-            8: (0, 216, 245),       # Sky
-            9: (13, 127, 252),      # Water
-            10: (255, 249, 0),      # Vehicles
-            11: (254, 0, 170),      # Person
+            0: (242, 216, 196),     # Bare ground
+            1: (89, 70, 54),        # Rocky terrain
+            2: (166, 166, 166),     # Developed structures
+            3: (82, 89, 90),        # Road
+            4: (155, 230, 0),       # Shrubs
+            5: (0, 138, 53),        # Trees
+            6: (0, 216, 245),       # Sky
+            7: (13, 127, 252),      # Water
+            8: (255, 249, 0),      # Vehicles
+            9: (254, 0, 170),      # Person
         }
         return 10,ID_TO_RGB
+    
+    def skip_classes_in_segmentation(self):
+        """
+        Returns the classes to skip in segmentation.
+        """
+        # Skip unknown and background classes
+        return []
+
+
+class HandheldCART(CART):
+    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=-1):
+        
+        args.not_filter_on_gps = True
+        self.positive_radius_index = 3
+        self.val_extra_margin_positive_radius_index = 6
+        dist_thresh = -1
+        super().__init__(args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test,vpr_train,dist_thresh,rescale_during_crop,crop_during_vpr_test,seq_as_txt,cart_split,val_positive_dist_threshold)
+    def form_gt_positives(self):
+        # Form ground truth positives for the dataset. For a given index all images with indices wihting the self.positive_radius_index are considered positives.
+        """
+        Returns ground truth positives for the dataset.
+        """
+        soft_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
+        for i in range(len(self.q_abs_paths)):
+            soft_positives_per_query[i] = np.array(list(range(max(0, i - self.positive_radius_index), min(len(self.db_abs_paths), i + self.positive_radius_index + 1))))
+
+        self.db_coords = [None for _ in range(len(self.db_abs_paths))]
+        self.q_coords = [None for _ in range(len(self.q_abs_paths))]
+
+        self.val_extra_margin_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
+        for i in range(len(self.q_abs_paths)):
+            self.val_extra_margin_positives_per_query[i] = np.array(list(range(max(0, i - self.val_extra_margin_positive_radius_index), min(len(self.db_abs_paths), i + self.val_extra_margin_positive_radius_index + 1))))
+        return None, soft_positives_per_query, 'handheld_Cart'

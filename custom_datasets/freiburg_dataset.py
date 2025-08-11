@@ -37,20 +37,20 @@ class Freiburg(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,use_clahe=True, rescale_during_crop=False,crop_during_vpr_test=False):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,use_clahe=True, rescale_during_crop=False,crop_during_vpr_test=False, val_positive_dist_threshold=-1):
 
 
         assert crop_during_vpr_test == False, "Crop during VPR test is not supported for Freiburg dataset. Please set it to False."
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/frame_list"
         self.metadata = "/ocean/projects/cis220039p/mdt2/datasets/freiburg/crop_box_metadata.txt"
         self.read_metadata()
-        vpr_train = False
-        vpr_test = False
         dist_thresh = -1
+        self.positive_radius_index = 1
+        self.val_extra_margin_positive_radius_index = 2
         
         self.use_clahe = use_clahe
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_images=crop_images)
+        super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_images=crop_images)
     
     def read_metadata(self):
         with open(self.metadata, 'r') as f:
@@ -193,7 +193,21 @@ class Freiburg(BaseDataset):
         return img
     
     def form_gt_positives(self):
-        pass
+        # Form ground truth positives for the dataset. For a given index all images with indices wihting the self.positive_radius_index are considered positives.
+        """
+        Returns ground truth positives for the dataset.
+        """
+        soft_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
+        for i in range(len(self.q_abs_paths)):
+            soft_positives_per_query[i] = np.array(list(range(max(0, i - self.positive_radius_index), min(len(self.db_abs_paths), i + self.positive_radius_index + 1))))
+
+        self.db_coords = [None for _ in range(len(self.db_abs_paths))]
+        self.q_coords = [None for _ in range(len(self.q_abs_paths))]
+
+        self.val_extra_margin_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
+        for i in range(len(self.q_abs_paths)):
+            self.val_extra_margin_positives_per_query[i] = np.array(list(range(max(0, i - self.val_extra_margin_positive_radius_index), min(len(self.db_abs_paths), i + self.val_extra_margin_positive_radius_index + 1))))
+        return None, soft_positives_per_query, 'freiburg'
     
     def check_seq_list(self,seq):
         """

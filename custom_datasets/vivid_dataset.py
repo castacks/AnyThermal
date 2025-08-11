@@ -1,4 +1,5 @@
 from base_dataset import *
+from pyproj import Transformer
 
 def return_vivid_split(split):
     """
@@ -30,7 +31,7 @@ def return_vivid_split(split):
         "driving_vision/urban_day",
         "driving_vision/campus_evening",
         "driving_vision/campus_morning_manual_small",
-        "driving_vision/urban_evening_road",
+        # "driving_vision/urban_evening_road",
         "driving_vision/city_morning_manual",
         "driving_vision/campus_night",
         "driving_vision/urban_evening",
@@ -41,10 +42,17 @@ def return_vivid_split(split):
         "driving_vision/city_day1"
     ]
 
+    val_sequences = [
+        "driving_vision/urban_night",
+        "driving_vision/urban_day",
+        "driving_vision/urban_evening",
+        "driving_vision/urban_morning_manual",
+    ]
+
     if split == "val":
-        return [s for s in all_sequences if s.startswith("driving_vision/urban")]
+        return val_sequences
     elif split == "train":
-        return [s for s in all_sequences if not s.startswith("driving_vision/urban")]
+        return [s for s in all_sequences if not s in val_sequences]
     else:
         raise ValueError("Invalid split. Choose 'train' or 'val'.")
 
@@ -54,7 +62,7 @@ class Vivid(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False, val_positive_dist_threshold=25):
 
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/frame_lists"
         self.thr_res = (512, 640)
@@ -63,9 +71,12 @@ class Vivid(BaseDataset):
         self.crop_bottom = 122
         self.crop_left = 145
         self.crop_right = 108
-        self.val_positive_dist_threshold = 25
+        self.val_positive_dist_threshold = val_positive_dist_threshold
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
+        self.utmk_to_global_utm_transformer = Transformer.from_crs("epsg:5178", "epsg:32652", always_xy=True)
+
+
+        super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
     def generate_read_fn(self):
         return {
@@ -135,13 +146,15 @@ class Vivid(BaseDataset):
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)  # Convert to grayscale
         img = base_transform(img)
         return img
-    
+
     
     def form_gt_positives(self):
         self.db_coords = []
         self.q_coords = []
         # load files for the coordinates
         for seq in self.seq:
+
+            temp_coords = []
             frame_list_dir = self.frame_list_dir_from_seq(seq)
 
             if self.db_modality == "rgb":
@@ -164,17 +177,19 @@ class Vivid(BaseDataset):
 
             with open(db_gps_frame_list) as f:
                 lines = f.readlines()
-                coord = [(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
-
+                coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
+                temp_coords.extend(coord)
                 self.db_coords.extend(coord)
             
             with open(q_gps_frame_list) as f:
                 lines = f.readlines()
-                coord = [(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
+                coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
 
                 self.q_coords.extend(coord)
-            
+            os.makedirs("GPS_coords/vivid", exist_ok=True)
             # import pdb;pdb.set_trace()
+            np.save("GPS_coords/vivid/{}_none_db_coords.npy".format(seq.replace("/","_").replace("_","")),np.array(temp_coords))
+
         
         # do knn over the coordinates
         knn = NearestNeighbors(n_jobs=-1)
@@ -182,7 +197,7 @@ class Vivid(BaseDataset):
         dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
                                                             radius= self.dist_thresh,
                                                             return_distance=True)
-        return dist , soft_positives_per_query
+        return dist , soft_positives_per_query, 'vivid'
     
     def check_seq_list(self,seq):
         """

@@ -4,7 +4,7 @@
     # --model_names mmdistill_frozen_dinov2_final mmdistill_frozen_dinov2_final_vlad_64 mmdistill_frozen_dinov2_final_globalvlad_64 mmdistill_frozen_salad_final mmdistill_frozen_salad_final_vlad_64 salad mmdistill_frozen_salad_final_globalvlad_64  mmdistill_combine_global_contrastive_all_equal_10_final mmdistill_combine_global_contrastive_all_equal_10_final_vlad_64 mmdistill_combine_global_contrastive_all_equal_10_final_globalvlad_64  mmdistill_combine_global_contrastive_salad_backbone_50_final mmdistill_combine_global_contrastive_salad_backbone_50_final_vlad_64 vpr_mmdistill_salad_frozen_normal_backbone vpr_mmdistill_salad_normal_salad_backbone vpr_mmdistill_salad_frozen_normal_backbone_32 vpr_mmdistill_salad_normal_salad_backbone_32\
 
 python3 new_benchmark_vpr.py \
-    --model_names sgm salad mmdistill_combine_global_contrastive_salad_backbone_10_final_vlad_64\
+    --model_names vpr_mmdistill_salad_normal_boson_hard_triplet_vpr_boson vpr_mmdistill_salad_normal_boson_cart_hard_triplet_vpr_boson_cart vpr_mmdistill_salad_normal_boson_cart_ms2_hard_triplet_vpr_boson_cart_ms2 vpr_mmdistill_salad_normal_boson_cart_ms2_freiburg_hard_triplet_vpr_boson_cart_ms2_freiburg vpr_mmdistill_salad_normal_boson_cart_ms2_freiburg_vivid_hard_triplet_vpr_boson_cart_ms2_freiburg_vivid   vpr_mmdistill_salad_normal_combined_backbone_hard_triplet_vpr_all  \
     --dataset boson\
     --top_k_vals 1 5 10 \
     --batch_size 16 \
@@ -15,8 +15,8 @@ python3 new_benchmark_vpr.py \
     --wandb_project PlaceRecBench \
     --wandb_entity parv \
     --wandb_group ClassificationModelBenchmark \
-    --db_q_mode RGB_THERMAL THERMAL_THERMAL THERMAL_RGB\
-    --dataset_splits val train\
+    --db_q_mode RGB_THERMAL\
+    --dataset_splits val\
     --dist_thresh 35 \
     --exclude_exact_query_in_db \
     --viz_clusters \

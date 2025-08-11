@@ -7,13 +7,10 @@ def return_sthereo_split(split):
     Returns the split for the sthereo dataset.
     """
     if split == "train":
-        train_seq_list = ['snu_afternoon', 'snu_evening','snu_morning', 
-                                'valley_afternoon', 'valley_evening','valley_morning'
-                                ]
+        train_seq_list = ['snu_afternoon', 'snu_evening','snu_morning', 'kaist_afternoon', 'kaist_evening', 'kaist_morning']
         return train_seq_list
     elif split == "val":
-        val_seq_list = ['kaist_afternoon', 'kaist_evening', 'kaist_morning']
-
+        val_seq_list =  ['valley_afternoon', 'valley_evening','valley_morning']
         return val_seq_list
     else:
         raise ValueError("Please provide a valid split name. Options are train or test")
@@ -25,7 +22,7 @@ class STHEREO(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25):
         self.subsample =10
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/frame_lists"
         self.use_clahe = use_clahe
@@ -34,10 +31,10 @@ class STHEREO(BaseDataset):
         self.crop_bottom = 107
         self.crop_left = 52
         self.crop_right = 30
-        self.val_positive_dist_threshold = 25
+        self.val_positive_dist_threshold = val_positive_dist_threshold
 
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
+        super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     def generate_read_fn(self):
         return {
             "rgb": self.read_rgb,
@@ -108,6 +105,7 @@ class STHEREO(BaseDataset):
                 y = float(y.strip())
                 z = float(z.strip())
                 coord = [x,y,z]
+                coord = coord[:2]
                 if coord is not None:
                     self.db_coords.append(coord)
                     self.q_coords.append(coord)
@@ -124,7 +122,7 @@ class STHEREO(BaseDataset):
         dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
                                                             radius= self.dist_thresh,
                                                             return_distance=True)
-        return dist , soft_positives_per_query         
+        return dist , soft_positives_per_query, 'sthereo'         
     def check_seq_list(self,seq):
         for s in seq:
             if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:

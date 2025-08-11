@@ -19,6 +19,8 @@ sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/c
 sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
 from custom_datasets.cart_dataset import *
 from custom_datasets.freiburg_dataset import *
+from custom_datasets.mfnet_dataset import *
+from custom_datasets.pst900_dataset import *
 from custom_models.dinov2_segmentation_model import MMDistillSegmentationModel ,seg_head_str_to_dict
 from segment_utils import label_to_rgb
 from contextlib import nullcontext
@@ -74,29 +76,64 @@ def compute_iou_metrics(preds, masks, num_classes):
 
     return iou_per_class, miou, fwiou
 
-def dice_loss(pred, target, eps=1e-6):
-    """
-    Args:
-        pred: (N, C) - raw logits
-        target: (N,) - integer class indices
-    Returns:
-        scalar Dice loss
-    """
+
+class DiceLoss(nn.Module):
+    def __init__(self, skip_classes=None, eps=1e-6):
+        super(DiceLoss, self).__init__()
+        self.skip_classes = skip_classes
+        self.eps = eps
+
+    def forward(self, pred, target):
+        return dice_loss(pred, target, skip_classes=self.skip_classes, eps=self.eps)
+
+def dice_loss(pred, target,skip_classes=None, eps=1e-6):
+    # pred: (N, C) logits for masked pixels
+    # target: (N,) integer labels for masked pixels
+
     N, C = pred.shape
-    pred_soft = softmax(pred, dim=1)          # (N, C)
-    target_one_hot = one_hot(target, num_classes=C).float()  # (N, C)
 
-    intersection = (pred_soft * target_one_hot).sum(dim=0)     # (C,)
-    union = pred_soft.sum(dim=0) + target_one_hot.sum(dim=0)   # (C,)
+    # 1) Convert logits to probabilities
+    p = torch.softmax(pred, dim=1)                         # (N, C)
 
-    dice = (2 * intersection + eps) / (union + eps)            # (C,)
+    # 2) Convert targets to one-hot encoding
+    t = torch.nn.functional.one_hot(target, C).float()     # (N, C)
+
+    # 3) Determine which classes to include
+    if skip_classes is None:
+        skip_classes = []
+
+    # Find classes that actually appear in target (after masking)
+    present = (t.sum(dim=0) > 0)
+
+    # Remove skipped classes
+    for sc in skip_classes:
+        if 0 <= sc < C:
+            present[sc] = False
+
+    # If nothing is left, return 0 loss
+    if present.sum() == 0:
+        return pred.new_tensor(0.)
+
+    # 4) Keep only the selected classes
+    p_sel = p[:, present]
+    t_sel = t[:, present]
+
+    # 5) Compute Dice per class
+    inter = (p_sel * t_sel).sum(dim=0)                     # intersection
+    union = p_sel.sum(dim=0) + t_sel.sum(dim=0)            # sum of predictions + targets
+    dice = (2 * inter + eps) / (union + eps)                # per-class Dice
+
+    # 6) Return mean Dice loss over selected classes
     return 1 - dice.mean()
+
 
 
 def dataloader_loop(args, optimizer, model, dataloader, test, epoch, semantic_id_to_rgb=None, save_vis_dir=None,class_weights=None):
     # import pdb; pdb.set_trace()
     global db_modality
     losses = []
+    skip_classes = dataloader.dataset.skip_classes_in_segmentation() if args.skip_classes else []
+
     for loss_type in args.loss_type:
         if loss_type not in ['ce', 'weighted_ce', 'dice']:
             raise ValueError(f"Unsupported loss_type type: {loss_type}")
@@ -105,8 +142,14 @@ def dataloader_loop(args, optimizer, model, dataloader, test, epoch, semantic_id
         elif loss_type == 'weighted_ce':
             loss_fn = nn.CrossEntropyLoss(weight=class_weights)
         elif loss_type == 'dice':
-            loss_fn = dice_loss
+            loss_fn = DiceLoss(skip_classes=skip_classes)
         losses.append((loss_type,loss_fn))
+
+    
+    if test:
+        model.eval()
+    else:
+        model.train()
     with (torch.inference_mode() if test else nullcontext()):
         total_loss = 0.0
         total_individual_loss = {}
@@ -124,8 +167,7 @@ def dataloader_loop(args, optimizer, model, dataloader, test, epoch, semantic_id
             all_preds.append(preds.argmax(dim=1).cpu())
             all_gts.append(masks.cpu())
             num_classes = preds.shape[1]
-            valid_mask = masks >=0  # Assuming 255 is the ignore index
-            valid_mask = valid_mask.reshape(-1)  # shape: (B*H*W)
+            valid_mask = (masks >= 0).reshape(-1)  # shape: (B*H*W)
 
             individual_losses = []
             for loss_type,loss_fn in losses:
@@ -200,6 +242,12 @@ def train_segmentation_pipeline(args):
     assert args.modality != "rgb" or args.model_path ==""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.wandb_name = f"{args.dataset}_{args.modality}_{args.head_name}_{'_'.join(args.loss_type)}_{args.upscale_method}_{args.wandb_name}"
+    if args.augment:
+        args.wandb_name += "_augmented" + "_".join(args.thermal_segmentation_augmentation)
+    if args.dropout_prob > 0:
+        args.wandb_name += f"_dropout{args.dropout_prob}"
+    if args.skip_classes:
+        args.wandb_name += "_skip_classes"
     if args.wandb_use:
         wandb.init(project="mm_segmentation", name=args.wandb_name, config=vars(args))
 
@@ -208,16 +256,31 @@ def train_segmentation_pipeline(args):
         train_seq_list = return_cart_split_segmentation_geographic("train", "socal", "thermal") + return_cart_split_segmentation_geographic("val", "socal", "thermal")
         val_seq_list = return_cart_split_segmentation_geographic(split="val",area="northcarolina",mode="thermal") + return_cart_split_segmentation_geographic(split="val",area="kentucky",mode="thermal")
         db_modality = "thr_seg"
-        train_dataset = CART(root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
-        val_dataset = CART(root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
+        train_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
+        val_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
     elif args.dataset == "freiburg":
         print("Using FREIBURG dataset")
         train_seq_list = return_freiburg_split("train",segmentation=True)
         val_seq_list = return_freiburg_split("val",segmentation=True)
         data_root = "/ocean/projects/cis220039p/mdt2/datasets/freiburg"
         db_modality = "thr_seg"
-        train_dataset = Freiburg(db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list, augment=args.augment, crop_images=False)
-        val_dataset = Freiburg(db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=val_seq_list, augment=False, crop_images=False)
+        train_dataset = Freiburg(args=args,db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list, augment=args.augment, crop_images=False)
+        val_dataset = Freiburg(args=args,db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=val_seq_list, augment=False, crop_images=False)
+    elif args.dataset == "mfnet":
+        print("Using MFNet dataset")
+        train_seq_list = return_mfnet_split("train")
+        val_seq_list = return_mfnet_split("val")
+        db_modality = "thr"
+        train_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
+        val_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
+    elif args.dataset == "pst900":
+        print("Using PST900 dataset")
+        train_seq_list = return_pst900_split("train")
+        val_seq_list = return_pst900_split("test")
+        db_modality = "thr"
+        train_dataset = PST900(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
+        val_dataset = PST900(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
+
     else:
         raise ValueError("Unsupported dataset")
 
@@ -263,8 +326,8 @@ def train_segmentation_pipeline(args):
         un_frozen_layer_index.append("norm")
 
     if args.resume:
-        model = MMDistillSegmentationModel(
-            model_type= args.model_type
+        model = MMDistillSegmentationModel(args= args,
+            backbone_model_type= args.model_type,
             head_model=args.head_name,
             un_frozen_layer_index=args.un_frozen_layer_index,
             frozen_head=False,
@@ -275,8 +338,8 @@ def train_segmentation_pipeline(args):
             upscale_method = args.upscale_method
         )
     else:
-        model = MMDistillSegmentationModel(
-            model_type = args.model_type
+        model = MMDistillSegmentationModel(args = args,
+            backbone_model_type = args.model_type,
             head_model=args.head_name,
             un_frozen_layer_index=args.un_frozen_layer_index,
             frozen_head=False,
@@ -330,9 +393,9 @@ def train_segmentation_pipeline(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train segmentation head on DINOv2 features')
-    parser.add_argument('--epochs', default=100, type=int)
-    parser.add_argument('--dataset', default='cart', type=str,choices=['cart', 'freiburg'])
-    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--epochs', default=250, type=int)
+    parser.add_argument('--dataset', default='cart', type=str,choices=['cart', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--learning_rate', default=0.002, type=float)
     parser.add_argument('--weight_decay', default=0., type=float)
@@ -346,16 +409,17 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_name', required=True, type=str)
     parser.add_argument('--save_visualizations', action='store_true')
     parser.add_argument('--crop_images', default=False, help='Rescale images during cropping')
-    parser.add_argument('--loss_type', type=str, nargs='+', default=['dice'], choices=['ce', 'weighted_ce', 'dice'],help='Loss function to use')
+    parser.add_argument('--loss_type', type=str, nargs='+', default=['weighted_ce'], choices=['ce', 'weighted_ce', 'dice'],help='Loss function to use')
     parser.add_argument('--un_frozen_layer_index', type=int, nargs='+', default=[],
                 help='List of layer indices to unfreeze')
     parser.add_argument('--unfreeze_last_norm', action='store_true')
     parser.add_argument('--modality', default='thr', type=str, choices=['thr', 'rgb'], help='Loss function to use')
     parser.add_argument('--upscale_method', default='bilinear', type=str, choices=['bilinear', 'loftup','pre_bilinear'], help='Loss function to use')
     parser.add_argument('--augment', action='store_true')
-    parser.add_argument('--model_type',default="" type=str, choices=["",'dinov2_vitb14', 'dinov2_vitb14_reg'], help='Loss function to use')
-
-
+    parser.add_argument('--model_type',default="dinov2_vitb14", type=str, choices=['dinov2_vitb14', 'dinov2_vitb14_reg'], help='Loss function to use')
+    parser.add_argument('--dropout_prob', default=0., type=float)
+    parser.add_argument('--thermal_segmentation_augmentation', type=str, nargs='+', default=['hflip'], choices=['hflip', 'vflip', 'brightness_contrast',"noise","gamma","crop_with_random_ratio","crop_with_fixed_ratio"],help='Loss function to use')
+    parser.add_argument('--skip_classes', action='store_true')
     args = parser.parse_args()
 
     assert args.model_type or args.model_path, "Please provide a model type or a model path to load the backbone."

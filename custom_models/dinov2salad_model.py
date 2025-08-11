@@ -10,6 +10,11 @@ sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_reco
 from salad.vpr_model import VPRModel as SaladVPRModel
 
 class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
+    def __init__(self,use_head=True,**kwargs):
+        self.use_head = use_head
+        super().__init__(**kwargs)
+
+
     def build_model(self):
         # Load backbone (ResNet50) and MixVPR head
         model = SaladVPRModel(
@@ -35,6 +40,10 @@ class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
     def preprocess(self, images, keep_ratio=False,resize=True):
         size = 322
         return default_preprocessing(images, normalise_model = 'imagenet',keep_ratio=keep_ratio, size=size)
+
+    def forward(self, images):
+        """Forward pass through the model."""
+        return self.model(images)
 
 class ThermalMMDistillDinoV2SALADFeatureExtractor(DinoV2SALADFeatureExtractor):
     def build_model(self):

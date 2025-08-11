@@ -25,7 +25,79 @@ from torch.nn import functional as F
 from torchvision import transforms as T
 import pacmap  # Make sure you pip install pacmap
 import seaborn as sns
+from sklearn.metrics.pairwise import cosine_distances
 
+def plot_delta_d_cdf(
+    db_features,
+    query_features,
+    query_to_pos_db,
+    save_dir,
+    base_filename,
+    title="CDF of False - True Positive Distances",
+    exclude_self=False
+):
+    """
+    Plots the CDF of Δd = d_false - d_true for each query.
+
+    Args:
+        db_features (np.ndarray): shape (num_db, feature_dim)
+        query_features (np.ndarray): shape (num_queries, feature_dim)
+        query_to_pos_db (List[List[int]]): list where each element is a list of positive db indices for that query
+        save_dir (str): directory to save the plot
+        base_filename (str): base name for the saved plot file
+        title (str): title for the plot
+        exclude_self (bool): if True, exclude db[i] as positive for query[i]
+    """
+    delta_d_list = []
+
+    for i, q_feat in enumerate(query_features):
+        # Compute distances between this query and all database entries
+        dists = cosine_distances(q_feat.reshape(1, -1), db_features)[0]  # shape (num_db,)
+
+        # Get positive and negative indices
+        pos_indices = query_to_pos_db[i]
+        neg_indices = [j for j in range(len(db_features)) if j not in pos_indices]
+        if exclude_self and i in pos_indices:
+            pos_indices = [idx for idx in pos_indices if idx != i]
+
+        # Skip queries with no positives or no negatives
+        if not pos_indices or not neg_indices:
+            continue
+
+        # Minimum distance to true positives
+        min_true = np.min(dists[pos_indices])
+        # Minimum distance to false positives
+        min_false = np.min(dists[neg_indices])
+
+        # Δd = d_false - d_true
+        delta_d_list.append(min_false - min_true)
+
+    delta_d_array = np.sort(np.array(delta_d_list))
+    cdf = np.arange(1, len(delta_d_array) + 1) / len(delta_d_array)
+
+    # Plot CDF
+    plt.figure(figsize=(8, 5))
+    plt.plot(delta_d_array, cdf, color="blue", label="CDF of Δd")
+    plt.axvline(0, color='red', linestyle='--', alpha=0.7, label=r"$\Delta d = 0$")
+    plt.xlabel(r"$\Delta d = d_{false} - d_{true}$")
+    plt.ylabel("Cumulative Fraction of Queries")
+    plt.title(title)
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.legend()
+    plt.tight_layout()
+
+    # Save plot
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, f"{base_filename}_delta_d_cdf.png")
+    plt.savefig(save_path)
+    plt.close()
+
+    # Print % of queries where Δd < 0
+    frac_bad = np.mean(delta_d_array < 0) * 100
+    print(f"Saved CDF plot to: {save_path}")
+    print(f"{frac_bad:.2f}% of queries have Δd < 0 (false positive closer than true positive).")
+
+    return delta_d_array
 @dataclass
 class BenchmarkArgs:
     model_names: List[str] = field(default_factory=lambda: ["alexnet", "resnet18", "resnet50"])
@@ -48,8 +120,6 @@ class BenchmarkArgs:
     keep_aspect_ratio_during_preprocess: bool = False
     train: bool = False
     dataset_splits: List[str] = field(default_factory=lambda: ["val"])
-    teacher_modality: Literal["rgb", "thr"] = "rgb"
-    student_modality: Literal["rgb", "thr"] = "thr"
     train_easy: bool = False
     use_odom: bool = True
     vpr_test: bool = True
@@ -61,6 +131,7 @@ class BenchmarkArgs:
     viz_clusters: bool = False
     rescale_during_crop: bool = False
     same_backbone: bool = False
+    only_same_backbone: bool = False
 
 def extract_all_features(model, dataset, batch_size=1):
     features = []
@@ -75,12 +146,13 @@ def extract_all_features(model, dataset, batch_size=1):
                 assert len(feats.shape) == 2, f"Feature shape is not 2D: {feats.shape}"
                 assert feats.shape[0] == imgs.shape[0], f"Feature batch size does not match input batch size: {feats.shape} vs {imgs.shape}"
                 features.append(feats.cpu())
+        del dataloader
         return torch.cat(features, dim=0)
     else:
         return features #return empty list if the model has its own recall method
 
 
-def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, save_dir, qual_k=5, log_to_wandb=False, num_random=5, num_failures=5):
+def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, save_dir, db_coords,q_coords,qual_k=5, log_to_wandb=False, num_random=5, num_failures=5):
     os.makedirs(save_dir, exist_ok=True)
     padding = 20
     true_color = (0, 255, 0)
@@ -114,6 +186,8 @@ def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, sav
 
         is_failure = all(top_k_indices[i, j] not in pos_per_qu[i] for j in range(qual_k))
 
+        cur_q_coord = q_coords[i]
+
         for j in range(qual_k):
             db_idx = top_k_indices[i, j]
             db_img = normalise_img(db_dataset[db_idx][0])
@@ -121,7 +195,19 @@ def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, sav
             color_mask = false_color if db_idx not in pos_per_qu[i] else true_color
             ax = fig.add_subplot(gs[0, j + 1])
             ax.imshow(pad_img(db_img, padding, color_mask))
-            ax.set_title(f"DB {db_idx}")
+            cur_db_coord = db_coords[db_idx]
+            if cur_db_coord is not None and cur_q_coord is not None:
+                dist = np.linalg.norm(np.array(cur_q_coord) - np.array(cur_db_coord))
+                dist = np.round(dist, 2)
+            else:
+                if cur_q_coord is None and cur_db_coord is None:
+                    dist = "N/A no coord in both q and db"
+                elif cur_q_coord is None:
+                    dist = "N/A no coord in query"
+                else:
+                    dist = "N/A no coord in db"
+
+            ax.set_title(f"DB {db_idx} dist: {dist}")
             ax.axis("off")
 
         fig.tight_layout()
@@ -133,12 +219,13 @@ def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, sav
         if log_to_wandb:
             wandb.log({f"{category}_query_{i}": wandb.Image(path)})
 
-def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_feats, pos_per_query, top_k_vals, use_gpu=True,exclude_exact_query_in_db=True):
+def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_feats,db_coords,q_coords, pos_per_query, top_k_vals, use_gpu=True,exclude_exact_query_in_db=True):
     recalls = {k: 0 for k in top_k_vals}
     d = db_feats.shape[1]
 
     try:
         if use_gpu:
+            print("🔍 Initializing FAISS GPU resources...")
             res = faiss.StandardGpuResources()
             index = faiss.GpuIndexFlatL2(res, d)
             print("🔋 FAISS running on GPU")
@@ -147,34 +234,43 @@ def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_fea
 
     except (ImportError, AttributeError, RuntimeError) as e:
         print(f"⚠️ FAISS GPU not available, falling back to CPU. Reason: {e}")
-        index = faiss.IndexFlatIP(d)
+        index = faiss.IndexFlatL2(d)
 
     index.add(db_feats.numpy())
+    print("Index built with DB features.")
     _, indices = index.search(query_feats.numpy(), max(top_k_vals)+1)
+    print("Search completed. Retrieved indices for queries.")
+
+    indices = indices.tolist()  # Convert to list for easier manipulation
+
+    if exclude_exact_query_in_db:
+        # Filter out the query itself from the results
+        for i, retrieved in enumerate(indices):
+            temp = [idx for idx in retrieved if idx != i]
+            indices[i] = temp[:max(top_k_vals)]  # Ensure we only keep top_k_vals
 
     for i, retrieved in enumerate(indices):
         if no_positive_matches_for_queries[i]:
             continue
         gt = pos_per_query[i]
         for k in top_k_vals:
-            if exclude_exact_query_in_db:
-                gt = [idx for idx in gt if idx != i]  # Exclude the query itself from ground truth
-                # if exact query in the top k frames, then look at k+1 frames and Exclude the alligned query itself
-                filtered = [idx for idx in retrieved[:k+1] if idx != i]
-                filtered = filtered[:k]  # Ensure we only consider the top k after filtering
-            else:
-                filtered = retrieved[:k]
-            if any(idx in gt for idx in filtered):
+            for idx in retrieved[:k]:
+                if idx in gt:
                     recalls[k] += 1
+                    break
+    
+    indices = np.array(indices)
+                
+            
 
     total = np.sum(~no_positive_matches_for_queries)
     return {f"R@{k}": recalls[k] / total for k in top_k_vals}, indices
 
-def vpr(dataset_name,db_model,qu_model,args,split,save_dir,model_name, no_positive_matches_for_queries,db_dataset,db_feats, qu_dataset,qu_feats, pos_per_query, top_k_vals, use_gpu=True):
+def vpr(dataset_name,db_model,qu_model,args,split,save_dir,model_name, no_positive_matches_for_queries,db_dataset,db_feats, qu_dataset,qu_feats, pos_per_query, top_k_vals, db_coords, q_coords,use_gpu=True):
     # import pdb; pdb.set_trace()
     if db_model.own_recall_method == False:
         recalls, top_k_indices = evaluate_retrieval_faiss(no_positive_matches_for_queries,
-            qu_feats, db_feats, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
+            qu_feats, db_feats,db_coords,q_coords, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     else:
         recalls, top_k_indices = db_model.evaluate_retrieval(qu_model,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     print(f"📊 Recalls:")
@@ -189,7 +285,7 @@ def vpr(dataset_name,db_model,qu_model,args,split,save_dir,model_name, no_positi
         qual_dir = os.path.join(save_dir,split, model_name)
         os.makedirs(qual_dir, exist_ok=True)
         print(f"Saving qualitative results to {qual_dir}")
-        plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_query,top_k_indices, qual_dir,
+        plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_query,top_k_indices, qual_dir, db_coords, q_coords,
                             qual_k=args.qual_k, log_to_wandb=args.use_wandb)
 
     return recalls, top_k_indices
@@ -268,6 +364,8 @@ def plot_pacmap_db_and_query(db_feats, qu_feats,
     plt.close()
     print(f"📕 Saved Query-only PaCMAP: {qu_path}")
 
+
+
 @torch.no_grad()
 def run(args: BenchmarkArgs):
     dataset_name = "_".join(args.dataset)
@@ -285,6 +383,49 @@ def run(args: BenchmarkArgs):
 
     dataset_splits = args.dataset_splits
     os.makedirs(csv_dir, exist_ok=True)
+    all_ok = True
+    for db_q_mode in args.db_q_mode:
+        for model_name in args.model_names:
+            try:
+                print(f"🏁 Testing: {model_name}")
+                rgb_t_methods = ["mmdistill","imagebind"]
+                method_is_rgbt_method_flag = False 
+                for method in rgb_t_methods:
+                    if method not in model_name:
+                        continue
+                    method_is_rgbt_method_flag = True
+                    if db_q_mode == "RGB_THERMAL":
+                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+                    elif db_q_mode == "THERMAL_RGB":
+                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                    elif db_q_mode == "THERMAL_THERMAL":
+                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+                    elif db_q_mode == "RGB_RGB":
+                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                    else:
+                        raise ValueError(f"Mode {db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
+                    break
+                if not method_is_rgbt_method_flag:
+                    print(f"initializing model {model_name}")
+                    db_model = get_model_from_string(args,model_name,"vpr")
+                    qu_model = db_model
+            except Exception as e:
+                print(f"❌ Error initializing model {model_name}: {e}")
+                all_ok = False
+                continue
+
+    
+    if not all_ok:
+        print("❗ Some models failed to initialize. Please check the model names and dataset splits.")
+        return
+
+        
+    
+    del model_name, rgb_t_methods, method_is_rgbt_method_flag, db_model, qu_model
     
     
     if args.use_wandb:
@@ -322,6 +463,12 @@ def run(args: BenchmarkArgs):
             elif db_q_mode == "THERMAL_THERMAL":
                 db_modality = "thr"
                 q_modality = "thr"
+            elif db_q_mode == "RGB_RGB":
+                db_modality = "rgb"
+                q_modality = "rgb"
+            
+            args.teacher_modality = db_modality
+            args.student_modality = q_modality
 
             args.dataset_split_for_eval = split
             
@@ -356,6 +503,9 @@ def run(args: BenchmarkArgs):
                     elif db_q_mode == "THERMAL_THERMAL":
                         db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
                         qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+                    elif db_q_mode == "RGB_RGB":
+                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
                     else:
                         raise ValueError(f"Mode {db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
                     break
@@ -377,10 +527,13 @@ def run(args: BenchmarkArgs):
                 
 
                 if args.viz_clusters:
+                    # plot_delta_d_cdf(db_feats, qu_feats,pos_per_qu,save_dir=os.path.join(save_dir,db_q_mode, "delta_d_cdf"),
+                    #         base_filename=f"{model_name}_{split}",exclude_self=args.exclude_exact_query_in_db)
+
                     plot_pacmap_db_and_query(db_feats, qu_feats,
                             db_modality=db_modality,
                             qu_modality=q_modality,
-                            save_dir=os.path.join(save_dir, "pacmap"),
+                            save_dir=os.path.join(save_dir,db_q_mode, "pacmap"),
                             base_filename=f"{model_name}_{split}",
                             log_to_wandb=args.use_wandb)
 
@@ -390,16 +543,19 @@ def run(args: BenchmarkArgs):
                     recall_dict[split]['q/db'] = f'{len(qu_dataset)}/{len(db_dataset)}'
                 
                 recalls, top_k_indices = vpr(dataset_name=dataset_name,db_model =db_model,qu_model =qu_model,
-                                                args=args,split=split,save_dir=save_dir,model_name=model_name,
+                                                args=args,split=split,save_dir=os.path.join(save_dir,db_q_mode),model_name=model_name,
                                                 no_positive_matches_for_queries=no_positive_matches_for_queries,
                                                 db_dataset=db_dataset, db_feats=db_feats,
                                                 qu_dataset=qu_dataset ,qu_feats=qu_feats, 
                                                 pos_per_query=pos_per_qu, top_k_vals=args.top_k_vals, 
-                                                use_gpu=args.use_faiss_gpu)
+                                                db_coords =dataset.db_coords, q_coords=dataset.q_coords,use_gpu=args.use_faiss_gpu)
                 
                 recall_dict[split][model_name] =[]
                 for k, v in recalls.items():
                     recall_dict[split][model_name].append(round(v,4))
+                
+                import gc; gc.collect()
+                torch.cuda.empty_cache()
         for k1 in recall_dict.keys():
             for k2 in recall_dict[k1].keys():
                 if k2 == 'q/db':
@@ -417,8 +573,11 @@ def run(args: BenchmarkArgs):
 
 if __name__ == "__main__":
     args = tyro.cli(BenchmarkArgs)
+    assert not (args.only_same_backbone and args.same_backbone), "Cannot use only_same_backbone with same_backbone. Please set only_same_backbone to False in the config."
     if args.same_backbone:
         run(args)
         args.same_backbone = False
-    assert args.same_backbone == False, "Same backbone is not supported for this benchmark. Please set same_backbone to False in the config."
+    
+    if args.only_same_backbone:
+        args.same_backbone = True
     run(args)

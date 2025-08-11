@@ -33,6 +33,10 @@ def pad_to_multiple(x, multiple):
 def crop_to_shape(x, target_h, target_w):
     return x[:, :, :target_h, :target_w]
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class DPTSegmentationHead(nn.Module):
     def __init__(self, in_channels=768, num_classes=12):
         super().__init__()
@@ -55,40 +59,51 @@ class DPTSegmentationHead(nn.Module):
         self.final = nn.Conv2d(64, num_classes, kernel_size=1)
         self.upscale = False
 
+    def interpolate_batchwise(self, x, scale_factor, mode='bilinear', align_corners=False):
+        """
+        Perform interpolation in mini-batches to avoid int32 overflow.
+
+        Args:
+            x: (B, C, H, W) tensor
+            scale_factor: float or tuple of (scale_h, scale_w)
+            mode: interpolation mode
+            align_corners: see torch.nn.functional.interpolate
+        """
+        max_elements = torch.iinfo(torch.int32).max
+        b, c, h, w = x.shape
+        target_h = int(h * scale_factor if isinstance(scale_factor, float) else h * scale_factor[0])
+        target_w = int(w * scale_factor if isinstance(scale_factor, float) else w * scale_factor[1])
+
+        # Compute max batch size
+        max_batch_size = max(max_elements // (c * target_h * target_w), 1)
+
+        chunks = []
+        for start in range(0, b, max_batch_size):
+            end = min(start + max_batch_size, b)
+            x_chunk = x[start:end]
+            up_chunk = F.interpolate(x_chunk, scale_factor=scale_factor, mode=mode, align_corners=align_corners)
+            chunks.append(up_chunk)
+        return torch.cat(chunks, dim=0)
+
     def forward(self, x):
         # Input: (B, 768, H/14, W/14)
         x = self.up1(x)
-        x = torch_F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        x = self.interpolate_batchwise(x, scale_factor=2., mode='bilinear', align_corners=False)
 
         x = self.up2(x)
-        x = torch_F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        x = self.interpolate_batchwise(x, scale_factor=2., mode='bilinear', align_corners=False)
 
         x = self.up3(x)
-        x = torch_F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        x = self.interpolate_batchwise(x, scale_factor=2., mode='bilinear', align_corners=False)
 
         x = self.up4(x)
-        x = torch_F.interpolate(x, scale_factor=1.75, mode='bilinear', align_corners=False)  # 1.75 × 8 = 14
+        x = self.interpolate_batchwise(x, scale_factor=1.75, mode='bilinear', align_corners=False)  # 1.75 × 8 = 14
 
         x = self.final(x)
         return x
 
-class SegmentationHead(nn.Module):
-    def __init__(self, in_channels=768, num_classes=12):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(in_channels, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, num_classes, kernel_size=1)
-        )
-        self.upscale = True
-
-    def forward(self, x):
-        return self.model(x)
-
 class LinearSegmentationHead(nn.Module):
-    def __init__(self, in_channels=768, num_classes=12):
+    def __init__(self, in_channels=768, num_classes=12,dropout_prob= 0.):
         super().__init__()
         self.model = nn.Sequential(
             nn.Conv2d(in_channels, num_classes, kernel_size=1)
@@ -99,11 +114,12 @@ class LinearSegmentationHead(nn.Module):
         return self.model(x)
 
 class NonLinearSegmentationHead128(nn.Module):
-    def __init__(self, in_channels=768, num_classes=12):
+    def __init__(self, in_channels=768, num_classes=12,dropout_prob= 0.):
         super().__init__()
         self.model = nn.Sequential(
             nn.Conv2d(in_channels, 128, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(p=dropout_prob),  # Dropout here for regularization
             nn.Conv2d(128, num_classes, kernel_size=1),
         )
         self.upscale = True
@@ -112,11 +128,26 @@ class NonLinearSegmentationHead128(nn.Module):
         return self.model(x)
 
 class NonLinearSegmentationHead64(nn.Module):
-    def __init__(self, in_channels=768, num_classes=12):
+    def __init__(self, in_channels=768, num_classes=12,dropout_prob= 0.):
         super().__init__()
         self.model = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(p=dropout_prob),  # Dropout here for regularization
+            nn.Conv2d(64, num_classes, kernel_size=1),
+        )
+        self.upscale = True
+
+    def forward(self, x):
+        return self.model(x)
+
+class NonLinearSegmentationHead64GELU(nn.Module):
+    def __init__(self, in_channels=768, num_classes=12,dropout_prob= 0.):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
+            nn.GELU(),
+            nn.Dropout2d(p=dropout_prob),  # Dropout here for regularization
             nn.Conv2d(64, num_classes, kernel_size=1),
         )
         self.upscale = True
@@ -153,6 +184,13 @@ class BaseDinov2SegmentationModel(nn.Module):
         else:
             raise ValueError(f"Unsupported upscale method: {self.upscale_method}")
     
+    def train(self):
+        self.backbone.train()
+        self.head.train()
+    
+    def eval(self):
+        self.backbone.eval()
+        self.head.eval()
 
     def forward(self, x):
         x_padded = pad_to_multiple(x, 14)[0]  # Pad to multiple of 14
@@ -209,17 +247,18 @@ class BaseDinov2SegmentationModel(nn.Module):
 
 seg_head_str_to_dict = {
     'dpt': DPTSegmentationHead,
-    'base': SegmentationHead,
     'linear': LinearSegmentationHead,
     'non_linear_128': NonLinearSegmentationHead128,
     'non_linear_64': NonLinearSegmentationHead64,
     'non_linear_256': NonLinearSegmentationHead256,
+    'non_linear_64_gelu': NonLinearSegmentationHead64GELU,
 }
 
 class MMDistillSegmentationModel(BaseSegmentationModel):
-    def __init__(self,backbone_model_type,head_model, un_frozen_layer_index,frozen_head,modality,device,num_classes,upscale_method,backbone_path="",model_path="",   **kwargs):
+    def __init__(self,args,backbone_model_type,head_model, un_frozen_layer_index,frozen_head,modality,device,num_classes,upscale_method="bilinear",backbone_path="",model_path="",   **kwargs):
         self.head_model = head_model
         self.un_frozen_layer_index = un_frozen_layer_index
+        self.dropout_prob = args.dropout_prob if hasattr(args,'dropout_prob') else 0.0
         
         self.backbone_path = backbone_path
         self.frozen_head = frozen_head
@@ -232,7 +271,7 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
     def build_model(self):
         assert self.head_model in seg_head_str_to_dict, f"Unsupported head model: {self.head_model}. Supported models are: {list(seg_head_str_to_dict.keys())}"
         head_type  = seg_head_str_to_dict[self.head_model]
-        head = head_type(in_channels=768, num_classes=self.num_classes).to(self.device)
+        head = head_type(in_channels=768, num_classes=self.num_classes,dropout_prob=self.dropout_prob).to(self.device)
         backbone_path = self.backbone_path
         backbone_model_type = self.backbone_model_type
         if self.backbone_path!= "" and self.model_path != "":
@@ -271,3 +310,9 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
         if not self.frozen_head:
             output.extend(list(self.model.head.parameters()))
         return output
+    
+    def train(self):
+        self.model.train()
+    
+    def eval(self):
+        self.model.eval()

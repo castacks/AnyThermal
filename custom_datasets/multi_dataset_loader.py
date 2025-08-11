@@ -1,12 +1,13 @@
 from torch.utils.data import Dataset, ConcatDataset, WeightedRandomSampler, DataLoader, Subset, RandomSampler, BatchSampler
 from collections import defaultdict
 from ms2_dataset import MS2, return_ms2_split, return_ms2_split_debug
-from cart_dataset import CART, return_cart_split_segmentation_geographic,return_cart_split, return_cart_split_debug
+from cart_dataset import CART, HandheldCART,return_cart_split_segmentation_geographic,return_cart_split, return_cart_split_debug,return_handheld_cart_split
 from freiburg_dataset import Freiburg, return_freiburg_split
 from vivid_dataset import Vivid, return_vivid_split
 from sthereo_dataset import STHEREO, return_sthereo_split
 from boson_nightime_dataset import BosonNightimeBaseDataset
 from m2p2_dataset import M2P2, return_m2p2_split
+from mfnet_dataset import MFNet, return_mfnet_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -150,7 +151,7 @@ class ThermalAugmentations:
 
 
 class IntraDatasetBatchSampler:
-    def __init__(self, dataset_to_indices, batch_size, shuffle=True,subsample=1):
+    def __init__(self, dataset_to_indices, batch_size, shuffle=True,subsample=1, equal_samples=False):
         if isinstance(dataset_to_indices, dict):
             self.dataset_to_indices = dataset_to_indices
         elif isinstance(dataset_to_indices, np.ndarray):
@@ -170,16 +171,18 @@ class IntraDatasetBatchSampler:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.subsample = subsample
+        self.equal_samples = equal_samples
 
     def __iter__(self):
-        # Determine dataset order
-        if self.shuffle:
-            dataset_keys = list(self.dataset_to_indices.keys())
-            random.shuffle(dataset_keys)
-        else:
-            dataset_keys = sorted(self.dataset_to_indices.keys())
+        
+        return iter(self.calculate_batches())
+
+    def calculate_batches(self):
+        dataset_keys = sorted(self.dataset_to_indices.keys())
 
         all_batches = []
+        all_batch_list = []
+
         for d_idx in dataset_keys:
             indices = self.dataset_to_indices[d_idx][:]
             if self.shuffle:
@@ -188,15 +191,34 @@ class IntraDatasetBatchSampler:
                 indices.sort()  # Deterministic order within dataset
 
             # Split indices into batches
+            temp_batch_list = []
             for i in range(0, len(indices), self.batch_size):
                 batch = indices[i:i + self.batch_size]
-                all_batches.append(batch)
+                temp_batch_list.append(batch)
+            
+            all_batch_list.append(temp_batch_list)
+        
+        if self.equal_samples:
+            min_num_batches = min(len(batch_list) for batch_list in all_batch_list)
+        
+        for i in range(len(all_batch_list)):
+            if self.equal_samples:
+                random_idx = np.random.choice(len(all_batch_list[i]), size=min_num_batches, replace=False)
+            else:
+                random_idx = np.arange(len(all_batch_list[i]))
+            sampled_batches_size = len(random_idx)
+
+            all_batches.extend([all_batch_list[i][j] for j in random_idx])
+            print("Dataset", i, "has", len(all_batch_list[i]), "batches, sampled", sampled_batches_size, "batches", "all_batches length:", len(all_batches))
+        
+        
         if self.shuffle:
             random.shuffle(all_batches)  # Shuffle batches across datasets
         # Subsample batches if needed
         if self.subsample > 1:
             all_batches = all_batches[::self.subsample]
-        return iter(all_batches)
+        
+        return all_batches
 
     def __len__(self):
         """Total number of batches across all datasets"""
@@ -206,7 +228,7 @@ class IntraDatasetBatchSampler:
         )
         if self.subsample > 1:
             output = math.ceil(output / self.subsample)
-        return output
+        return len(self.calculate_batches())
 
 class MultiDatasetWrapper(Dataset):
     def __init__(self, args,datasets, dataset_names, mode, use_odom=False, dist_thresh=25,build_common_dataset = False):
@@ -225,9 +247,7 @@ class MultiDatasetWrapper(Dataset):
                 print("building combined soft_positives for validation set")
                 self.soft_positives = []
                 self.db_coords = []
-                self.db_coords_per_dataset = []
                 self.q_coords = []
-                self.q_coords_per_dataset = []
                 global_index = 0
                 for d_idx, d in enumerate(datasets):
                     if hasattr(d, 'soft_positives_per_query'):
@@ -240,25 +260,23 @@ class MultiDatasetWrapper(Dataset):
                     self.db_coords.extend(d.db_coords)
                     self.q_coords.extend(d.q_coords)
 
-                    self.db_coords_per_dataset.extend(d.db_coords)
-                    self.q_coords_per_dataset.extend(d.q_coords)
-
                 for i in range(len(self.db_coords)):
-                    self.db_coords[i] = self.db_coords[i][:2]
-                    self.q_coords[i] = self.q_coords[i][:2]
+                    if self.db_coords[i] is not None:
+                        self.db_coords[i] = self.db_coords[i][:2]
+                        self.q_coords[i] = self.q_coords[i][:2]
 
-                self.db_coords = np.array(self.db_coords)
-                self.q_coords = np.array(self.q_coords)
+                # self.db_coords = np.array(self.db_coords)
+                # self.q_coords = np.array(self.q_coords)
 
-                if build_common_dataset:
-                    print("Finding common soft positives in the database and queries")
+                # if build_common_dataset:
+                #     print("Finding common soft positives in the database and queries")
 
-                    knn = NearestNeighbors(n_jobs=-1)
-                    knn.fit(self.db_coords)
-                    _, self.common_soft_positives = knn.radius_neighbors(self.q_coords, radius=dist_thresh, return_distance=True)
-                    assert len(self.common_soft_positives) == len(self.soft_positives), "Mismatch between soft positives"
-                    # IMP self.common_soft_positives can be differnt from self.soft_positives as it only compares 2d coordinates whereas self.soft_positives contains the indices of the soft positives in the database which can compare 3d also if the data is available.                
-                    print("Found common soft positives in the database and queries")
+                #     knn = NearestNeighbors(n_jobs=-1)
+                #     knn.fit(self.db_coords)
+                #     _, self.common_soft_positives = knn.radius_neighbors(self.q_coords, radius=dist_thresh, return_distance=True)
+                #     assert len(self.common_soft_positives) == len(self.soft_positives), "Mismatch between soft positives"
+                #     # IMP self.common_soft_positives can be differnt from self.soft_positives as it only compares 2d coordinates whereas self.soft_positives contains the indices of the soft positives in the database which can compare 3d also if the data is available.                
+                #     print("Found common soft positives in the database and queries")
             else:
                 raise ValueError("Soft positives not available. Check dataset classes.")
 
@@ -300,12 +318,15 @@ class MultiDatasetWrapper(Dataset):
             if og_radius == 'hard_positives_per_query':
                 radius = d.dist_thresh
             elif og_radius == 'soft_positives_per_query':
-                radius = d.val_positive_dist_threshold
+                if hasattr(d, 'val_positive_dist_threshold') and d.val_positive_dist_threshold >0:
+                    radius = d.val_positive_dist_threshold
+                else:
+                    radius = None
             elif og_radius == 'hard_negatives_per_query':
                 radius = d.prior_location_threshold
             else:
                 raise ValueError(f"Unknown radius type: {og_radius}. Use 'hard_positives_per_query', 'soft_positives_per_query' or 'hard_negatives_per_query'.")
-            if hasattr(d, 'db_coords'):
+            if hasattr(d, 'db_coords') and radius is not None:
                 knn = NearestNeighbors(n_jobs=n_jobs)
                 knn.fit(d.db_coords)
 
@@ -315,10 +336,14 @@ class MultiDatasetWrapper(Dataset):
                 neighbours = np.array(neighbours, dtype=object) + running_total_datase_len
                 final_output_list.append(neighbours)
                 running_total_datase_len += len(d.db_coords)
+            elif og_radius == 'soft_positives_per_query' and hasattr(d,'val_extra_margin_positive_radius_index') and d.val_extra_margin_positive_radius_index is not None:
+                temp_neighbours = d.val_extra_margin_positives_per_query
+                temp_neighbours = np.array(temp_neighbours, dtype=object) + running_total_datase_len
+                final_output_list.append(temp_neighbours)
+                running_total_datase_len += len(d.val_extra_margin_positives_per_query)
             else:
-                raise ValueError(f"Dataset {self.dataset_names[d_idx]} does not have db_coords attribute")
+                raise ValueError(f"Dataset {self.dataset_names[d_idx]} does not have db_coords attribute for radius mode '{og_radius}'. ")
         
-        # Concatenate the neighbours from all datasets
         final_output_list = np.concatenate(final_output_list, axis=0)
         return final_output_list
 
@@ -653,7 +678,6 @@ class TripletsDataset(MultiDatasetWrapper):
             # shuffle=False,
             batch_sampler = sampler,
         )
-        #PARV_TODO: Make a intrabatch sampler for this
         model.eval()
 
         data_iter = iter(subset_dl)
@@ -864,6 +888,8 @@ def str_to_dataset(name):
         return MS2
     elif name == "cart":
         return CART
+    elif name =="handheld_cart":
+        return HandheldCART
     elif name == "freiburg":
         return Freiburg
     elif name == "vivid":
@@ -892,11 +918,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
     combined_datasets = {mode: [] for mode in mode_list}
     combined_dataloader = {mode: None for mode in mode_list}
 
-
-    # dataset_names = args.dataset  # e.g., ["ms2", "cart"]
-
     dataset_names = {}
-
 
     dataset_names[mode_list[0]] = args.dataset
     if len(mode_list) > 1:
@@ -921,7 +943,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 else:
                     seq_list = return_ms2_split(mode)
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
-            elif ds_name == "cart":
+            elif ds_name == "cart" or ds_name == "handheld_cart":
                 print("Using CART dataset")
                 if args.cart_split =='segmentation':
                     raise ValueError("CART segmentation split is not supported yet. tio support see which mode to use - thermal or rgbt")
@@ -944,7 +966,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                     root_frame_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
                 
                 dataset_init_dict["root_frame_dir"]= root_frame_dir
-                # import pdb;pdb.set_trace()
+                dataset_init_dict["cart_split"] = args.cart_split
             elif ds_name == "freiburg":
                 print("Using Freiburg dataset")
                 seq_list = return_freiburg_split(mode)
@@ -963,9 +985,14 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/boson_nightime"
             elif ds_name == "m2p2":
                 print("Using M2P2 dataset")
-                # rgb_only = args.teacher_modality == "rgb" and args.student_modality == "rgb"
                 seq_list = return_m2p2_split(mode, rgb_only=m2p2_rgb_only)
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/M2P2/extracted_data_new"
+            elif ds_name == "mfnet":
+                print("Using MFNet dataset")
+                seq_list = return_mfnet_split(mode)
+                data_root = "/ocean/projects/cis220039p/mdt2/datasets/MFNet"
+            else:
+                raise ValueError(f"Unknown dataset name: {ds_name}")
             augment = False
             if args.train and mode == 'train' and args.augment:
                 augment = True
@@ -976,19 +1003,25 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
             if vpr_test and args.crop_images:
                 crop_during_vpr_test = True
 
-                
+
             dataset_init_dict.update({
+                "args": args,
                 "db_modality": teacher_modality,
                 "q_modality": student_modality,
                 "seq": seq_list,
                 "datasets_folder": data_root,
                 "augment": augment,
                 "vpr_train": args.use_odom,
-                "rescale_during_crop": args.rescale_during_crop,
+                "rescale_during_crop": args.rescale_during_crop if mode == "train" else False,
                 "vpr_test": vpr_test,
                 "crop_during_vpr_test": crop_during_vpr_test,
-                "crop_images": args.crop_images
+                "crop_images": args.crop_images if mode == "train" else False,
             })
+
+            if hasattr(args, 'val_positive_dist_threshold') and args.val_positive_dist_threshold >0:
+                dataset_init_dict["val_positive_dist_threshold"] = args.val_positive_dist_threshold
+
+
 
             if hasattr(args, 'dist_thresh'):
                 dataset_init_dict["dist_thresh"] = args.dist_thresh
@@ -1039,20 +1072,13 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
             for idx, (d_idx, _) in enumerate(wrapped_dataset.mapping):
                 dataset_to_indices[d_idx].append(idx)
 
-            # Build dataset-wise samplers
-            # from torch.utils.data import ChainDataset
-            # all_samplers = []
-            # for indices in dataset_to_indices.values():
-            #     batch_sampler = BatchSampler(RandomSampler(indices), batch_size=args.batch_size, drop_last=True)
-            #     all_samplers.extend(list(batch_sampler))
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using IntraDatasetBatchSampler for {mode} mode")
-                batch_sampler = IntraDatasetBatchSampler(dataset_to_indices, batch_size,subsample=subsample)
+                batch_sampler = IntraDatasetBatchSampler(dataset_to_indices, batch_size,subsample=subsample,equal_samples=getattr(args, 'equal_samples', False))
                 combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_sampler=batch_sampler, num_workers=num_workers)
             else:
                 print(f"Using no shuffle for {mode} mode")
                 combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-            # import pdb;pdb.set_trace()
         else:
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using WeightedRandomSampler for {mode} mode")

@@ -33,7 +33,6 @@ import os
 import torch
 import faiss
 import numpy as np
-from PIL import Image
 import torchvision.transforms as T
 from sklearn.neighbors import NearestNeighbors
 from torch.utils.data import Dataset
@@ -42,6 +41,8 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 from torchvision.transforms import functional as F
 import random
+from torchvision.transforms.functional import InterpolationMode
+from PIL import Image, ImageFilter
 
 base_transform = T.Compose([
     T.ToTensor(),
@@ -54,7 +55,8 @@ class BaseDataset(Dataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=False,crop_during_vpr_test=False):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25,rescale_during_crop=False,crop_during_vpr_test=False):
+        self.args = args
         self.augment = augment
         self.crop_during_vpr_test = crop_during_vpr_test
         super().__init__()
@@ -89,10 +91,13 @@ class BaseDataset(Dataset):
         self.database_num = len(self.db_abs_paths)
         self.queries_num = len(self.q_abs_paths)
         if self.vpr_test or self.vpr_train:
-            self.dist, self.soft_positives_per_query = self.form_gt_positives()
+            self.dist, self.soft_positives_per_query, dataset_name = self.form_gt_positives()
             assert len(self.soft_positives_per_query) == self.queries_num, f"Soft positives per query length {len(self.soft_positives_per_query)} does not match queries number {self.queries_num}"
             assert len(self.db_coords) == self.database_num, f"Database coordinates length {len(self.db_coords)} does not match database number {self.database_num}"
             assert len(self.q_coords) == self.queries_num, f"Queries coordinates length {len(self.q_coords)} does not match queries number {self.queries_num}"
+            # if self.db_coords[0] is not None:
+            #     os.makedirs("GPS_coords", exist_ok=True)
+            #     np.save(f"GPS_coords/{dataset_name}_{self.seq[0].replace('/','_')}_db_coords.npy",self.db_coords)
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
         self.read_fn=self.generate_read_fn()
@@ -149,7 +154,7 @@ class BaseDataset(Dataset):
             img2, img1 = self.rgb_thermal_augment(img2, img1)
         elif modality1 == "rgb" and modality2 == "thr":
             img1, img2 = self.rgb_thermal_augment(img1, img2)
-        elif modality1 == "thr_seg" and modality2 == "seg_mask":
+        elif (modality1 == "thr_seg" or modality1 == "thr") and modality2 == "seg_mask":
             img1, img2 = self.thermal_seg_augment(img1,img2)
         elif modality1 == "rgb" and modality2 == "seg_mask":
             img1, img2 = self.thermal_seg_augment(img1,img2)
@@ -157,33 +162,76 @@ class BaseDataset(Dataset):
             raise ValueError(f"Unsupported modality combination: {modality1}, {modality2}")
         return img1, img2  # No augmentation if modalities are not recognized
     
-    def thermal_seg_augment(self, img1: torch.Tensor, img2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Augments thermal and segmentation mask images (tensor format only).
-        Args:
-            img1 (Tensor): Thermal image tensor (C, H, W) or (1, H, W)
-            img2 (Tensor): Segmentation mask tensor (1, H, W) or (H, W)
-        Returns:
-            Tuple of augmented tensors (img1, img2)
-        """
 
-        # Ensure both images are 3D tensors (C, H, W)
+
+    def thermal_seg_augment(self, img1: torch.Tensor, img2: torch.Tensor, 
+                            crop_scale_range: Tuple[float, float]=(0.5, 1.0)) -> Tuple[torch.Tensor, torch.Tensor]:
+        
+        resize_target = self.dataset_shape
+        aug_list = set(self.args.thermal_segmentation_augmentation)
+
         if img1.ndim == 2:
             img1 = img1.unsqueeze(0)
         if img2.ndim == 2:
             img2 = img2.unsqueeze(0)
 
-        # Random horizontal flip
-        if random.random() > 0.5:
+        _, h, w = img1.shape
+
+        if "hflip" in aug_list and random.random() > 0.5:
             img1 = F.hflip(img1)
             img2 = F.hflip(img2)
 
-        # Brightness and contrast (thermal input only)
-        brightness_factor = random.uniform(0.9, 1.1)
-        contrast_factor = random.uniform(0.9, 1.1)
 
-        img1 = F.adjust_brightness(img1, brightness_factor)
-        img1 = F.adjust_contrast(img1, contrast_factor)
+        if "brightness_contrast" in aug_list:
+            brightness_factor = random.uniform(0.8, 1.2)
+            contrast_factor = random.uniform(0.8, 1.2)
+            img1 = torch.clamp(img1 * brightness_factor * contrast_factor, 0, 1)
+
+        if "noise" in aug_list and random.random() < 0.3:
+            noise = torch.randn_like(img1) * 0.02
+            img1 = torch.clamp(img1 + noise, 0, 1)
+
+        if "gamma" in aug_list:
+            gamma = random.uniform(0.9, 1.1)
+            img1 = torch.pow(img1, gamma)
+
+        if "crop_with_random_ratio" in aug_list and random.random() < 0.5:
+            crop_scale = random.uniform(*crop_scale_range)
+            crop_h = int(h * crop_scale)
+            crop_w = int(w * crop_scale)
+            min_crop = min(crop_h, crop_w)
+            crop_h, crop_w = min_crop, min_crop
+            if crop_h < h and crop_w < w:
+                top = random.randint(0, h - crop_h)
+                left = random.randint(0, w - crop_w)
+                img1 = img1[:, top:top+crop_h, left:left+crop_w]
+                img2 = img2[:, top:top+crop_h, left:left+crop_w]
+
+            img1 = F.resize(img1, resize_target, interpolation=InterpolationMode.BILINEAR, antialias=True)
+            img2 = F.resize(img2, resize_target, interpolation=InterpolationMode.NEAREST, antialias=True)
+        
+        if "crop_with_fixed_ratio" in aug_list:
+            target_h, target_w = resize_target
+            assert target_h == target_w, "resize_target must be square for aspect ratio preservation"
+
+            # Case 1: crop to center region of target size if large enough
+            if h >= target_h and w >= target_w:
+                top = (h - target_h) // 2
+                left = (w - target_w) // 2
+                img1 = img1[:, top:top+target_h, left:left+target_w]
+                img2 = img2[:, top:top+target_h, left:left+target_w]
+
+            else:
+                # Case 2: Take center square crop of max possible size
+                side = min(h, w)
+                top = (h - side) // 2
+                left = (w - side) // 2
+                img1 = img1[:, top:top+side, left:left+side]
+                img2 = img2[:, top:top+side, left:left+side]
+
+                # Resize to target
+                img1 = F.resize(img1, resize_target, interpolation=InterpolationMode.BILINEAR, antialias=True)
+                img2 = F.resize(img2, resize_target, interpolation=InterpolationMode.NEAREST, antialias=True)
 
         return img1, img2
 
@@ -251,37 +299,79 @@ class BaseDataset(Dataset):
 
         return img1_resized, img2_resized
 
-    def rgb_thermal_augment(self,rgb: Image.Image, thermal: Image.Image) -> Tuple[Image.Image, Image.Image]:
+    def rgb_thermal_augment(self, rgb: torch.Tensor, thermal: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        aug_list = self.args.aug_list
+
         # ----- Random Parameters -----
         rgb_brightness_factor = random.uniform(0.7, 1.3)
         rgb_contrast_factor = random.uniform(0.8, 1.2)
+        rgb_gamma = random.uniform(0.7, 1.5)
 
-        thermal_brightness_factor = random.uniform(0.7, 1.3) 
+        thermal_brightness_factor = random.uniform(0.7, 1.3)
         thermal_contrast_factor = random.uniform(0.8, 1.2)
-
+        thermal_gamma = random.uniform(0.7, 1.5)
 
         saturation_factor = random.uniform(0.2, 1.2)
         hue_factor = random.uniform(-0.05, 0.05)
         do_flip = random.random() > 0.5
 
-        # # ----- Center Crop and Resize (300x450) -----
-        # rgb, thermal = self.crop_and_resize(rgb, thermal)
+        rgb_shape = rgb.shape[-2:]
+
+        # ----- Synchronized Affine -----
+        if "affine" in aug_list:
+            angle = random.uniform(-10, 10)
+            translate = [random.uniform(-0.02, 0.02) * rgb_shape[1],
+                        random.uniform(-0.02, 0.02) * rgb_shape[0]]
+            scale = random.uniform(0.95, 1.05)
+            shear = random.uniform(-5, 5)
+            rgb = F.affine(rgb, angle=angle, translate=translate, scale=scale, shear=[shear], interpolation=F.InterpolationMode.BILINEAR)
+            thermal = F.affine(thermal, angle=angle, translate=translate, scale=scale, shear=[shear], interpolation=F.InterpolationMode.BILINEAR)
 
         # ----- Horizontal Flip -----
         if do_flip:
             rgb = F.hflip(rgb)
             thermal = F.hflip(thermal)
 
-        # ----- Brightness & Contrast (synchronized) -----
-        rgb = F.adjust_brightness(rgb, rgb_brightness_factor)
-        thermal = F.adjust_brightness(thermal, thermal_brightness_factor)
+        # ----- Brightness -----
+        if "brightness" in aug_list:
+            rgb = F.adjust_brightness(rgb, rgb_brightness_factor)
+            thermal = F.adjust_brightness(thermal, thermal_brightness_factor)
 
-        rgb = F.adjust_contrast(rgb, rgb_contrast_factor)
-        thermal = F.adjust_contrast(thermal, rgb_contrast_factor)
+        # ----- Contrast -----
+        if "contrast" in aug_list:
+            rgb = F.adjust_contrast(rgb, rgb_contrast_factor)
+            thermal = F.adjust_contrast(thermal, thermal_contrast_factor)
+
+        # ----- Gamma Correction -----
+        if "gamma" in aug_list:
+            rgb = F.adjust_gamma(rgb, gamma=rgb_gamma)
+            thermal = F.adjust_gamma(thermal, gamma=thermal_gamma)
 
         # ----- RGB-only: Saturation & Hue -----
-        rgb = F.adjust_saturation(rgb, saturation_factor)
-        rgb = F.adjust_hue(rgb, hue_factor)
+        if "color_jitter" in aug_list:
+            rgb = F.adjust_saturation(rgb, saturation_factor)
+            rgb = F.adjust_hue(rgb, hue_factor)
+
+        # ----- CLAHE for Thermal -----
+        if "clahe" in aug_list:
+            thermal_np = np.array(F.to_pil_image(thermal).convert("L"))
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            thermal_np = clahe.apply(thermal_np)
+            thermal = F.to_tensor(Image.fromarray(thermal_np))
+
+        # ----- Gaussian Blur for Thermal -----
+        if "blur" in aug_list:
+            thermal_pil = F.to_pil_image(thermal)
+            thermal = F.to_tensor(thermal_pil.filter(ImageFilter.GaussianBlur(radius=1.0)))
+
+        # ----- Cutout (synchronized) -----
+        if "cutout" in aug_list:
+            _, H, W = rgb.shape
+            cutout_size = int(0.1 * min(H, W))
+            x0 = random.randint(0, W - cutout_size)
+            y0 = random.randint(0, H - cutout_size)
+            rgb[:, y0:y0+cutout_size, x0:x0+cutout_size] = 0.0
+            thermal[:, y0:y0+cutout_size, x0:x0+cutout_size] = 0.0
 
         return rgb, thermal
     def __getitem__(self, index):
@@ -314,9 +404,3 @@ class BaseDataset(Dataset):
                 # Apply augmentations if training mode and augmentations are enabled
                 db_img,q_img = self.augment_function(self.db_modality, self.q_modality, db_img, q_img)
             return {self.db_modality:db_img,self.q_modality:q_img}, index
-
-if __name__ == "__main__":
-    args = None
-    dataset = Thermal_day_night_MS2()
-    print(dataset[0][0].shape)
-    

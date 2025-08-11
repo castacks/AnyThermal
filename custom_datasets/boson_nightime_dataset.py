@@ -24,15 +24,16 @@ from base_dataset import *
 class BosonNightimeBaseDataset(BaseDataset):
     """Dataset with images from database and queries, used for inference (testing and building cache)."""
 
-    def __init__(self,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 35, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 35, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False,val_positive_dist_threshold=50):
         self.dataset_name = dataset_name
         self.extended = "extended" in seq #PARV_TODO : how to use the extended data confirm in STHN
         self.resize = [512, 512]
+        self.resize_smaller = 224
         self.G_contrast = G_contrast
         self.force_ce = force_ce
-        self.val_positive_dist_threshold = 50
+        self.val_positive_dist_threshold = val_positive_dist_threshold
 
-        super().__init__(db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
+        super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
 
         for i in range(len(self.db_abs_paths)):
             self.db_abs_paths[i] = "database_" + self.db_abs_paths[i]
@@ -142,9 +143,7 @@ class BosonNightimeBaseDataset(BaseDataset):
         area = (int(center_cood[1]) - self.resize[1]//2, int(center_cood[0]) - self.resize[0]//2,
                 int(center_cood[1]) + self.resize[1]//2, int(center_cood[0]) + self.resize[0]//2)
         img = F.crop(img=img, top=area[1], left=area[0], height=area[3]-area[1], width=area[2]-area[0])
-        img = transforms.ToPILImage()(img)
-        img = base_transform(img)
-        # img = transforms.functional.resize(img, self.resize)
+        img = F.resize(img, [self.resize_smaller,self.resize_smaller], interpolation=F.InterpolationMode.BILINEAR,antialias=True)
         return img
     
     def read_thermal(self, path):
@@ -181,7 +180,9 @@ class BosonNightimeBaseDataset(BaseDataset):
         else:
             img = self.query_transform(img)
 
-        # img = transforms.functional.resize(img, self.resize)
+        img = transforms.functional.resize(img, self.resize)
+        img = F.resize(img, [self.resize_smaller,self.resize_smaller], interpolation=F.InterpolationMode.BILINEAR,antialias=True)
+
         return img
 
     def get_positives(self):
@@ -236,7 +237,7 @@ class BosonNightimeBaseDataset(BaseDataset):
             return_distance=True,
         )
 
-        return dist , soft_positives_per_query  
+        return dist , soft_positives_per_query, 'boson_nightime'
     
     def check_seq_list(self,seq):
         assert isinstance(seq, list), "seq should be a list of sequences"
