@@ -33,7 +33,7 @@ class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
             },
         )
         # Load pretrained weights
-        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt"))
+        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt",weights_only=True))
         model = model.eval()
         return model
 
@@ -64,8 +64,8 @@ class ThermalMMDistillDinoV2SALADFeatureExtractor(DinoV2SALADFeatureExtractor):
             },
         )
         # Load pretrained weights
-        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt"))
-        mmdistill_state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-05-17_15-50-49/model9.pth", map_location=self.device)["student_model_state_dict"]
+        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt",weights_only=True))
+        mmdistill_state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-05-17_15-50-49/model9.pth", map_location=self.device,weights_only=True)["student_model_state_dict"]
         # import pdb; pdb.set_trace()
         model.backbone.model.load_state_dict(mmdistill_state_dict)
         model = model.eval()

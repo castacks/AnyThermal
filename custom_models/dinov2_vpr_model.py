@@ -353,7 +353,7 @@ class MMDistillVPRModel(BaseFeatureExtractor):
             print("Neither backbone_path nor model_path is set. Using default DINOv2 backbone.")
         elif self.backbone_path!= "" and self.model_dict == "":
             print(f"Loading backbone from {self.backbone_path}")
-            self.backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
+            self.backbone_model_type = torch.load(backbone_path, map_location=self.device,weights_only=True)["student_model_type"]
         elif self.model_dict != "" and self.backbone_path == "":
             head_state_dict = self.model_dict["vpr_head"]
             load_head = True

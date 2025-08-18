@@ -44,7 +44,7 @@ class MMDistillDinov2():
 
         if backbone_path != "":
             print(f"Loading backbone from {backbone_path}")
-            state_dict = torch.load(backbone_path, map_location=global_device)["student_model_state_dict"]
+            state_dict = torch.load(backbone_path, map_location=global_device,weights_only=True)["student_model_state_dict"]
             self.load_model(state_dict)
         if -1 in self.un_frozen_layer_index:
             temp_unfrozen_layer_index = [ i for i in self.un_frozen_layer_index if i != -1]
@@ -268,5 +268,3 @@ class MMDistillDinov2():
         if self.modality_shared_proj_head is not None:
             self.modality_shared_proj_head.to(device)
         return self
-
-

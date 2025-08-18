@@ -101,11 +101,11 @@ class PST900(BaseDataset):
                 raise ValueError(f"Please provide a valid sequence name. {s} does not exist or is not a file")
 
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
-        raise NotImplementedError("Please implement the form_gt_positives method in the subclass")    
+        raise NotImplementedError("Please implement the form_db_qu_coords method in the subclass")    
     
     def read_rgb(self, path):
         """

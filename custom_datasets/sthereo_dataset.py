@@ -22,7 +22,7 @@ class STHEREO(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25,neg_ring_outer_radius = 40):
         self.subsample =10
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/frame_lists"
         self.use_clahe = use_clahe
@@ -32,7 +32,8 @@ class STHEREO(BaseDataset):
         self.crop_left = 52
         self.crop_right = 30
         self.val_positive_dist_threshold = val_positive_dist_threshold
-
+        self.neg_ring_outer_radius = neg_ring_outer_radius
+        self.location_type = 'gps'
 
         super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     def generate_read_fn(self):
@@ -88,7 +89,7 @@ class STHEREO(BaseDataset):
     def semantic_classes_num_and_map_to_rgb(self):
         return -1,{}
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
@@ -115,14 +116,7 @@ class STHEREO(BaseDataset):
         # if 'kaist_afternoon' in self.seq:
         #     np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc","sthereo_coords.npy"),np.array(self.db_coords))
 
-
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= self.dist_thresh,
-                                                            return_distance=True)
-        return dist , soft_positives_per_query, 'sthereo'         
+     
     def check_seq_list(self,seq):
         for s in seq:
             if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:

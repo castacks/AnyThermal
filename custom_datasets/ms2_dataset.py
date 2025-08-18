@@ -84,7 +84,7 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=25):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=25, neg_ring_outer_radius = 40):
         self.subsample =10
         self.zone = 52
         self.utm_transformer = self.get_utm_transformer(self.zone)
@@ -94,6 +94,8 @@ class MS2(BaseDataset):
         self.crop_left = 28
         self.crop_right = 34
         self.val_positive_dist_threshold = val_positive_dist_threshold
+        self.neg_ring_outer_radius = neg_ring_outer_radius
+        self.location_type = 'gps'
         super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     def generate_read_fn(self):
         return {
@@ -145,7 +147,7 @@ class MS2(BaseDataset):
         # import pdb;pdb.set_trace()
         return [easting, northing, alt]
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
@@ -171,18 +173,7 @@ class MS2(BaseDataset):
 
                     self.db_coords.append(coord[:2])
                     self.q_coords.append(coord[:2]) # we only need the x,y coordinates for the knn search
-                    temp_seq_coords.append(coord[:2])
-            # os.makedirs("GPS_coords/ms2", exist_ok=True)
-            # np.save("GPS_coords/ms2/{}_none_db_coords.npy".format(seq),np.array(temp_seq_coords))
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= self.dist_thresh,
-                                                            return_distance=True)
-        # if '_2021-08-06-10-59-33' in self.seq:
-        #     np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc","eval_coords.npy"),np.array(self.db_coords))
-        return dist , soft_positives_per_query, 'ms2'      
+                    temp_seq_coords.append(coord[:2])    
     def check_seq_list(self,seq):
         all_valid= True
         for s in seq:

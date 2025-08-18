@@ -24,7 +24,7 @@ from base_dataset import *
 class BosonNightimeBaseDataset(BaseDataset):
     """Dataset with images from database and queries, used for inference (testing and building cache)."""
 
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 35, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False,val_positive_dist_threshold=50):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 35, rescale_during_crop=False,crop_during_vpr_test=False,dataset_name="satellite_0_thermalmapping_135_train",G_contrast="none",force_ce=False,val_positive_dist_threshold=50, neg_ring_outer_radius = 100):
         self.dataset_name = dataset_name
         self.extended = "extended" in seq #PARV_TODO : how to use the extended data confirm in STHN
         self.resize = [512, 512]
@@ -32,6 +32,8 @@ class BosonNightimeBaseDataset(BaseDataset):
         self.G_contrast = G_contrast
         self.force_ce = force_ce
         self.val_positive_dist_threshold = val_positive_dist_threshold
+        self.neg_ring_outer_radius = neg_ring_outer_radius
+        self.location_type = 'gps'
 
         super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop,crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
 
@@ -186,7 +188,7 @@ class BosonNightimeBaseDataset(BaseDataset):
         return img
 
     def get_positives(self):
-        return self.soft_positives_per_query
+        return self.hard_positives_per_query
 
     def get_hard_negatives(self):
         return self.hard_negatives_per_query
@@ -215,7 +217,7 @@ class BosonNightimeBaseDataset(BaseDataset):
     def semantic_classes_num_and_map_to_rgb(self):
         return -1,{}
     
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         self.db_coords = []
         self.q_coords = []
 
@@ -228,16 +230,6 @@ class BosonNightimeBaseDataset(BaseDataset):
              for path in self.q_abs_paths]
         ).astype(float).tolist()
 
-        # Find soft_positives_per_query, which are within val_positive_dist_threshold (deafult 25 meters)
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(
-            self.q_coords,
-            radius=self.dist_thresh,
-            return_distance=True,
-        )
-
-        return dist , soft_positives_per_query, 'boson_nightime'
     
     def check_seq_list(self,seq):
         assert isinstance(seq, list), "seq should be a list of sequences"

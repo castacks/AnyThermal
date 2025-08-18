@@ -47,6 +47,8 @@ class Freiburg(BaseDataset):
         dist_thresh = -1
         self.positive_radius_index = 1
         self.val_extra_margin_positive_radius_index = 2
+        self.neg_ring_outer_radius_index = 5
+        self.location_type = 'time'
         
         self.use_clahe = use_clahe
 
@@ -192,22 +194,13 @@ class Freiburg(BaseDataset):
         img[invalid_mask] = -1
         return img
     
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         # Form ground truth positives for the dataset. For a given index all images with indices wihting the self.positive_radius_index are considered positives.
         """
         Returns ground truth positives for the dataset.
         """
-        soft_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
-        for i in range(len(self.q_abs_paths)):
-            soft_positives_per_query[i] = np.array(list(range(max(0, i - self.positive_radius_index), min(len(self.db_abs_paths), i + self.positive_radius_index + 1))))
-
         self.db_coords = [None for _ in range(len(self.db_abs_paths))]
         self.q_coords = [None for _ in range(len(self.q_abs_paths))]
-
-        self.val_extra_margin_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
-        for i in range(len(self.q_abs_paths)):
-            self.val_extra_margin_positives_per_query[i] = np.array(list(range(max(0, i - self.val_extra_margin_positive_radius_index), min(len(self.db_abs_paths), i + self.val_extra_margin_positive_radius_index + 1))))
-        return None, soft_positives_per_query, 'freiburg'
     
     def check_seq_list(self,seq):
         """

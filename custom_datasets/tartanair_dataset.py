@@ -53,11 +53,11 @@ class TartanAirDataset(CustomDataset):
         self.database_num = self.db_num
         self.queries_num = self.q_num
 
-        self.form_gt_positives()
+        self.form_db_qu_coords()
 
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
@@ -79,13 +79,7 @@ class TartanAirDataset(CustomDataset):
 
                 self.db_coords.append([coord_x,coord_y,coord_z])
                 self.q_coords.append([coord_x,coord_y,coord_z])
-
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        self.dist,self.soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= 10,
-                                                            return_distance=True)            
+         
 
     
     def read_rgb(self, imgpath, scale = 1):

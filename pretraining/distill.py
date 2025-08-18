@@ -302,10 +302,10 @@ def detect_embedding_collapse(embedding: torch.Tensor, threshold: float = 1e-3):
         )
     }
 
-def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,batch_indices,test=False,soft_positives_per_query=None, epoch =0):
+def inference(args,teacher_model,student_model, teacher_modality,student_modality,images,batch_indices,test=False,hard_positives_per_query=None, epoch =0):
     with (torch.inference_mode() if test else nullcontext()):
-        if soft_positives_per_query is not None:
-            pos_masks = generate_positive_masks(soft_positives_per_query, batch_indices, device='cuda')
+        if hard_positives_per_query is not None:
+            pos_masks = generate_positive_masks(hard_positives_per_query, batch_indices, device='cuda')
         else:
             pos_masks = None
 
@@ -357,7 +357,7 @@ def inference(args,teacher_model,student_model, teacher_modality,student_modalit
                 
         return teacher_output,teacher_output_on_student,student_output,student_dual_output,individual_losses,None,None
 
-def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, test=False, epoch=0, soft_positives_per_query=None):
+def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, test=False, epoch=0, hard_positives_per_query=None):
     """
     Loop through the dataloader and perform inference or training.
     """
@@ -407,7 +407,7 @@ def dataloader_loop(args,save_path, teacher_model, student_model,dataloader, tes
             args, teacher_model, student_model,
             args.teacher_modality, args.student_modality,
             images=images, batch_indices=index.tolist(),test=test,
-            soft_positives_per_query=soft_positives_per_query, epoch=epoch)
+            hard_positives_per_query=hard_positives_per_query, epoch=epoch)
         
         if args.viz_attention_pca:
             teacher_hook.remove()
@@ -666,8 +666,8 @@ def train():
     train_dataloader, val_dataloader = build_dataset(args,m2p2_rgb_only=True) #PARV_DEBUG using only M2P2 RGB
     print("Train dataset size: ", len(train_dataloader.dataset))
     print("Val dataset size: ", len(val_dataloader.dataset))
-    val_soft_positives_per_query = getattr(val_dataloader.dataset, 'soft_positives', None)
-    train_soft_positives_per_query = getattr(train_dataloader.dataset, 'soft_positives', None)
+    val_hard_positives_per_query = getattr(val_dataloader.dataset, 'soft_positives', None)
+    train_hard_positives_per_query = getattr(train_dataloader.dataset, 'soft_positives', None)
     train_pos_cosine_loss = 0.0
     train_neg_cosine_loss = 0.0
     val_pos_cosine_loss = 0.0
@@ -678,9 +678,9 @@ def train():
         start_time = time.time()
 
         with torch.no_grad() if ((args.dry_run or epoch==0) and not args.debug) else nullcontext():
-            train_individual_losses, train_pos_cosine_loss, train_neg_cosine_loss = dataloader_loop(args,save_path, teacher_model, student_model, train_dataloader, test=False, epoch=epoch, soft_positives_per_query=train_soft_positives_per_query)
+            train_individual_losses, train_pos_cosine_loss, train_neg_cosine_loss = dataloader_loop(args,save_path, teacher_model, student_model, train_dataloader, test=False, epoch=epoch, hard_positives_per_query=train_hard_positives_per_query)
 
-        val_individual_losses, val_pos_cosine_loss, val_neg_cosine_loss = dataloader_loop(args, save_path,teacher_model, student_model, val_dataloader, test=True, epoch=epoch, soft_positives_per_query=val_soft_positives_per_query)
+        val_individual_losses, val_pos_cosine_loss, val_neg_cosine_loss = dataloader_loop(args, save_path,teacher_model, student_model, val_dataloader, test=True, epoch=epoch, hard_positives_per_query=val_hard_positives_per_query)
 
         if args.wandb_use:
             log_dict = {

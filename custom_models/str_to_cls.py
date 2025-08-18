@@ -365,53 +365,67 @@ def get_model_from_string(args,name: str,task,**kwargs):
             model_name = "_".join(name.split('_')[2:])
 
             backbone_model_type = ""
-            if model_name == "non_linear_64":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-135945_cart_thr_non_linear_64_weighted_ce_bilinear_combined_global_contrastive_dropout0.1/model9.pth"
+            # if model_name == "non_linear_64":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-135945_cart_thr_non_linear_64_weighted_ce_bilinear_combined_global_contrastive_dropout0.1/model9.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_no_dropout":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-224011_cart_thr_non_linear_64_weighted_ce_bilinear_combined_global_contrastive/model5.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_dice":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-122232_cart_thr_non_linear_64_dice_bilinear_combined_global_contrastive_dropout0.1/model15.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "frozen_non_linear_64":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-134730_cart_thr_non_linear_64_weighted_ce_bilinear_frozen_rgb_dinov2_dropout0.1/model9.pth"
+            #     head_model = "non_linear_64"
+            #     backbone_model_type = "dinov2_vitb14"
+            # elif model_name == "frozen_non_linear_64_no_dropout":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-223926_cart_thr_non_linear_64_weighted_ce_bilinear_frozen_rgb_dinov2/model5.pth"
+            #     head_model = "non_linear_64"
+            #     backbone_model_type = "dinov2_vitb14"
+            # elif model_name == "frozen_non_linear_64_dice":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-131212_cart_thr_non_linear_64_dice_bilinear_frozen_rgb_dinov2_dropout0.1/model15.pth"
+            #     head_model = "non_linear_64"
+            #     backbone_model_type = "dinov2_vitb14"
+            # elif model_name == "non_linear_64_salad_init":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-233300_cart_thr_non_linear_64_weighted_ce_bilinear_salad_initilisation_global_contrastive_dropout0.2/model25.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_salad_init_dice":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-122315_cart_thr_non_linear_64_dice_bilinear_salad_initilisation_global_contrastive_dropout0.1/model25.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "linear":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-210753_cart_thr_linear_weighted_ce_bilinear_combined_global_contrastive_dropout0.2/model6.pth"
+            #     head_model = "linear"
+            # elif model_name == "frozen_linear":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-210753_cart_thr_linear_weighted_ce_bilinear_frozen_rgb_dinov2_dropout0.2/model7.pth"
+            #     head_model = "linear"
+            #     backbone_model_type = "dinov2_vitb14"
+            # elif model_name == "linear_salad_init":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-211549_cart_thr_linear_weighted_ce_bilinear_salad_initilisation_global_contrastive_dropout0.2/model20.pth"
+            #     head_model = "linear"
+
+            if model_name == "non_linear_64_dropout_dice":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_thermal_dinov2_dropout0.2/model150.pth"
                 head_model = "non_linear_64"
-            elif model_name == "non_linear_64_no_dropout":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-224011_cart_thr_non_linear_64_weighted_ce_bilinear_combined_global_contrastive/model5.pth"
-                head_model = "non_linear_64"
-            elif model_name == "non_linear_64_dice":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-122232_cart_thr_non_linear_64_dice_bilinear_combined_global_contrastive_dropout0.1/model15.pth"
-                head_model = "non_linear_64"
-            elif model_name == "frozen_non_linear_64":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-134730_cart_thr_non_linear_64_weighted_ce_bilinear_frozen_rgb_dinov2_dropout0.1/model9.pth"
+            elif model_name == "non_linear_64_dropout_dice_frozen":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_frozen_dinov2_dropout0.2/model150.pth"
                 head_model = "non_linear_64"
                 backbone_model_type = "dinov2_vitb14"
-            elif model_name == "frozen_non_linear_64_no_dropout":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-223926_cart_thr_non_linear_64_weighted_ce_bilinear_frozen_rgb_dinov2/model5.pth"
-                head_model = "non_linear_64"
-                backbone_model_type = "dinov2_vitb14"
-            elif model_name == "frozen_non_linear_64_dice":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-131212_cart_thr_non_linear_64_dice_bilinear_frozen_rgb_dinov2_dropout0.1/model15.pth"
-                head_model = "non_linear_64"
-                backbone_model_type = "dinov2_vitb14"
-            elif model_name == "non_linear_64_salad_init":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250721-233300_cart_thr_non_linear_64_weighted_ce_bilinear_salad_initilisation_global_contrastive_dropout0.2/model25.pth"
-                head_model = "non_linear_64"
-            elif model_name == "non_linear_64_salad_init_dice":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250724-122315_cart_thr_non_linear_64_dice_bilinear_salad_initilisation_global_contrastive_dropout0.1/model25.pth"
-                head_model = "non_linear_64"
-            elif model_name == "linear":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-210753_cart_thr_linear_weighted_ce_bilinear_combined_global_contrastive_dropout0.2/model6.pth"
-                head_model = "linear"
-            elif model_name == "frozen_linear":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-210753_cart_thr_linear_weighted_ce_bilinear_frozen_rgb_dinov2_dropout0.2/model7.pth"
-                head_model = "linear"
-                backbone_model_type = "dinov2_vitb14"
-            elif model_name == "linear_salad_init":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-211549_cart_thr_linear_weighted_ce_bilinear_salad_initilisation_global_contrastive_dropout0.2/model20.pth"
-                head_model = "linear"
             from .dinov2_segmentation_model import MMDistillSegmentationModel
             return MMDistillSegmentationModel(args=args,backbone_model_type=backbone_model_type,head_model=head_model,un_frozen_layer_index=[],frozen_head=True,device='cuda',modality="thr",model_path=model_path, **kwargs)
         elif name.startswith("mmdistill_mfnet"):
             model_name = "_".join(name.split('_')[2:])
             backbone_model_type = ""
             if model_name == "non_linear_64":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250809-052432_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2/model40.pth"
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
                 head_model = "non_linear_64"
-            elif model_name == "frozen_non_linear_64":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250809-034404_mfnet_thr_non_linear_64_dice_bilinear_frozen_rgb_dinov2/model40.pth"
+            elif model_name == "non_linear_64_248":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model248.pth"
+                head_model = "non_linear_64"
+            elif model_name == "non_linear_64_250":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model250.pth"
+                head_model = "non_linear_64"
+            elif model_name == "non_linear_64_frozen":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234311_mfnet_thr_non_linear_64_dice_bilinear_frozen_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
                 head_model = "non_linear_64"
                 backbone_model_type = "dinov2_vitb14"
             else:
@@ -419,3 +433,12 @@ def get_model_from_string(args,name: str,task,**kwargs):
             
             from .dinov2_segmentation_model import MMDistillSegmentationModel
             return MMDistillSegmentationModel(args=args,backbone_model_type=backbone_model_type,head_model=head_model,un_frozen_layer_index=[],frozen_head=True,device='cuda',modality="thr",model_path=model_path, **kwargs)
+        elif name.startswith("rtfnet"):
+            num_resnet_layers = int(name.split('_')[1])
+            if num_resnet_layers not in [18, 34, 50, 101, 152]:
+                raise ValueError(f"Unsupported ResNet type: {num_resnet_layers}")
+            from .rtfnet_model import RTFNetModel
+            return RTFNetModel(device='cuda', num_resnet_layers=num_resnet_layers, num_classes=int(args.num_classes))
+        elif name == "mcnet":
+            from .mcnet_model import MCNetModel
+            return MCNetModel(device = 'cuda',num_classes = args.num_classes)

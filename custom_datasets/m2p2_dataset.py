@@ -83,7 +83,7 @@ class M2P2(BaseDataset):
     def semantic_classes_num_and_map_to_rgb(self):
         return -1,{}
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
@@ -95,14 +95,7 @@ class M2P2(BaseDataset):
             gps_file = os.path.join(self.datasets_folder,seq,"gps.npy")
             self.db_coords.extend(list(np.load(gps_file))[::self.subsample])
             self.q_coords.extend(list(np.load(gps_file))[::self.subsample])
-
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= self.dist_thresh,
-                                                            return_distance=True)
-        return dist , soft_positives_per_query         
+       
     def check_seq_list(self,seq):
         for s in seq:
             if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:

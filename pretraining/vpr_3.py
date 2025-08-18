@@ -24,6 +24,7 @@ import random
 import networkx as nx
 import gc
 from custom_datasets.multi_dataset_loader import *
+from custom_datasets.vpr_dataloader import *
 from itertools import chain
 import torch.optim as optim
 import matplotlib.pyplot as plt
@@ -33,6 +34,24 @@ import faiss.contrib.torch_utils
 from utilities import *
 import yaml
 import pandas as pd
+
+# (optional) worker seeding for dataset/augmentations (worker-aware)
+from torch.utils.data import get_worker_info
+def worker_init_fn(worker_id):
+    wi = get_worker_info()
+    # PyTorch gives a deterministic base seed per worker via wi.seed
+    base_seed = 42
+    try:
+        import torch.distributed as dist
+        rank = dist.get_rank() if dist.is_initialized() else 0
+    except Exception:
+        rank = 0
+    
+    # if (base_seed + rank * 1000 + worker_id) > 2**32 - 1:
+    #     print("Base seed combined with rank and worker_id exceeds 32-bit integer limit.", base_seed, rank, worker_id)
+        
+    np.random.seed(base_seed + rank * 1000 + worker_id)
+    torch.manual_seed(base_seed + rank * 1000 + worker_id)
 
 def batched_dot_similarity(embeddings, a_idx, b_idx, chunk_size=100000):
     """
@@ -461,6 +480,46 @@ def compute_curriculum_margin(epoch: int, mode: str,
     else:
         return margin_end
 
+def recall_dataloader(args,model_dict, dataloader, device, epoch, train=False):
+    db_modality = args.teacher_modality
+    q_modality = args.student_modality
+    mode = "train" if train else "val"
+    positive_index_per_query = np.array(dataloader.dataset.hard_positives_per_query, dtype=object)
+    all_rgb_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
+    all_thr_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
+    with torch.no_grad():
+        for batch_item in tqdm(dataloader, desc=f"{mode.capitalize()} Recall Epoch {epoch}"):
+            batch, _ = batch_item["item"]
+            indices = batch_item["batch_id"].tolist()
+            log_dict = {}
+            feats_rgb = model_dict["rgb"].extract_feature(batch[db_modality].to(device), test=False)
+            feats_thr = model_dict["thr"].extract_feature(batch[q_modality].to(device), test=False)
+            all_rgb_feats[indices] = feats_rgb.cpu()
+            all_thr_feats[indices] = feats_thr.cpu()
+            import gc; gc.collect()  # Clear memory after processing each batch
+            torch.cuda.empty_cache()  # Clear CUDA memory after processing each batch
+            torch.cuda.ipc_collect()
+    
+    recall_metrics = compute_recall_at_k(all_thr_feats, all_rgb_feats, positive_index_per_query, exclude_self=True)
+
+    # Optional retrieval visualization
+    if args.debug_viz:
+        sim = torch.matmul(all_thr_feats, all_rgb_feats.T)
+        top_k = torch.topk(sim, k=5, dim=1).indices
+        for idx in random.sample(range(len(all_thr_feats)), min(5, len(all_thr_feats))):
+            q_img = dataloader.dataset.__getitem__(idx)['thr'].permute(1, 2, 0)
+            retrieved_imgs = [dataloader.dataset.__getitem__(j)['rgb'].permute(1, 2, 0) for j in top_k[idx]]
+            fig, axs = plt.subplots(1, 6, figsize=(15, 3))
+            axs[0].imshow(q_img)
+            axs[0].set_title("Query")
+            for i in range(5):
+                axs[i + 1].imshow(retrieved_imgs[i])
+                axs[i + 1].set_title(f"Top-{i + 1}")
+            wandb.log({f"{mode}/retrieval_{idx}": wandb.Image(fig)})
+            plt.close(fig)
+    
+    return recall_metrics
+
 
 def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, current_margin=None):
     mode = "train" if train else "val"
@@ -478,24 +537,41 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
     total_loss_allignment_updated = 0
     memory_feats, memory_labels = [], []
     
-    all_ground_truth = [[] for _ in range(len(dataloader.dataset))]
-    all_rgb_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
-    all_thr_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
+    # all_ground_truth = [[] for _ in range(len(dataloader.dataset))]
+    # all_rgb_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
+    # all_thr_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
 
 
     db_modality = args.teacher_modality
     q_modality = args.student_modality
-    positive_index_per_query = np.array(dataloader.dataset.hard_positives_per_query, dtype=object)
-    extra_margin_positive_index_per_query = np.array(dataloader.dataset.extra_margin_soft_positives, dtype=object)
+    positive_index_per_query = np.array(dataloader.dataset.w.hard_positives_per_query, dtype=object)
+    extra_margin_positive_index_per_query = np.array(dataloader.dataset.w.extra_margin_soft_positives, dtype=object)
+
+
+    modality_to_view_map = {"rgb":RGB, "thr":THR}
+    db_modality_view = modality_to_view_map[db_modality]
+    q_modality_view = modality_to_view_map[q_modality]
     
     # scaler = torch.cuda.amp.GradScaler()
     for batch_item in tqdm(dataloader, desc=f"{mode.capitalize()} Epoch {epoch}"):
+        images   = batch_item["image"].to(device, non_blocking=True)     # (B, C, H, W)
+        indices = batch_item["base_idx"].to(device)                     # (B,)
+        view_id  = batch_item["view_id"].to(device)                     # (B,)
+
         optimizer.zero_grad()
 
-        batch, _ = batch_item["item"]
-        indices = batch_item["batch_id"].tolist()
-        rgb = batch[db_modality].to(device)
-        thermal = batch[q_modality].to(device)
+        rgb_idx = torch.where(view_id == RGB)[0]
+        rgb_indices = indices[rgb_idx]
+        if len(rgb_idx) > 0:
+            rgb = images[rgb_idx].to(device)
+        else:
+            raise ValueError("No RGB images found in the batch")
+        thermal_idx = torch.where(view_id == THR)[0]
+        thermal_indices = indices[thermal_idx]
+        if len(thermal_idx) > 0:
+            thermal = images[thermal_idx].to(device)
+        else:
+            raise ValueError("No Thermal images found in the batch")
 
         log_dict = {}
     
@@ -512,7 +588,7 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
 
                 
                 feats = torch.cat([feats_rgb, feats_thr], dim=0)
-                cat_indices  = torch.cat([torch.tensor(indices, device=device), torch.tensor(indices, device=device)], dim=0)
+                cat_indices  = torch.cat([torch.tensor(rgb_indices, device=device), torch.tensor(thermal_indices, device=device)], dim=0)
 
                 if "triplet" in args.loss_type or "hard_triplet" in args.loss_type:
                     
@@ -575,18 +651,18 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
             
 
 
-        assert torch.all(all_rgb_feats[indices] == 0), "all_rgb_feats should be zero before filling"
-        assert torch.all(all_thr_feats[indices] == 0), "all_thr_feats should be zero before filling"
+        # assert torch.all(all_rgb_feats[indices] == 0), "all_rgb_feats should be zero before filling"
+        # assert torch.all(all_thr_feats[indices] == 0), "all_thr_feats should be zero before filling"
 
-        all_rgb_feats[indices] = feats_rgb.cpu().detach()
-        all_thr_feats[indices] = feats_thr.cpu().detach()
-        for batch_idx in indices:
+        # all_rgb_feats[rgb_indices] = feats_rgb.cpu().detach()
+        # all_thr_feats[thermal_indices] = feats_thr.cpu().detach()
+        # for batch_idx in indices:
 
-            if all_ground_truth[batch_idx] != []:
-                print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
-                import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
+        #     # if all_ground_truth[batch_idx] != []:
+        #     #     print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
+        #     #     import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
 
-            all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
+        #     all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
         
         import gc; gc.collect()  # Clear memory after processing each batch
         torch.cuda.empty_cache()  # Clear CUDA memory after processing each batch
@@ -595,55 +671,59 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
         print("Cuda memory , after batch: ", torch.cuda.memory_allocated(device) / 1e6, "MB")
 
     
-    remaining_indices = [i for i, gt in enumerate(all_ground_truth) if len(gt) == 0]
-    if remaining_indices:
-        with torch.no_grad():
-            remaining_dataset = Subset(dataloader.dataset, remaining_indices)
-            remaining_dataset.idx_to_dataset = dataloader.dataset.idx_to_dataset[remaining_indices]
-            sampler = IntraDatasetBatchSampler(remaining_dataset.idx_to_dataset,batch_size=args.eval_batch_size)
-            remaining_dataloader = DataLoader(remaining_dataset, num_workers=args.eval_num_workers,batch_sampler = sampler)
-            for batch_item in tqdm(remaining_dataloader, desc=f"{mode.capitalize()} Remaining Epoch {epoch}"):
-                batch, _ = batch_item["item"]
-                indices = batch_item["batch_id"].tolist()
-                rgb = batch[db_modality].to(device)
-                thermal = batch[q_modality].to(device)
-                feats_rgb = model_dict["rgb"].extract_feature(rgb, test=False)
-                feats_thr = model_dict["thr"].extract_feature(thermal, test=False)
-                all_rgb_feats[indices] = feats_rgb.cpu()
-                all_thr_feats[indices] = feats_thr.cpu()
-                for batch_idx in indices:
-                    if all_ground_truth[batch_idx] != []:
-                        print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
-                        import pdb; pdb.set_trace()
-                    all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
+    # rgb_remaining_indices = [i for i, feats in enumerate(all_rgb_feats) if len(feats) == 0]
+    # thr_remaining_indices = [i for i, feats in enumerate(all_thr_feats) if len(feats) == 0]
+
+    # remaining_indices = list(set(rgb_remaining_indices) | set(thr_remaining_indices))
     
-    for i, gt in enumerate(all_ground_truth):
-        if not gt:
-            print(f"Warning: No ground truth for index {i} in {mode} epoch {epoch}. This might affect recall metrics.")
-            import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
+    # if remaining_indices:
+    #     with torch.no_grad():
+    #         remaining_dataset = Subset(dataloader.dataset, remaining_indices)
+    #         remaining_dataset.idx_to_dataset = dataloader.dataset.idx_to_dataset[remaining_indices]
+    #         sampler = IntraDatasetBatchSampler(remaining_dataset.idx_to_dataset,batch_size=args.eval_batch_size)
+    #         remaining_dataloader = DataLoader(remaining_dataset, num_workers=args.eval_num_workers,batch_sampler = sampler)
+    #         for batch_item in tqdm(remaining_dataloader, desc=f"{mode.capitalize()} Remaining Epoch {epoch}"):
+    #             batch, _ = batch_item["item"]
+    #             indices = batch_item["batch_id"].tolist()
+    #             rgb = batch[db_modality].to(device)
+    #             thermal = batch[q_modality].to(device)
+    #             feats_rgb = model_dict["rgb"].extract_feature(rgb, test=False)
+    #             feats_thr = model_dict["thr"].extract_feature(thermal, test=False)
+    #             all_rgb_feats[indices] = feats_rgb.cpu()
+    #             all_thr_feats[indices] = feats_thr.cpu()
+    #             # for batch_idx in indices:
+    #             #     if all_ground_truth[batch_idx] != []:
+    #             #         print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
+    #             #         import pdb; pdb.set_trace()
+    #             #     all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
+    
+    # for i, gt in enumerate(positive_index_per_query):
+    #     if not gt:
+    #         print(f"Warning: No ground truth for index {i} in {mode} epoch {epoch}. This might affect recall metrics.")
+    #         import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
 
-    all_rgb_feats = F.normalize(all_rgb_feats, dim=1)
-    all_thr_feats = F.normalize(all_thr_feats, dim=1)
-    recall_metrics = compute_recall_at_k(all_thr_feats, all_rgb_feats, all_ground_truth, exclude_self=True)
+    # all_rgb_feats = F.normalize(all_rgb_feats, dim=1)
+    # all_thr_feats = F.normalize(all_thr_feats, dim=1)
+    # recall_metrics = compute_recall_at_k(all_thr_feats, all_rgb_feats, positive_index_per_query, exclude_self=True)
 
-    # Optional retrieval visualization
-    if args.debug_viz:
-        sim = torch.matmul(all_thr_feats, all_rgb_feats.T)
-        top_k = torch.topk(sim, k=5, dim=1).indices
-        for idx in random.sample(range(len(all_thr_feats)), min(5, len(all_thr_feats))):
-            q_img = dataloader.dataset.__getitem__(idx)['thr'].permute(1, 2, 0)
-            retrieved_imgs = [dataloader.dataset.__getitem__(j)['rgb'].permute(1, 2, 0) for j in top_k[idx]]
-            fig, axs = plt.subplots(1, 6, figsize=(15, 3))
-            axs[0].imshow(q_img)
-            axs[0].set_title("Query")
-            for i in range(5):
-                axs[i + 1].imshow(retrieved_imgs[i])
-                axs[i + 1].set_title(f"Top-{i + 1}")
-            wandb.log({f"{mode}/retrieval_{idx}": wandb.Image(fig)})
-            plt.close(fig)
+    # # Optional retrieval visualization
+    # if args.debug_viz:
+    #     sim = torch.matmul(all_thr_feats, all_rgb_feats.T)
+    #     top_k = torch.topk(sim, k=5, dim=1).indices
+    #     for idx in random.sample(range(len(all_thr_feats)), min(5, len(all_thr_feats))):
+    #         q_img = dataloader.dataset.__getitem__(idx)['thr'].permute(1, 2, 0)
+    #         retrieved_imgs = [dataloader.dataset.__getitem__(j)['rgb'].permute(1, 2, 0) for j in top_k[idx]]
+    #         fig, axs = plt.subplots(1, 6, figsize=(15, 3))
+    #         axs[0].imshow(q_img)
+    #         axs[0].set_title("Query")
+    #         for i in range(5):
+    #             axs[i + 1].imshow(retrieved_imgs[i])
+    #             axs[i + 1].set_title(f"Top-{i + 1}")
+    #         wandb.log({f"{mode}/retrieval_{idx}": wandb.Image(fig)})
+    #         plt.close(fig)
     
 
-    return total_loss_vpr / total_loss_vpr_updated , total_loss_allignment / total_loss_allignment_updated , recall_metrics
+    return total_loss_vpr / total_loss_vpr_updated , total_loss_allignment / total_loss_allignment_updated
 
 
 def build_head_dict(arch_name):
@@ -859,6 +939,33 @@ def initialise_netvlad_head(model_dict, dataloader, device):
     model_dict['thr'].head[0].initialize_netvlad_layer(
         args, dataloader.dataset, model_dict['thr'],'thr')
 
+
+def build_dataloader(dataset,args):
+    view_dataset = ViewIndexingDataset(dataset, rgb_key="rgb", thr_key="thr")
+
+    sampler = IntraDatasetViewBatchSamplerV2(
+        wrapper=dataset,
+        anchors_per_batch=args.anchors_per_batch,   # anchors per batch (each adds (a,RGB)+(a,THR))
+        k_hard_pos=args.hard_pos_per_anchor,           # n hard extra positives per anchor
+        k_soft_pos=args.soft_pos_per_anchor,           # m soft extra positives per anchor
+        neg_pool=args.neg_pos_per_anchor,            # ring negatives per anchor
+        steps_per_epoch=args.steps_per_epoch,   # define your epoch length in #batches
+        dataset_mix=None,       # or {"MS2Dataset":0.5, "CityGPS":0.5}
+        seed=42,
+        pos_view_policy="balanced",
+        neg_view_policy="balanced",
+    )
+
+    loader = DataLoader(
+        view_dataset,                 # <- the adapter dataset
+        batch_sampler=sampler,        # <- IMPORTANT: use batch_sampler, not sampler
+        num_workers=args.train_num_workers,      # set as you like
+        pin_memory=False,
+        persistent_workers=False,      # optional, saves worker startup time
+        worker_init_fn=worker_init_fn # ensures dataset/aug randomness differs per worker
+    )
+
+    return loader
     
 
 def main(args):
@@ -892,7 +999,12 @@ def main(args):
         yaml.dump(vars(args), f, default_flow_style=False)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataloader, val_dataloader = build_dataset(args)
+    recall_train_dataloader, recall_val_dataloader = build_dataset(args)
+
+    train_dataloader = build_dataloader(recall_train_dataloader.dataset, args)
+    val_dataloader = build_dataloader(recall_val_dataloader.dataset, args)
+
+    
     print("Train dataset size: ", len(train_dataloader.dataset))
     print("Val dataset size: ", len(val_dataloader.dataset))
 
@@ -923,6 +1035,10 @@ def main(args):
 
     for epoch in range(args.start_epoch,args.epochs+1):
 
+        print(f"Starting epoch {epoch}...")
+        train_dataloader.batch_sampler.set_epoch(epoch)
+        val_dataloader.batch_sampler.set_epoch(epoch)
+
         # --- curriculum margin for this epoch ---
         if args.curriculum_mode != 'none':
             current_margin = compute_curriculum_margin(
@@ -945,19 +1061,24 @@ def main(args):
 
             torch.save(save_dict, os.path.join(args.save_dir, f"model_{epoch}.pth"))
 
-        train_loss_vpr, train_loss_align, train_recall_metrics = run(
+        train_loss_vpr, train_loss_align = run(
             args,model_dict, train_dataloader, optimizer, device, epoch, train=True, current_margin=current_margin
         )
+        train_recall_metrics = recall_dataloader(args,model_dict, recall_train_dataloader, device, epoch,train=True)
         log_dict = {"epoch": epoch, "train/avg_loss_vpr": train_loss_vpr, "train/avg_loss_align": train_loss_align}
         for k, v in train_recall_metrics.items():
             log_dict.update({f"train/{k}": v})
         wandb.log(log_dict)
         
         with torch.no_grad():
-            val_loss_vpr, val_loss_align, val_recall_metrics = run(
-                args,model_dict, val_dataloader, optimizer, device, epoch, train=False, current_margin=current_margin
-            )
-            log_dict = {"epoch": epoch, "val/avg_loss_vpr": val_loss_vpr, "val/avg_loss_align": val_loss_align}
+            log_dict = {"epoch": epoch}
+            if args.log_val_triplet_loss:
+                val_loss_vpr, val_loss_align = run(
+                    args,model_dict, val_dataloader, optimizer, device, epoch, train=False, current_margin=current_margin
+                )
+                log_dict.update({"val/avg_loss_vpr": val_loss_vpr, "val/avg_loss_align": val_loss_align})
+
+            val_recall_metrics = recall_dataloader(args,model_dict, recall_val_dataloader, device, epoch)
             for k, v in val_recall_metrics.items():
                 log_dict.update({f"val/{k}": v})
             wandb.log(log_dict)
@@ -1040,6 +1161,22 @@ if __name__ == '__main__':
     
     parser.add_argument('--hard_frac', type=float, default=0.5,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+
+    parser.add_argument('--anchors_per_batch', type=int, default=32,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--hard_pos_per_anchor', type=int, default=2,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--soft_pos_per_anchor', type=int, default=0,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--neg_pos_per_anchor', type=int, default=6,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--steps_per_epoch', type=int, default=1000,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--log_val_triplet_loss', action='store_true', help='Disable shuffling of dataset')
+    
+
+
+
 
     args = parser.parse_args()
 

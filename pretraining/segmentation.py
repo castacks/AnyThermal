@@ -216,7 +216,7 @@ def dataloader_loop(args, optimizer, model, dataloader, test, epoch, semantic_id
                 f"{loss_str}/mIoU": miou,
                 f"{loss_str}/FWIoU": fwiou,
                 **{f"{loss_str}/IoU_class_{i}": v for i, v in enumerate(iou_per_class)},
-                "epoch": epoch+1,
+                "epoch": epoch,
             })
 
 def calculate_class_weights(dataloader):
@@ -243,6 +243,7 @@ def train_segmentation_pipeline(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.wandb_name = f"{args.dataset}_{args.modality}_{args.head_name}_{'_'.join(args.loss_type)}_{args.upscale_method}_{args.wandb_name}"
     if args.augment:
+        args.thermal_segmentation_augmentation = sorted(set(args.thermal_segmentation_augmentation))  # Sort to ensure consistent naming
         args.wandb_name += "_augmented" + "_".join(args.thermal_segmentation_augmentation)
     if args.dropout_prob > 0:
         args.wandb_name += f"_dropout{args.dropout_prob}"
@@ -251,10 +252,18 @@ def train_segmentation_pipeline(args):
     if args.wandb_use:
         wandb.init(project="mm_segmentation", name=args.wandb_name, config=vars(args))
 
-    if args.dataset == "cart":
+    if "cart" in args.dataset:
         print("Using CART dataset")
-        train_seq_list = return_cart_split_segmentation_geographic("train", "socal", "thermal") + return_cart_split_segmentation_geographic("val", "socal", "thermal")
-        val_seq_list = return_cart_split_segmentation_geographic(split="val",area="northcarolina",mode="thermal") + return_cart_split_segmentation_geographic(split="val",area="kentucky",mode="thermal")
+
+        type_of_split = args.dataset.split("_")[-1]
+        if type_of_split == "random":
+            train_seq_list = return_cart_split_segmentation_random("train")
+            val_seq_list = return_cart_split_segmentation_random("val")
+        elif type_of_split == "geographic":
+            train_seq_list = return_cart_split_segmentation_geographic("train", "socal", "thermal") + return_cart_split_segmentation_geographic("val", "socal", "thermal")
+            val_seq_list = return_cart_split_segmentation_geographic(split="val",area="northcarolina",mode="thermal") + return_cart_split_segmentation_geographic(split="val",area="kentucky",mode="thermal")
+        else:
+            raise ValueError("Unsupported CART split type. Use 'random' or 'geographic'.")
         db_modality = "thr_seg"
         train_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
         val_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
@@ -269,7 +278,7 @@ def train_segmentation_pipeline(args):
     elif args.dataset == "mfnet":
         print("Using MFNet dataset")
         train_seq_list = return_mfnet_split("train")
-        val_seq_list = return_mfnet_split("val")
+        val_seq_list = return_mfnet_split("test")
         db_modality = "thr"
         train_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
         val_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
@@ -304,8 +313,6 @@ def train_segmentation_pipeline(args):
         backbone_path = yaml_dict["model_path"]
         if backbone_path == "":
             backbone_path = args.model_path
-        if backbone_path == "":
-            raise ValueError("Please provide a valid model path to resume from.")
         ckpt = torch.load(model_resume_path, map_location=device)
         if ckpt['epoch'] != args.resume_epoch_num:
             raise ValueError(f"Checkpoint epoch {ckpt['epoch']} does not match resume epoch {args.resume_epoch_num}.")
@@ -394,7 +401,7 @@ def train_segmentation_pipeline(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train segmentation head on DINOv2 features')
     parser.add_argument('--epochs', default=250, type=int)
-    parser.add_argument('--dataset', default='cart', type=str,choices=['cart', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
+    parser.add_argument('--dataset', default='cart', type=str,choices=['cart_geographic', 'cart_random', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--learning_rate', default=0.002, type=float)

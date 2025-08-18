@@ -26,7 +26,7 @@ class CustomDataset:
         # Required properties
         self.database_num = None    # Number of database items
         self.queries_num = None     # Number of queries
-        self.soft_positives_per_query = None    # Soft pos per qu
+        self.hard_positives_per_query = None    # Soft pos per qu
     
     def get_image_paths(self):
         if hasattr(self, 'images_paths'):
@@ -35,8 +35,8 @@ class CustomDataset:
             raise NotImplementedError("Not handled!")
     
     def get_positives(self):
-        if hasattr(self, 'soft_positives_per_query'):
-            return self.soft_positives_per_query
+        if hasattr(self, 'hard_positives_per_query'):
+            return self.hard_positives_per_query
         else:
             raise NotImplementedError("Not handled!")
     

@@ -91,13 +91,10 @@ class BaseDataset(Dataset):
         self.database_num = len(self.db_abs_paths)
         self.queries_num = len(self.q_abs_paths)
         if self.vpr_test or self.vpr_train:
-            self.dist, self.soft_positives_per_query, dataset_name = self.form_gt_positives()
-            assert len(self.soft_positives_per_query) == self.queries_num, f"Soft positives per query length {len(self.soft_positives_per_query)} does not match queries number {self.queries_num}"
+            self.form_db_qu_coords()
             assert len(self.db_coords) == self.database_num, f"Database coordinates length {len(self.db_coords)} does not match database number {self.database_num}"
             assert len(self.q_coords) == self.queries_num, f"Queries coordinates length {len(self.q_coords)} does not match queries number {self.queries_num}"
-            # if self.db_coords[0] is not None:
-            #     os.makedirs("GPS_coords", exist_ok=True)
-            #     np.save(f"GPS_coords/{dataset_name}_{self.seq[0].replace('/','_')}_db_coords.npy",self.db_coords)
+
         self.images_paths = list(self.db_abs_paths) + list(self.q_abs_paths)
 
         self.read_fn=self.generate_read_fn()
@@ -135,7 +132,7 @@ class BaseDataset(Dataset):
         pass
 
     @abstractmethod
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """

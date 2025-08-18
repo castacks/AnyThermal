@@ -279,7 +279,7 @@ def run(args: BenchmarkArgs):
 
             db_dataset = torch.utils.data.Subset(dataset, range(dataset.database_num))
             qu_dataset = torch.utils.data.Subset(dataset, range(dataset.database_num, len(dataset)))
-            pos_per_qu = dataset.soft_positives_per_query
+            pos_per_qu = dataset.hard_positives_per_query
 
             no_positive_matches_for_queries = np.zeros_like(pos_per_qu, dtype=bool)
 

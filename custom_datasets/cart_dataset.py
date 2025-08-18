@@ -31,6 +31,19 @@ def return_cart_split_segmentation_geographic(split,area,mode):
         return [os.path.join(root_dir,x) for x in val_seq_list]
     elif split == "test":
         return [os.path.join(root_dir,x) for x in test_seq_list]
+    
+def return_cart_split_segmentation_random(split):
+    """
+    Returns the split for the ms2 dataset.
+    """
+    root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/random_splits"
+
+    if split =="train":
+        return [os.path.join(root_dir,"train.txt")]
+    elif split == "val":
+        return [os.path.join(root_dir,"val.txt")]
+    elif split == "test":
+        return [os.path.join(root_dir,"test.txt")]
 
 def return_cart_split(split):
     """
@@ -109,14 +122,16 @@ class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=25):
+    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=25,neg_ring_outer_radius = 40):
         
         self.root_frame_dir = root_frame_dir
         self.seq_as_txt = seq_as_txt
         self.val_positive_dist_threshold = val_positive_dist_threshold
+        self.neg_ring_outer_radius = neg_ring_outer_radius
         self.cart_split = cart_split
         args.not_filter_on_gps = False
         self.dataset_shape = (512,640) # (w,h)
+        self.location_type = 'gps'
         if cart_split  =="vpr":
             self.vpr_resize = [300,480]
         else:
@@ -284,17 +299,13 @@ class CART(BaseDataset):
                     import pdb; pdb.set_trace()
                     raise ValueError(f"Please provide a valid sequence name. {s} does not exist or is not a file")
     def extract_frame_number(self,filename):
-        # Extract the frame number from the filename
-        # Assuming the filename format is like "image_color-00001.jpg"
-        # import pdb; pdb.set_trace()  # Debugging line to inspect the filename parts
-
         parts = filename.split('-')
         if len(parts) > 1:
             return int(parts[1].split('.')[0])  # Get the number before the file extension
         return -1  # Return -1 if no valid frame number is found
 
 
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
@@ -331,14 +342,6 @@ class CART(BaseDataset):
         self.db_coords = np.array(self.db_coords)
         self.q_coords = np.array(self.q_coords)
 
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= self.dist_thresh,
-                                                            return_distance=True)
-        return dist , soft_positives_per_query, 'cart'    
-    
     def read_rgb(self, path):
         """
         Reads rgb image from the path.
@@ -360,7 +363,6 @@ class CART(BaseDataset):
         if self.vpr_resize is not None:
             img = F.resize(img, self.vpr_resize, interpolation=T.InterpolationMode.BILINEAR, antialias=True)
 
-        # print("Thermal image path:", path)
         return img
     
     def read_segmentation_mask(self, path):
@@ -371,8 +373,6 @@ class CART(BaseDataset):
         img = np.expand_dims(img, axis=0)  # Add channel dimension
         img = torch.tensor(img).float()  # Convert to tensor
         img = img-2 # removing the background and unknown class
-        # print(f"Segmentation mask shape: {img.shape}")  # Debugging line to check the shape
-        # print("Segmentation mask path:", path)
         return img
     
     def semantic_classes_num_and_map_to_rgb(self):
@@ -406,21 +406,13 @@ class HandheldCART(CART):
         args.not_filter_on_gps = True
         self.positive_radius_index = 3
         self.val_extra_margin_positive_radius_index = 6
+        self.neg_ring_outer_radius_index = 10
         dist_thresh = -1
+        self.location_type = 'time'
         super().__init__(args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test,vpr_train,dist_thresh,rescale_during_crop,crop_during_vpr_test,seq_as_txt,cart_split,val_positive_dist_threshold)
-    def form_gt_positives(self):
-        # Form ground truth positives for the dataset. For a given index all images with indices wihting the self.positive_radius_index are considered positives.
+    def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.
         """
-        soft_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
-        for i in range(len(self.q_abs_paths)):
-            soft_positives_per_query[i] = np.array(list(range(max(0, i - self.positive_radius_index), min(len(self.db_abs_paths), i + self.positive_radius_index + 1))))
-
         self.db_coords = [None for _ in range(len(self.db_abs_paths))]
         self.q_coords = [None for _ in range(len(self.q_abs_paths))]
-
-        self.val_extra_margin_positives_per_query = [None for _ in range(len(self.q_abs_paths))]
-        for i in range(len(self.q_abs_paths)):
-            self.val_extra_margin_positives_per_query[i] = np.array(list(range(max(0, i - self.val_extra_margin_positive_radius_index), min(len(self.db_abs_paths), i + self.val_extra_margin_positive_radius_index + 1))))
-        return None, soft_positives_per_query, 'handheld_Cart'

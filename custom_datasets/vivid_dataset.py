@@ -62,7 +62,7 @@ class Vivid(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False, val_positive_dist_threshold=25):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False, val_positive_dist_threshold=25, neg_ring_outer_radius = 40):
 
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/frame_lists"
         self.thr_res = (512, 640)
@@ -72,6 +72,8 @@ class Vivid(BaseDataset):
         self.crop_left = 145
         self.crop_right = 108
         self.val_positive_dist_threshold = val_positive_dist_threshold
+        self.neg_ring_outer_radius = neg_ring_outer_radius
+        self.location_type = 'gps'
 
         self.utmk_to_global_utm_transformer = Transformer.from_crs("epsg:5178", "epsg:32652", always_xy=True)
 
@@ -148,7 +150,7 @@ class Vivid(BaseDataset):
         return img
 
     
-    def form_gt_positives(self):
+    def form_db_qu_coords(self):
         self.db_coords = []
         self.q_coords = []
         # load files for the coordinates
@@ -186,18 +188,6 @@ class Vivid(BaseDataset):
                 coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
 
                 self.q_coords.extend(coord)
-            os.makedirs("GPS_coords/vivid", exist_ok=True)
-            # import pdb;pdb.set_trace()
-            np.save("GPS_coords/vivid/{}_none_db_coords.npy".format(seq.replace("/","_").replace("_","")),np.array(temp_coords))
-
-        
-        # do knn over the coordinates
-        knn = NearestNeighbors(n_jobs=-1)
-        knn.fit(self.db_coords)
-        dist,soft_positives_per_query = knn.radius_neighbors(self.q_coords,
-                                                            radius= self.dist_thresh,
-                                                            return_distance=True)
-        return dist , soft_positives_per_query, 'vivid'
     
     def check_seq_list(self,seq):
         """

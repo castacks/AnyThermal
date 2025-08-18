@@ -278,16 +278,16 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
             raise ValueError("Both backbone_path and model_path cannot be set at the same time. Please set only one of them.")
         if self.backbone_path!= "":
             print(f"Loading backbone from {self.backbone_path}")
-            backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
+            backbone_model_type = torch.load(backbone_path, map_location=self.device,weights_only=True)["student_model_type"]
 
             # state_dict = torch.load(self.backbone_path, map_location=self.device)["student_model_state_dict"]
             # backbone.load_state_dict(state_dict)
         elif self.model_path != "":
             print(f"Loading backbone and head model from {self.model_path}")
-            head_state_dict = torch.load(self.model_path, map_location=self.device)["seg_head"]
-            backbone_path = torch.load(self.model_path, map_location=self.device)["backbone_path"]
+            head_state_dict = torch.load(self.model_path, map_location=self.device,weights_only=True)["seg_head"]
+            backbone_path = torch.load(self.model_path, map_location=self.device,weights_only=True)["backbone_path"]
             if backbone_path != "":
-                backbone_model_type = torch.load(backbone_path, map_location=self.device)["student_model_type"]
+                backbone_model_type = torch.load(backbone_path, map_location=self.device,weights_only=True)["student_model_type"]
             # backbone.load_state_dict(backbone_state_dict)
             head.load_state_dict(head_state_dict)
 
@@ -316,3 +316,8 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
     
     def eval(self):
         self.model.eval()
+    
+    def parameters(self):
+        output = list(self.model.backbone.model.parameters())
+        output.extend(list(self.model.head.parameters()))
+        return output
