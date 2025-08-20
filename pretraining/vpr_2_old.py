@@ -48,209 +48,80 @@ def batched_dot_similarity(embeddings, a_idx, b_idx, chunk_size=100000):
         results.append(sim)
     return torch.cat(results, dim=0)
 
-# =======================
-# Mixed-hardness miner (no pandas, vectorized)
-# =======================
+def pick_mixed_negatives(s_ap, s_neg, num_per_ap=3, margin=0.1, hard_frac=0.5, temp=10.0):
+    # s_ap: scalar; s_neg: (M,) tensor of cosine sims
+    if s_neg.numel() == 0:
+        return torch.empty(0, dtype=torch.long, device=s_neg.device)
+    vals, idx = torch.sort(s_neg, descending=True)
+    lo, hi = s_ap - margin, s_ap
+    semi_mask = (s_neg >= lo) & (s_neg < hi)
+    semi_idx = torch.nonzero(semi_mask, as_tuple=False).squeeze(1)
 
-def _compute_sim_and_losses(embeddings, a_idx, p_idx, n_idx, margin):
-    """
-    Vectorized cosine similarities and triplet losses.
-    Assumes embeddings are L2-normalized.
-    loss = max(0, margin + s_an - s_ap)
-    """
-    sim_ap = batched_dot_similarity(embeddings, a_idx, p_idx, chunk_size=10000)  # (T,)
-    sim_an = batched_dot_similarity(embeddings, a_idx, n_idx, chunk_size=10000)  # (T,)
-    losses = (sim_an - sim_ap + margin).clamp_min(0.0)
-    return sim_ap, sim_an, losses
+    n_hard = max(1, int(round(num_per_ap*hard_frac)))
+    n_semi = max(0, num_per_ap - n_hard)
+    hard_idx = idx[:min(n_hard, idx.numel())]
 
-
-def _make_group_keys(a_idx, p_idx, N):
-    """
-    Build a unique integer key per (a,p) pair; N must exceed max(p).
-    Key is used to group rows without Python loops.
-    """
-    return (a_idx.long() * N + p_idx.long())  # (T,)
-
-
-def _head_per_key(sorted_keys, K):
-    """
-    Keep the first K rows per group key in a tensor already sorted by key.
-    Returns a boolean mask aligned with sorted_keys.
-    """
-    newgrp = torch.ones_like(sorted_keys, dtype=torch.bool)
-    newgrp[1:] = sorted_keys[1:] != sorted_keys[:-1]
-    grp_id = newgrp.cumsum(0) - 1
-    starts = torch.nonzero(newgrp, as_tuple=False).squeeze(1)
-    pos = torch.arange(sorted_keys.size(0), device=sorted_keys.device) - starts[grp_id]
-    return pos < K
-
-
-def _select_absolute_hard_indices(key, losses, n_hard):
-    """
-    Select n_hard hardest (largest loss) rows per (a,p) key.
-
-    Returns:
-        hard_initial: indices for the first n_hard per key (prioritized)
-        hard_tail:    remaining indices (same order), used for topping up later
-    """
-    # First sort by loss desc (stable), then by key asc (stable) → within key: loss desc
-    idx_loss = torch.argsort(losses, descending=True, stable=True)
-    key_loss = key[idx_loss]
-    order_key = torch.argsort(key_loss, stable=True)
-    hard_all_idx = idx_loss[order_key]
-    hard_all_keys = key[hard_all_idx]
-
-    if n_hard > 0:
-        keep_mask = _head_per_key(hard_all_keys, n_hard)
-        hard_initial = hard_all_idx[keep_mask]
-        hard_tail = hard_all_idx[~keep_mask]
+    if n_semi > 0 and semi_idx.numel() > 0:
+        probs = torch.softmax(s_neg[semi_idx]*temp, dim=0)
+        semi_take = min(n_semi, semi_idx.numel())
+        semi_idx = semi_idx[torch.multinomial(probs, semi_take, replacement=False)]
+        pick = torch.unique(torch.cat([hard_idx, semi_idx], 0))[:num_per_ap]
     else:
-        hard_initial = hard_all_idx[:0]
-        hard_tail = hard_all_idx
-    return hard_initial, hard_tail
+        pick = hard_idx[:num_per_ap]
+    return pick
 
-
-def _sample_semi_hard_indices(key, losses, sim_an, margin, n_semi, temp, device):
+def get_top_n_hardest_triplets_cosine(triplets, embeddings, margin, top_n, verbose=True):
     """
-    Sample n_semi semi-hard rows per (a,p) key using Gumbel-Top-K:
-      - semi-hard band: 0 <= loss < margin  (equiv. s_ap - margin <= s_an < s_ap)
-      - score = s_an + Gumbel(0,1)/temp, then take top n_semi per key.
-
-    Returns:
-        semi_picked: 1D tensor of selected row indices (may be empty)
-    """
-    if n_semi <= 0:
-        return sim_an[:0].to(torch.int64)  # empty tensor on same device/dtype
-
-    semi_mask = (losses >= 0.0) & (losses < margin)
-    if not semi_mask.any():
-        return sim_an[:0].to(torch.int64)
-
-    idx_semi_all = torch.nonzero(semi_mask, as_tuple=False).squeeze(1)  # indices into original triplet list
-
-    # Gumbel-Top-K sampling biasing toward larger s_an (harder within the band)
-    U = torch.rand(idx_semi_all.numel(), device=device).clamp_min(1e-6)
-    gumbel = -torch.log(-torch.log(U))
-    scores = sim_an[idx_semi_all] + gumbel / float(temp)
-
-    # Sort by score desc, then by key asc → per key, highest score first
-    idx_sorted_by_score = idx_semi_all[torch.argsort(scores, descending=True, stable=True)]
-    keys_sorted = key[idx_sorted_by_score]
-    order_by_key = torch.argsort(keys_sorted, stable=True)
-    idx_sorted = idx_sorted_by_score[order_by_key]
-    keys_sorted = keys_sorted[order_by_key]
-
-    keep_mask = _head_per_key(keys_sorted, n_semi)
-    return idx_sorted[keep_mask]
-
-
-def _merge_priority_and_cap(key, hard_initial, semi_picked, hard_tail, top_n):
-    """
-    Merge with priority order: [hard_initial] → [semi_picked] → [hard_tail],
-    de-duplicate by row index (keep first occurrence), then cap to top_n per key.
-    """
-    combined = torch.cat([hard_initial, semi_picked, hard_tail], dim=0)  # priority order
-    # Stable unique by original row index; do with numpy indices for simplicity/robustness
-    comb_np = combined.detach().cpu().numpy()
-    _, first_idx = np.unique(comb_np, return_index=True)
-    keep_order = torch.from_numpy(np.sort(first_idx)).to(combined.device)
-    combined = combined[keep_order]
-
-    # Stable sort by key asc so head_per_key keeps first top_n per key in our priority order
-    keys_combined = key[combined]
-    order_by_key_final = torch.argsort(keys_combined, stable=True)
-    combined_sorted = combined[order_by_key_final]
-    keys_sorted = keys_combined[order_by_key_final]
-
-    cap_mask = _head_per_key(keys_sorted, top_n)
-    return combined_sorted[cap_mask]
-
-
-def get_top_n_hardest_triplets_cosine(
-    triplets,
-    embeddings,
-    margin,
-    top_n,
-    verbose=True,
-    hard_frac=0.5,   # fraction of slots from absolute-hard (largest loss)
-    temp=10.0        # higher -> bias semi-hard sampling toward harder (larger s_an)
-):
-    """
-    vectorized, mixed-hardness miner.
-    Picks per (a,p):
-      - n_hard hardest by loss
-      - n_semi sampled from semi-hard band via Gumbel-Top-K
-      - tops up from hard tail if needed; caps to top_n
-
     Args:
-        triplets: tuple of (a_idx, p_idx, n_idx) each (T,)
-        embeddings: (N, D) L2-normalized
-        margin: float, cosine-triplet margin
-        top_n: int, number of triplets to keep per (a,p)
-        hard_frac: float in [0,1], share of absolute-hard within top_n
-        temp: float, temperature for semi-hard sampling (larger → prefer harder)
+        triplets: tuple of (anchor_indices, positive_indices, negative_indices), each a tensor of shape (T,)
+        embeddings: tensor of shape (N, D), assumed L2-normalized
+        margin: float, margin for cosine-based triplet loss
+        top_n: int, number of hardest triplets to keep per (anchor, positive) pair
+        verbose: bool, whether to print timing for each step
 
     Returns:
-        (a_out, p_out, n_out): tensors (M,)
+        Tuple of tensors: (anchor_indices, positive_indices, negative_indices) after mining
     """
     times = {}
     start = time.perf_counter()
 
     a_idx, p_idx, n_idx = triplets
-    device = embeddings.device
-    T = a_idx.numel()
-    if T == 0:
-        return (torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device))
+    T = a_idx.shape[0]
 
-    # 1) sims & losses
     t1 = time.perf_counter()
-    sim_ap, sim_an, losses = _compute_sim_and_losses(embeddings, a_idx, p_idx, n_idx, margin)
+    # import pdb; pdb.set_trace()  # Debugging line to inspect the triplets
+    sim_ap = batched_dot_similarity(embeddings, a_idx, p_idx, chunk_size=10000).cpu()
+    sim_an = batched_dot_similarity(embeddings, a_idx, n_idx, chunk_size=10000).cpu()
+    losses = (sim_an - sim_ap + margin).clamp(min=0.0)
     times['compute_loss'] = time.perf_counter() - t1
 
-    # 2) group keys
     t2 = time.perf_counter()
-    N = int(embeddings.size(0))  # upper bound for p indices
-    key = _make_group_keys(a_idx, p_idx, N)
-    times['build_key'] = time.perf_counter() - t2
-
-    # 3) absolute-hard per group
-    n_hard = max(1, int(round(top_n * hard_frac)))
-    n_semi = max(0, top_n - n_hard)
+    df = pd.DataFrame({
+        'a': a_idx.cpu().numpy(),
+        'p': p_idx.cpu().numpy(),
+        'n': n_idx.cpu().numpy(),
+        'loss': losses.cpu().numpy(),
+    })
+    times['create_dataframe'] = time.perf_counter() - t2
 
     t3 = time.perf_counter()
-    hard_initial, hard_tail = _select_absolute_hard_indices(key, losses, n_hard)
-    times['hard_lists'] = time.perf_counter() - t3
+    df_sorted = df.sort_values(['a', 'p', 'loss'], ascending=[True, True, False])
+    times['sort_by_loss'] = time.perf_counter() - t3
 
-    # 4) semi-hard sampling per group
     t4 = time.perf_counter()
-    semi_picked = _sample_semi_hard_indices(key, losses, sim_an, margin, n_semi, temp, device)
-    times['semi_sampling'] = time.perf_counter() - t4
+    df_topn = df_sorted.groupby(['a', 'p'], sort=False).head(top_n)
+    times['groupby_head'] = time.perf_counter() - t4
 
-    # 5) merge priority and cap
     t5 = time.perf_counter()
-    final_idx = _merge_priority_and_cap(key, hard_initial, semi_picked, hard_tail, top_n)
-    times['merge_cap'] = time.perf_counter() - t5
+    device = embeddings.device
+    a_out = torch.tensor(df_topn['a'].values, dtype=torch.long, device=device)
+    p_out = torch.tensor(df_topn['p'].values, dtype=torch.long, device=device)
+    n_out = torch.tensor(df_topn['n'].values, dtype=torch.long, device=device)
+    times['convert_to_tensor'] = time.perf_counter() - t5
 
-    # 6) back to tensors
-    t6 = time.perf_counter()
-    if final_idx.numel() == 0:
-        if verbose:
-            times['total'] = time.perf_counter() - start
-            print("Time Profiling (seconds):")
-            for k, v in times.items():
-                print(f"  {k:<20}: {v:.6f}")
-        return (torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device))
+    total = time.perf_counter() - start
+    times['total'] = total
 
-    a_out = a_idx[final_idx].to(device=device, dtype=torch.long)
-    p_out = p_idx[final_idx].to(device=device, dtype=torch.long)
-    n_out = n_idx[final_idx].to(device=device, dtype=torch.long)
-    times['convert_to_tensor'] = time.perf_counter() - t6
-
-    times['total'] = time.perf_counter() - start
     if verbose:
         print("Time Profiling (seconds):")
         for k, v in times.items():
@@ -520,7 +391,7 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
 
                         if triplets and "hard_triplet" in args.loss_type:
                             triplets = get_top_n_hardest_triplets_cosine(
-                                triplets, feats, current_margin, args.num_negatives_per_positive,verbose=False,hard_frac = args.hard_frac)
+                                triplets, feats, current_margin, args.num_negatives_per_positive,verbose=False)
                     if triplets:
                         num_triplets = len(triplets[0])
                         a, p, n = triplets
@@ -593,9 +464,8 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
 
         print("Cuda memory , after batch: ", torch.cuda.memory_allocated(device) / 1e6, "MB")
 
-
-    remaining_indices = [i for i, gt in enumerate(all_ground_truth) if len(gt) == 0]
     
+    remaining_indices = [i for i, gt in enumerate(all_ground_truth) if len(gt) == 0]
     if remaining_indices:
         with torch.no_grad():
             remaining_dataset = Subset(dataloader.dataset, remaining_indices)
@@ -616,13 +486,11 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
                         print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
                         import pdb; pdb.set_trace()
                     all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
-    else:
-        print(f"All ground truth indices are already populated for {mode} epoch {epoch}. No remaining indices to process.")
     
-    # for i, gt in enumerate(all_ground_truth):
-    #     if not gt:
-    #         print(f"Warning: No ground truth for index {i} in {mode} epoch {epoch}. This might affect recall metrics.")
-    #         import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
+    for i, gt in enumerate(all_ground_truth):
+        if len(gt) == 0:
+            print(f"Warning: No ground truth for index {i} in {mode} epoch {epoch}. This might affect recall metrics.")
+            import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
 
     all_rgb_feats = F.normalize(all_rgb_feats, dim=1)
     all_thr_feats = F.normalize(all_thr_feats, dim=1)
@@ -880,9 +748,6 @@ def main(args):
         wandb_name += "_crop_images"
     if args.val_positive_dist_threshold > 0:
         wandb_name += f"_val_positive_dist_{args.val_positive_dist_threshold}"
-    if args.hard_frac < 1.0:
-        wandb_name += f"_hard_frac_{args.hard_frac}"
-
     wandb.init(project="mm_vpr", name=wandb_name)
     args.save_dir = os.path.join(args.save_dir, time.strftime("%Y-%m-%d_%H-%M-%S")+wandb_name)
     os.makedirs(args.save_dir, exist_ok=True)
@@ -1039,9 +904,6 @@ if __name__ == '__main__':
                         help='Epochs to linearly ramp margin from start to end.')
     parser.add_argument('--curriculum_mode', type=str, choices=['none','epoch','metric'], default='none',
                         help='How to adapt margin. "epoch" = linear ramp by epoch; "metric" = simple recall@1 policy.')
-    
-    parser.add_argument('--hard_frac', type=float, default=0.5,
-                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
 
     args = parser.parse_args()
 

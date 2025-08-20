@@ -1,39 +1,5 @@
-import argparse
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-import os
-import wandb
-import time
-import sys
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
-
-from custom_models.dinov2_vpr_model import MMDistillVPRModel
-from torch.optim import Adam
-from contextlib import nullcontext
-from torchvision import transforms as T
-import numpy as np
-from tqdm import tqdm
-from pytorch_metric_learning.losses import MultiSimilarityLoss
-from pytorch_metric_learning.miners import MultiSimilarityMiner
-from pytorch_metric_learning.miners import DistanceWeightedMiner
-import matplotlib.pyplot as plt
-import random
-import networkx as nx
-import gc
-from custom_datasets.multi_dataset_loader import *
+from vpr_2 import *
 from custom_datasets.vpr_dataloader import *
-from itertools import chain
-import torch.optim as optim
-import matplotlib.pyplot as plt
-from torch.nn import TripletMarginLoss
-import faiss
-import faiss.contrib.torch_utils
-from utilities import *
-import yaml
-import pandas as pd
 
 # (optional) worker seeding for dataset/augmentations (worker-aware)
 from torch.utils.data import get_worker_info
@@ -53,372 +19,32 @@ def worker_init_fn(worker_id):
     np.random.seed(base_seed + rank * 1000 + worker_id)
     torch.manual_seed(base_seed + rank * 1000 + worker_id)
 
-def batched_dot_similarity(embeddings, a_idx, b_idx, chunk_size=100000):
+def faiss_search_in_qchunks(index, xq, k, qbs=64):
     """
-    Compute dot products (cosine similarity) between normalized embeddings[a_idx] and embeddings[b_idx] in chunks.
-    Returns: Tensor of shape (len(a_idx),)
-    """
-    results = []
-    for start in range(0, len(a_idx), chunk_size):
-        end = start + chunk_size
-        a_emb = embeddings[a_idx[start:end]]  # (chunk, D)
-        b_emb = embeddings[b_idx[start:end]]  # (chunk, D)
-        sim = torch.sum(a_emb * b_emb, dim=1)  # (chunk,)
-        results.append(sim)
-    return torch.cat(results, dim=0)
-
-# =======================
-# Mixed-hardness miner (no pandas, vectorized)
-# =======================
-
-def _compute_sim_and_losses(embeddings, a_idx, p_idx, n_idx, margin):
-    """
-    Vectorized cosine similarities and triplet losses.
-    Assumes embeddings are L2-normalized.
-    loss = max(0, margin + s_an - s_ap)
-    """
-    sim_ap = batched_dot_similarity(embeddings, a_idx, p_idx, chunk_size=10000)  # (T,)
-    sim_an = batched_dot_similarity(embeddings, a_idx, n_idx, chunk_size=10000)  # (T,)
-    losses = (sim_an - sim_ap + margin).clamp_min(0.0)
-    return sim_ap, sim_an, losses
-
-
-def _make_group_keys(a_idx, p_idx, N):
-    """
-    Build a unique integer key per (a,p) pair; N must exceed max(p).
-    Key is used to group rows without Python loops.
-    """
-    return (a_idx.long() * N + p_idx.long())  # (T,)
-
-
-def _head_per_key(sorted_keys, K):
-    """
-    Keep the first K rows per group key in a tensor already sorted by key.
-    Returns a boolean mask aligned with sorted_keys.
-    """
-    newgrp = torch.ones_like(sorted_keys, dtype=torch.bool)
-    newgrp[1:] = sorted_keys[1:] != sorted_keys[:-1]
-    grp_id = newgrp.cumsum(0) - 1
-    starts = torch.nonzero(newgrp, as_tuple=False).squeeze(1)
-    pos = torch.arange(sorted_keys.size(0), device=sorted_keys.device) - starts[grp_id]
-    return pos < K
-
-
-def _select_absolute_hard_indices(key, losses, n_hard):
-    """
-    Select n_hard hardest (largest loss) rows per (a,p) key.
-
-    Returns:
-        hard_initial: indices for the first n_hard per key (prioritized)
-        hard_tail:    remaining indices (same order), used for topping up later
-    """
-    # First sort by loss desc (stable), then by key asc (stable) → within key: loss desc
-    idx_loss = torch.argsort(losses, descending=True, stable=True)
-    key_loss = key[idx_loss]
-    order_key = torch.argsort(key_loss, stable=True)
-    hard_all_idx = idx_loss[order_key]
-    hard_all_keys = key[hard_all_idx]
-
-    if n_hard > 0:
-        keep_mask = _head_per_key(hard_all_keys, n_hard)
-        hard_initial = hard_all_idx[keep_mask]
-        hard_tail = hard_all_idx[~keep_mask]
-    else:
-        hard_initial = hard_all_idx[:0]
-        hard_tail = hard_all_idx
-    return hard_initial, hard_tail
-
-
-def _sample_semi_hard_indices(key, losses, sim_an, margin, n_semi, temp, device):
-    """
-    Sample n_semi semi-hard rows per (a,p) key using Gumbel-Top-K:
-      - semi-hard band: 0 <= loss < margin  (equiv. s_ap - margin <= s_an < s_ap)
-      - score = s_an + Gumbel(0,1)/temp, then take top n_semi per key.
-
-    Returns:
-        semi_picked: 1D tensor of selected row indices (may be empty)
-    """
-    if n_semi <= 0:
-        return sim_an[:0]  # empty tensor on same device/dtype
-
-    semi_mask = (losses >= 0.0) & (losses < margin)
-    if not semi_mask.any():
-        return sim_an[:0]
-
-    idx_semi_all = torch.nonzero(semi_mask, as_tuple=False).squeeze(1)  # indices into original triplet list
-
-    # Gumbel-Top-K sampling biasing toward larger s_an (harder within the band)
-    U = torch.rand(idx_semi_all.numel(), device=device).clamp_min(1e-6)
-    gumbel = -torch.log(-torch.log(U))
-    scores = sim_an[idx_semi_all] + gumbel / float(temp)
-
-    # Sort by score desc, then by key asc → per key, highest score first
-    idx_sorted_by_score = idx_semi_all[torch.argsort(scores, descending=True, stable=True)]
-    keys_sorted = key[idx_sorted_by_score]
-    order_by_key = torch.argsort(keys_sorted, stable=True)
-    idx_sorted = idx_sorted_by_score[order_by_key]
-    keys_sorted = keys_sorted[order_by_key]
-
-    keep_mask = _head_per_key(keys_sorted, n_semi)
-    return idx_sorted[keep_mask]
-
-
-def _merge_priority_and_cap(key, hard_initial, semi_picked, hard_tail, top_n):
-    """
-    Merge with priority order: [hard_initial] → [semi_picked] → [hard_tail],
-    de-duplicate by row index (keep first occurrence), then cap to top_n per key.
-    """
-    combined = torch.cat([hard_initial, semi_picked, hard_tail], dim=0)  # priority order
-
-    # Stable unique by original row index; do with numpy indices for simplicity/robustness
-    comb_np = combined.detach().cpu().numpy()
-    _, first_idx = np.unique(comb_np, return_index=True)
-    keep_order = torch.from_numpy(np.sort(first_idx)).to(combined.device)
-    combined = combined[keep_order]
-
-    # Stable sort by key asc so head_per_key keeps first top_n per key in our priority order
-    keys_combined = key[combined]
-    order_by_key_final = torch.argsort(keys_combined, stable=True)
-    combined_sorted = combined[order_by_key_final]
-    keys_sorted = keys_combined[order_by_key_final]
-
-    cap_mask = _head_per_key(keys_sorted, top_n)
-    return combined_sorted[cap_mask]
-
-
-def get_top_n_hardest_triplets_cosine(
-    triplets,
-    embeddings,
-    margin,
-    top_n,
-    verbose=True,
-    hard_frac=0.5,   # fraction of slots from absolute-hard (largest loss)
-    temp=10.0        # higher -> bias semi-hard sampling toward harder (larger s_an)
-):
-    """
-    vectorized, mixed-hardness miner.
-    Picks per (a,p):
-      - n_hard hardest by loss
-      - n_semi sampled from semi-hard band via Gumbel-Top-K
-      - tops up from hard tail if needed; caps to top_n
+    Perform FAISS search in smaller query batches to avoid GPU OOM/cuBLAS errors.
 
     Args:
-        triplets: tuple of (a_idx, p_idx, n_idx) each (T,)
-        embeddings: (N, D) L2-normalized
-        margin: float, cosine-triplet margin
-        top_n: int, number of triplets to keep per (a,p)
-        hard_frac: float in [0,1], share of absolute-hard within top_n
-        temp: float, temperature for semi-hard sampling (larger → prefer harder)
+        index: FAISS index (CPU or GPU).
+        xq (ndarray): Query vectors (nq, d).
+        k (int): Number of nearest neighbors.
+        qbs (int): Query batch size.
 
     Returns:
-        (a_out, p_out, n_out): tensors (M,)
+        D (ndarray): Distances (nq, k).
+        I (ndarray): Indices (nq, k).
     """
-    times = {}
-    start = time.perf_counter()
+    nq = xq.shape[0]
+    Dall = np.empty((nq, k), dtype='float32')
+    Iall = np.empty((nq, k), dtype='int64')
 
-    a_idx, p_idx, n_idx = triplets
-    device = embeddings.device
-    T = a_idx.numel()
-    if T == 0:
-        return (torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device))
-
-    # 1) sims & losses
-    t1 = time.perf_counter()
-    sim_ap, sim_an, losses = _compute_sim_and_losses(embeddings, a_idx, p_idx, n_idx, margin)
-    times['compute_loss'] = time.perf_counter() - t1
-
-    # 2) group keys
-    t2 = time.perf_counter()
-    N = int(embeddings.size(0))  # upper bound for p indices
-    key = _make_group_keys(a_idx, p_idx, N)
-    times['build_key'] = time.perf_counter() - t2
-
-    # 3) absolute-hard per group
-    n_hard = max(1, int(round(top_n * hard_frac)))
-    n_semi = max(0, top_n - n_hard)
-
-    t3 = time.perf_counter()
-    hard_initial, hard_tail = _select_absolute_hard_indices(key, losses, n_hard)
-    times['hard_lists'] = time.perf_counter() - t3
-
-    # 4) semi-hard sampling per group
-    t4 = time.perf_counter()
-    semi_picked = _sample_semi_hard_indices(key, losses, sim_an, margin, n_semi, temp, device)
-    times['semi_sampling'] = time.perf_counter() - t4
-
-    # 5) merge priority and cap
-    t5 = time.perf_counter()
-    final_idx = _merge_priority_and_cap(key, hard_initial, semi_picked, hard_tail, top_n)
-    times['merge_cap'] = time.perf_counter() - t5
-
-    # 6) back to tensors
-    t6 = time.perf_counter()
-    if final_idx.numel() == 0:
-        if verbose:
-            times['total'] = time.perf_counter() - start
-            print("Time Profiling (seconds):")
-            for k, v in times.items():
-                print(f"  {k:<20}: {v:.6f}")
-        return (torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device),
-                torch.empty(0, dtype=torch.long, device=device))
-
-    a_out = a_idx[final_idx].to(device=device, dtype=torch.long)
-    p_out = p_idx[final_idx].to(device=device, dtype=torch.long)
-    n_out = n_idx[final_idx].to(device=device, dtype=torch.long)
-    times['convert_to_tensor'] = time.perf_counter() - t6
-
-    times['total'] = time.perf_counter() - start
-    if verbose:
-        print("Time Profiling (seconds):")
-        for k, v in times.items():
-            print(f"  {k:<20}: {v:.6f}")
-
-    return a_out, p_out, n_out
-
-class RadiusContrastiveLoss(nn.Module):
-    def __init__(self, margin: float = 1.0, p: float = 2, reduction: str = 'mean'):
-        """
-        GPS-aware contrastive loss:
-        - Pulls positives (label=1) close
-        - Pushes negatives (label=0) farther than margin
-
-        Args:
-            margin (float): Minimum distance required between query and negative.
-            p (float): Power for distance calculation (e.g., 2 for Euclidean).
-            reduction (str): 'none' | 'mean' | 'sum'
-        """
-        super().__init__()
-        self.margin = margin
-        self.p = p
-        assert self.p in [1, 2], "Only p = 1 or p = 2 are supported."
-        self.reduction = reduction
-
-    def forward(self, query: torch.Tensor, other: torch.Tensor, label: torch.Tensor):
-        """
-        Args:
-            query: [N, D] query embeddings
-            other: [N, D] paired embeddings (positive or negative)
-            label: [N] binary labels (1 = positive, 0 = negative)
-        Returns:
-            loss: [N] if reduction='none', scalar otherwise
-        """
-        dists = F.pairwise_distance(query, other, p=2)  # shape: [N]
-
-        pos_loss = label * dists.pow(self.p)
-        neg_loss = (1 - label) * F.relu(self.margin - dists).pow(self.p)
-        loss = pos_loss + neg_loss
-
-        if self.reduction == 'mean':
-            return loss.mean()
-        else:
-            return loss  # shape: [N]
-
-def build_pos_neg_masks(indices, positive_index_per_query, extra_margin_positive_index_per_query, device):
-    """
-    Builds positive and negative masks for the given indices based on the provided positive and negative index lists.
-
-    Args:
-        indices (torch.Tensor): [B] tensor of dataset indices for current batch.
-        positive_index_per_query (list of lists): Positive dataset indices for each dataset index.
-        extra_margin_positive_index_per_query (list of lists): Expanded positives (excluded from negatives).
-        device (torch.device): Target device (e.g., CUDA).
-
-    Returns:
-        positive_mask, negative_mask: Tensors of shape [B, B] indicating positive and negative pairs.
-    """
-    B = indices.size(0)
-    indices = indices.to(device)
-
-    # --- Build positive mask ---
-    positive_mask = torch.zeros((B, B), dtype=torch.bool, device=device)
-    for anchor_batch_idx in range(B):
-        anchor_dataset_idx = indices[anchor_batch_idx].item()
-        pos_dataset_indices = positive_index_per_query[anchor_dataset_idx]
-        if len(pos_dataset_indices) > 0:
-            positive_mask[anchor_batch_idx] = torch.isin(indices, torch.tensor(pos_dataset_indices, device=device))
-    positive_mask.fill_diagonal_(False)  # Remove self-positives
-
-    # --- Build negative mask ---
-    negative_mask = torch.ones((B, B), dtype=torch.bool, device=device)
-    for anchor_batch_idx in range(B):
-        anchor_dataset_idx = indices[anchor_batch_idx].item()
-        excl_dataset_indices = extra_margin_positive_index_per_query[anchor_dataset_idx]
-        if len(excl_dataset_indices) > 0:
-            negative_mask[anchor_batch_idx] &= ~torch.isin(indices, torch.tensor(excl_dataset_indices, device=device))
-    negative_mask.fill_diagonal_(False)  # Remove self-negatives
-
-    return positive_mask, negative_mask
-
-def get_all_triplets(indices, positive_index_per_query, extra_margin_positive_index_per_query, device):
-    """
-    Fully GPU-tensorized, batch-local triplet miner:
-    - Mines all (anchor, positive, negative) triplets within the batch.
-    - No Python loops.
-    - Only considers positives/negatives present in the current batch.
-
-    Args:
-        indices (torch.Tensor): [B] tensor of dataset indices for current batch.
-        positive_index_per_query (list of lists): Positive dataset indices for each dataset index.
-        extra_margin_positive_index_per_query (list of lists): Expanded positives (excluded from negatives).
-        device (torch.device): Target device (e.g., CUDA).
-
-    Returns:
-        a_idx, p_idx, n_idx: Tensors of anchor, positive, negative batch indices.
-    """
-    positive_mask, negative_mask = build_pos_neg_masks(
-        indices, positive_index_per_query, extra_margin_positive_index_per_query, device
-    )
-
-    # --- Get all (anchor, positive) pairs ---
-    a_p_pairs = torch.nonzero(positive_mask, as_tuple=False)  # Shape [N_pos, 2]
-    if a_p_pairs.size(0) == 0:
-        # No valid positives found in this batch
-        return None
-    anchors = a_p_pairs[:, 0]     # Anchor batch indices
-    positives = a_p_pairs[:, 1]   # Positive batch indices
-
-    # --- For each (a, p), get all negatives ---
-    neg_candidates_mask = negative_mask[anchors]  # Shape [N_pos, B]
-    neg_idx_pairs = torch.nonzero(neg_candidates_mask, as_tuple=False)  # Shape [N_neg, 2]
-
-    if neg_idx_pairs.size(0) == 0:
-        # No valid negatives found in this batch
-        return None
-
-    # Repeat anchors and positives for each negative
-    a_repeat = anchors[neg_idx_pairs[:, 0]]  # Anchor batch indices
-    p_repeat = positives[neg_idx_pairs[:, 0]]  # Positive batch indices
-    n_repeat = neg_idx_pairs[:, 1]  # Negative batch indices
-
-    return a_repeat, p_repeat, n_repeat
-
-def generate_pairs_with_labels(indices, positive_index_per_query, extra_margin_positive_index_per_query, device):
-
-    positive_mask, negative_mask = build_pos_neg_masks(
-        indices, positive_index_per_query, extra_margin_positive_index_per_query, device
-    )
-
-    # --- Get all (anchor, positive) pairs ---
-    a_p_pairs = torch.nonzero(positive_mask, as_tuple=False)  # Shape [N_pos, 2]
-    if a_p_pairs.size(0) == 0:
-        return None, None
-
-    a_n_pairs = torch.nonzero(negative_mask, as_tuple=False)  # Shape [N_neg, 2]
-    if a_n_pairs.size(0) == 0:
-        return None, None
-    
-    labels = [torch.ones((len(a_p_pairs),), dtype=torch.long, device=device)] + \
-            [torch.zeros((len(a_n_pairs),), dtype=torch.long, device=device)]
-    
-    labels = torch.cat(labels, dim=0)
-
-    pairs = torch.cat([a_p_pairs, a_n_pairs], dim=0)  # Shape [N_pos + N_neg, 2]
-
-    return pairs,labels
-
+    r0 = 0
+    while r0 < nq:
+        r1 = min(r0 + qbs, nq)
+        D, I = index.search(xq[r0:r1], k)
+        Dall[r0:r1] = D
+        Iall[r0:r1] = I
+        r0 = r1
+    return Dall, Iall
 
 
 def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], exclude_self=True):
@@ -432,7 +58,7 @@ def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], excl
     print("FAISS index initialized")
     index.add(db_feats)
     print("DB features added to FAISS index")
-    _, indices = index.search(query_feats, max(ks)+1)
+    _,indices   = faiss_search_in_qchunks(index, query_feats, max(ks)+1, qbs=64)
     print("Search completed, computing recall")
 
     total_valid = 0
@@ -454,39 +80,16 @@ def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], excl
     # import pdb; pdb.set_trace()  # Debugging line to inspect the recall values
     return {f"recall@{k}": recall[k] / total_valid if total_valid > 0 else 0.0 for k in ks}
 
-# -------------------------
-# Curriculum margin helper
-# -------------------------
-def compute_curriculum_margin(epoch: int, mode: str,
-                              margin_start: float, margin_end: float,
-                              ramp_epochs: int,
-                              last_val_metrics: dict = None) -> float:
-    """
-    Returns the margin to use this epoch.
-    mode='epoch': linear ramp for first `ramp_epochs` then clamp.
-    mode='metric': simple example policy based on recall@1 (customize as needed).
-    """
-    if mode == 'epoch':
-        if ramp_epochs <= 0:
-            return margin_end
-        t = min(max(epoch, 0), ramp_epochs)
-        alpha = t / float(ramp_epochs)
-        return margin_start + alpha * (margin_end - margin_start)
-    elif mode == 'metric':
-        r1 = (last_val_metrics or {}).get('recall@1', None)
-        if r1 is None:
-            return margin_start
-        return margin_end if r1 >= 0.6 else 0.5 * (margin_start + margin_end)
-    else:
-        return margin_end
 
 def recall_dataloader(args,model_dict, dataloader, device, epoch, train=False):
     db_modality = args.teacher_modality
     q_modality = args.student_modality
     mode = "train" if train else "val"
-    positive_index_per_query = np.array(dataloader.dataset.hard_positives_per_query, dtype=object)
+    positive_index_per_query = np.array(dataloader.dataset.get_hard_positives_per_query(), dtype=object)
     all_rgb_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
     all_thr_feats = torch.zeros((len(dataloader.dataset), args.features_dim))
+    all_ground_truth = [[] for _ in range(len(dataloader.dataset))]
+
     with torch.no_grad():
         for batch_item in tqdm(dataloader, desc=f"{mode.capitalize()} Recall Epoch {epoch}"):
             batch, _ = batch_item["item"]
@@ -499,7 +102,42 @@ def recall_dataloader(args,model_dict, dataloader, device, epoch, train=False):
             import gc; gc.collect()  # Clear memory after processing each batch
             torch.cuda.empty_cache()  # Clear CUDA memory after processing each batch
             torch.cuda.ipc_collect()
+            for batch_idx in indices:
+                if all_ground_truth[batch_idx] != []:
+                    print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
+                    import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
+
+                all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
     
+    remaining_indices = [i for i, gt in enumerate(all_ground_truth) if len(gt) == 0]
+    if remaining_indices:
+        with torch.no_grad():
+            remaining_dataset = Subset(dataloader.dataset, remaining_indices)
+            remaining_dataset.idx_to_dataset = dataloader.dataset.idx_to_dataset[remaining_indices]
+            sampler = IntraDatasetBatchSampler(remaining_dataset.idx_to_dataset,batch_size=args.eval_batch_size)
+            remaining_dataloader = DataLoader(remaining_dataset, num_workers=args.eval_num_workers,batch_sampler = sampler)
+            for batch_item in tqdm(remaining_dataloader, desc=f"{mode.capitalize()} Remaining Epoch {epoch}"):
+                batch, _ = batch_item["item"]
+                indices = batch_item["batch_id"].tolist()
+                rgb = batch[db_modality].to(device)
+                thermal = batch[q_modality].to(device)
+                feats_rgb = model_dict["rgb"].extract_feature(rgb, test=False)
+                feats_thr = model_dict["thr"].extract_feature(thermal, test=False)
+                all_rgb_feats[indices] = feats_rgb.cpu()
+                all_thr_feats[indices] = feats_thr.cpu()
+                for batch_idx in indices:
+                    if all_ground_truth[batch_idx] != []:
+                        print(f"Overwriting ground truth for index {batch_idx} in {mode} epoch {epoch}")
+                        import pdb; pdb.set_trace()
+                    all_ground_truth[batch_idx] = positive_index_per_query[batch_idx]
+    else:
+        print(f"All ground truth indices are already populated for {mode} epoch {epoch}. No remaining indices to process.")
+    for i, gt in enumerate(all_ground_truth):
+        if len(gt) == 0:
+            print(f"Warning: No ground truth for index {i} in {mode} epoch {epoch}. This might affect recall metrics.")
+            import pdb; pdb.set_trace()  # Debugging line to inspect the ground truth
+
+
     recall_metrics = compute_recall_at_k(all_thr_feats, all_rgb_feats, positive_index_per_query, exclude_self=True)
 
     # Optional retrieval visualization
@@ -544,8 +182,8 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
 
     db_modality = args.teacher_modality
     q_modality = args.student_modality
-    positive_index_per_query = np.array(dataloader.dataset.w.hard_positives_per_query, dtype=object)
-    extra_margin_positive_index_per_query = np.array(dataloader.dataset.w.extra_margin_soft_positives, dtype=object)
+    positive_index_per_query = np.array(dataloader.dataset.get_hard_positives_per_query(), dtype=object)
+    extra_margin_positive_index_per_query = np.array(dataloader.dataset.get_extra_margin_soft_positives(), dtype=object)
 
 
     modality_to_view_map = {"rgb":RGB, "thr":THR}
@@ -1051,8 +689,6 @@ def main(args):
             )
         else:
             current_margin = args.margin
-        wandb.log({"sched/current_margin": current_margin, "epoch": epoch})
-
         if epoch % args.save_interval == 0:
 
             save_dict = {"thermal_state_dict": thr_model.state_dict()}
@@ -1061,11 +697,12 @@ def main(args):
 
             torch.save(save_dict, os.path.join(args.save_dir, f"model_{epoch}.pth"))
 
+
         train_loss_vpr, train_loss_align = run(
-            args,model_dict, train_dataloader, optimizer, device, epoch, train=True, current_margin=current_margin
+            args,model_dict, train_dataloader if args.use_vpr_dataloader else recall_train_dataloader, optimizer, device, epoch, train=True, current_margin=current_margin
         )
         train_recall_metrics = recall_dataloader(args,model_dict, recall_train_dataloader, device, epoch,train=True)
-        log_dict = {"epoch": epoch, "train/avg_loss_vpr": train_loss_vpr, "train/avg_loss_align": train_loss_align}
+        log_dict = {"epoch": epoch, "train/avg_loss_vpr": train_loss_vpr, "train/avg_loss_align": train_loss_align,"sched/current_margin": current_margin}
         for k, v in train_recall_metrics.items():
             log_dict.update({f"train/{k}": v})
         wandb.log(log_dict)
@@ -1074,7 +711,7 @@ def main(args):
             log_dict = {"epoch": epoch}
             if args.log_val_triplet_loss:
                 val_loss_vpr, val_loss_align = run(
-                    args,model_dict, val_dataloader, optimizer, device, epoch, train=False, current_margin=current_margin
+                    args,model_dict, val_dataloader if args.use_vpr_dataloader else recall_val_dataloader, optimizer, device, epoch, train=False, current_margin=current_margin
                 )
                 log_dict.update({"val/avg_loss_vpr": val_loss_vpr, "val/avg_loss_align": val_loss_align})
 
@@ -1084,7 +721,7 @@ def main(args):
             wandb.log(log_dict)
             last_val_metrics = val_recall_metrics  # for metric-based curriculum if enabled
 
-        print(f"Epoch {epoch} - Train Loss: {train_loss_vpr+train_loss_align:.4f} | Val Loss: {val_loss_vpr+val_loss_align:.4f}")    
+        print(f"Epoch {epoch} - Train Loss: {train_loss_vpr+train_loss_align:.4f}")    
         
         gc.collect()
         torch.cuda.empty_cache()
@@ -1147,7 +784,7 @@ if __name__ == '__main__':
             "clahe", "blur", "affine", "cutout", "flip"
         ],help="List of augmentations to apply to RGB and thermal images. Choose one or more.")
     parser.add_argument('--val_positive_dist_threshold', type=float, default=-1., help='Distance threshold for positive pairs during validation. If -1, use the default threshold.')
-    parser.add_argument('--num_negatives_per_positive', type=int, default=4, help='Number of negatives per positive for triplet loss')
+    parser.add_argument('--num_negatives_per_positive', type=int, default=10, help='Number of negatives per positive for triplet loss')
 
     # ------ NEW: curriculum controls ------
     parser.add_argument('--margin_start', type=float, default=0.05,
@@ -1170,12 +807,10 @@ if __name__ == '__main__':
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
     parser.add_argument('--neg_pos_per_anchor', type=int, default=6,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
-    parser.add_argument('--steps_per_epoch', type=int, default=1000,
+    parser.add_argument('--steps_per_epoch', type=int, default=200,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
     parser.add_argument('--log_val_triplet_loss', action='store_true', help='Disable shuffling of dataset')
-    
-
-
+    parser.add_argument('--use_vpr_dataloader', type = bool, default = True, help='Use VPR dataloader for training and validation')
 
 
     args = parser.parse_args()

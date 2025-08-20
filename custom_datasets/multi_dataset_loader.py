@@ -243,16 +243,16 @@ class MultiDatasetWrapper(Dataset):
         self.idx_to_dataset = np.array([d_idx for d_idx, _ in self.mapping])
         
         if self.use_odom:
-                self.db_coords = []
-                self.q_coords = []
-                for d_idx, d in enumerate(datasets):
-                    self.db_coords.extend(d.db_coords)
-                    self.q_coords.extend(d.q_coords)
+            self.db_coords = []
+            self.q_coords = []
+            for d_idx, d in enumerate(datasets):
+                self.db_coords.extend(d.db_coords)
+                self.q_coords.extend(d.q_coords)
 
-                for i in range(len(self.db_coords)):
-                    if self.db_coords[i] is not None:
-                        self.db_coords[i] = self.db_coords[i][:2]
-                        self.q_coords[i] = self.q_coords[i][:2]
+            for i in range(len(self.db_coords)):
+                if self.db_coords[i] is not None:
+                    self.db_coords[i] = self.db_coords[i][:2]
+                    self.q_coords[i] = self.q_coords[i][:2]
 
             
             self.hard_positives_per_query = self.knn_neighbours("hard_positives_per_query", n_jobs=-1)
@@ -288,6 +288,13 @@ class MultiDatasetWrapper(Dataset):
             assert self.database_num == len(self.db_coords), "Database dataset length does not match coordinates length"
             assert self.queries_num == len(self.q_coords), "Query dataset length does not match coordinates length"
     
+    
+    def get_hard_positives_per_query(self):
+        return self.hard_positives_per_query
+    def get_extra_margin_soft_positives(self):
+        return self.extra_margin_soft_positives
+    def get_ring_negatives(self):
+        return self.ring_negatives
     def knn_neighbours(self, og_radius, n_jobs=-1):
         final_output_list = []
         running_total_datase_len = 0
@@ -298,7 +305,7 @@ class MultiDatasetWrapper(Dataset):
 
             if og_radius == 'hard_positives_per_query':
                 if d_location_type == 'gps':
-                radius = d.dist_thresh
+                    radius = d.dist_thresh
                 elif d_location_type == 'time':
                     radius = d.positive_radius_index
             elif og_radius == 'soft_positives_per_query':

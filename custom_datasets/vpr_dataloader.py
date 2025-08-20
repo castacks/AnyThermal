@@ -264,3 +264,9 @@ class ViewIndexingDataset(torch.utils.data.Dataset):
             "thr": thr,
             # Add other fields from 'sample' if your pipeline needs them
         }
+    def get_hard_positives_per_query(self):
+        return self.w.hard_positives_per_query
+    def get_extra_margin_soft_positives(self):
+        return self.w.extra_margin_soft_positives
+    def get_ring_negatives(self):
+        return self.w.ring_negatives
