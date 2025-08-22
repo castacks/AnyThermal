@@ -626,7 +626,8 @@ def main(args):
     if args.hard_frac < 1.0:
         wandb_name += f"_hard_frac_{args.hard_frac}"
 
-    wandb.init(project="mm_vpr", name=wandb_name)
+    wandb.init(project="mm_vpr", name=wandb_name,
+               config=vars(args))
     args.save_dir = os.path.join(args.save_dir, time.strftime("%Y-%m-%d_%H-%M-%S")+wandb_name)
     os.makedirs(args.save_dir, exist_ok=True)
 
@@ -784,7 +785,8 @@ if __name__ == '__main__':
             "clahe", "blur", "affine", "cutout", "flip"
         ],help="List of augmentations to apply to RGB and thermal images. Choose one or more.")
     parser.add_argument('--val_positive_dist_threshold', type=float, default=-1., help='Distance threshold for positive pairs during validation. If -1, use the default threshold.')
-    parser.add_argument('--num_negatives_per_positive', type=int, default=10, help='Number of negatives per positive for triplet loss')
+    parser.add_argument('--num_negatives_per_positive', type=int, default=2, help='Number of negatives per positive for triplet loss')
+    parser.add_argument('--neg_ring_outer_radius', type=float, default=-1., help='Distance threshold for positive pairs during validation. If -1, use the default threshold.')
 
     # ------ NEW: curriculum controls ------
     parser.add_argument('--margin_start', type=float, default=0.05,
@@ -796,16 +798,16 @@ if __name__ == '__main__':
     parser.add_argument('--curriculum_mode', type=str, choices=['none','epoch','metric'], default='none',
                         help='How to adapt margin. "epoch" = linear ramp by epoch; "metric" = simple recall@1 policy.')
     
-    parser.add_argument('--hard_frac', type=float, default=0.5,
+    parser.add_argument('--hard_frac', type=float, default=1.0,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
 
     parser.add_argument('--anchors_per_batch', type=int, default=32,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
-    parser.add_argument('--hard_pos_per_anchor', type=int, default=2,
+    parser.add_argument('--hard_pos_per_anchor', type=int, default=3,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
     parser.add_argument('--soft_pos_per_anchor', type=int, default=0,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
-    parser.add_argument('--neg_pos_per_anchor', type=int, default=6,
+    parser.add_argument('--neg_pos_per_anchor', type=int, default=10,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
     parser.add_argument('--steps_per_epoch', type=int, default=200,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')

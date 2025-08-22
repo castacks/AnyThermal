@@ -478,7 +478,7 @@ def run(args: BenchmarkArgs):
 
             db_dataset = dataset.db_dataset
             qu_dataset = dataset.qu_dataset
-            pos_per_qu = dataset.soft_positives if not args.common_database else dataset.common_soft_positives
+            pos_per_qu = dataset.get_hard_positives_per_query() if not args.common_database else dataset.common_soft_positives
 
             no_positive_matches_for_queries = np.zeros(len(pos_per_qu), dtype=bool)
 

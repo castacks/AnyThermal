@@ -313,7 +313,8 @@ def get_model_from_string(args,name: str,task,**kwargs):
             
             elif model_name == "frozen_ms2_freiburg_sthereo_boson":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03frozen_backbone_no_cart_no_vivid_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            
+            elif model_name == "ms2_freiburg_sthereo_boson_vpr_3_old":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-20_20-15-48thermal_dino_vpr_3_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_37.pth"
             else :
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             model_dict = torch.load(model_path, map_location='cpu')
