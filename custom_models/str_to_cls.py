@@ -303,6 +303,20 @@ def get_model_from_string(args,name: str,task,**kwargs):
             elif model_name == "ms2_freiburg_sthereo_boson_vivid":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo_vivid/2025-08-06_08-45-03mmdistill_boson_freiburg_ms2_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_21.pth"
             
+            elif model_name == "boson_freiburg_sthereo_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            elif model_name =="boson_freiburg_sthereo_vivid_hard_frac_0.5":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
+            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-16thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.5":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
+            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.75":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_50.pth"
+            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.25":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.25/model_50.pth"
+
+            
             elif model_name == "ms2_freiburg_sthereo_boson_margin_0.2":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-09_02-43-37mmdistill_boson_freiburg_ms2_sthereo_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
 
@@ -315,6 +329,11 @@ def get_model_from_string(args,name: str,task,**kwargs):
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03frozen_backbone_no_cart_no_vivid_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
             elif model_name == "ms2_freiburg_sthereo_boson_vpr_3_old":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-20_20-15-48thermal_dino_vpr_3_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_37.pth"
+            
+            elif model_name == "frozen_boson_freiburg_sthereo_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_21-55-16frozen_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+
+            
             else :
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             model_dict = torch.load(model_path, map_location='cpu')

@@ -122,14 +122,14 @@ class CART(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=25,neg_ring_outer_radius = 40):
+    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=25,neg_ring_outer_radius = 40,not_filter_on_gps=False):
         
         self.root_frame_dir = root_frame_dir
         self.seq_as_txt = seq_as_txt
         self.val_positive_dist_threshold = val_positive_dist_threshold
         self.neg_ring_outer_radius = neg_ring_outer_radius
         self.cart_split = cart_split
-        args.not_filter_on_gps = False
+        args.not_filter_on_gps = not_filter_on_gps
         self.dataset_shape = (512,640) # (w,h)
         self.location_type = 'gps'
         if cart_split  =="vpr":
@@ -403,13 +403,13 @@ class CART(BaseDataset):
 class HandheldCART(CART):
     def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15,rescale_during_crop=False,crop_during_vpr_test=False,seq_as_txt="",cart_split="",val_positive_dist_threshold=-1):
         
-        args.not_filter_on_gps = True
+        not_filter_on_gps = True
         self.positive_radius_index = 3
         self.val_extra_margin_positive_radius_index = 6
         self.neg_ring_outer_radius_index = 10
         dist_thresh = -1
+        super().__init__(args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test,vpr_train,dist_thresh,rescale_during_crop,crop_during_vpr_test,seq_as_txt,cart_split,val_positive_dist_threshold,not_filter_on_gps=not_filter_on_gps)
         self.location_type = 'time'
-        super().__init__(args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test,vpr_train,dist_thresh,rescale_during_crop,crop_during_vpr_test,seq_as_txt,cart_split,val_positive_dist_threshold)
     def form_db_qu_coords(self):
         """
         Returns ground truth positives for the dataset.

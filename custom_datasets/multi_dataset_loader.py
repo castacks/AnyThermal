@@ -8,6 +8,7 @@ from sthereo_dataset import STHEREO, return_sthereo_split
 from boson_nightime_dataset import BosonNightimeBaseDataset
 from m2p2_dataset import M2P2, return_m2p2_split
 from mfnet_dataset import MFNet, return_mfnet_split
+from tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -461,6 +462,8 @@ def str_to_dataset(name):
         return BosonNightimeBaseDataset
     elif name == "m2p2":
         return M2P2
+    elif name =="tartanrgbt":
+        return TartanRGBT
     else:
         raise ValueError(f"Unknown dataset name: {name}")
 
@@ -471,7 +474,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
         mode_list = ["train", "val"]
     else:
         mode_list = [args.dataset_split_for_eval]
-        if args.dataset_split_for_eval not in ["train", "val","test"]:
+        if args.dataset_split_for_eval not in ["train", "val","test","all"]:
             raise ValueError("ddataset_idataset_split_for_eval must be either 'train' or 'val'")
     
     if not return_dataloader and len(mode_list) > 1:
@@ -522,7 +525,12 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                         print("Using CART dataset for debugging")
                         seq_list = return_cart_split_debug(mode)
                     else:
-                        seq_list = return_cart_split(mode)
+                        if ds_name == "handheld_cart":
+                            seq_list = return_handheld_cart_split(mode)
+                        elif ds_name == "cart":
+                            seq_list = return_cart_split(mode)
+                        else:
+                            raise ValueError(f"Unknown CART dataset name: {ds_name}")
                     data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
                     root_frame_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
                 
@@ -552,6 +560,10 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 print("Using MFNet dataset")
                 seq_list = return_mfnet_split(mode)
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/MFNet"
+            elif ds_name == "tartanrgbt":
+                print("Using TartanRGBT dataset")
+                seq_list = return_tartanrgbt_split(mode)
+                data_root = "/ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/extracted_data"
             else:
                 raise ValueError(f"Unknown dataset name: {ds_name}")
             augment = False
@@ -581,6 +593,9 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
 
             if hasattr(args, 'val_positive_dist_threshold') and args.val_positive_dist_threshold >0:
                 dataset_init_dict["val_positive_dist_threshold"] = args.val_positive_dist_threshold
+            if hasattr(args, 'neg_ring_outer_radius') and args.neg_ring_outer_radius >0:
+                dataset_init_dict["neg_ring_outer_radius"] = args.neg_ring_outer_radius
+            
 
 
 

@@ -2,15 +2,29 @@ from base_dataset import *
 from ms2_utils import *
 from pyproj import Transformer
 
+# def return_sthereo_split(split):
+#     """
+#     Returns the split for the sthereo dataset.
+#     """
+#     if split == "train":
+#         train_seq_list = ['snu_afternoon', 'snu_evening','snu_morning', 'kaist_afternoon', 'kaist_evening', 'kaist_morning']
+#         return train_seq_list
+#     elif split == "val":
+#         val_seq_list =  ['valley_afternoon', 'valley_evening','valley_morning']
+#         return val_seq_list
+#     else:
+#         raise ValueError("Please provide a valid split name. Options are train or test")
+
+
 def return_sthereo_split(split):
     """
     Returns the split for the sthereo dataset.
     """
     if split == "train":
-        train_seq_list = ['snu_afternoon', 'snu_evening','snu_morning', 'kaist_afternoon', 'kaist_evening', 'kaist_morning']
+        train_seq_list = ['snu_afternoon', 'snu_evening','snu_morning', 'valley_afternoon', 'valley_evening','valley_morning']
         return train_seq_list
     elif split == "val":
-        val_seq_list =  ['valley_afternoon', 'valley_evening','valley_morning']
+        val_seq_list =  ['kaist_afternoon', 'kaist_evening', 'kaist_morning']
         return val_seq_list
     else:
         raise ValueError("Please provide a valid split name. Options are train or test")
@@ -22,7 +36,7 @@ class STHEREO(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25,neg_ring_outer_radius = 40):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25,neg_ring_outer_radius = 50):
         self.subsample =10
         self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/frame_lists"
         self.use_clahe = use_clahe
@@ -97,6 +111,7 @@ class STHEREO(BaseDataset):
         self.q_coords = []
         # load files for the coordinates
         for seq in self.seq:
+            # temp_seq_coords = []
             x_all = self.read_frame_lists(seq,2)[::self.subsample] # 2 is the index for coordinates in the frame list
             y_all = self.read_frame_lists(seq,3)[::self.subsample]
             z_all = self.read_frame_lists(seq,4)[::self.subsample]
@@ -110,9 +125,12 @@ class STHEREO(BaseDataset):
                 if coord is not None:
                     self.db_coords.append(coord)
                     self.q_coords.append(coord)
+                    # temp_seq_coords.append(coord)
                 else:
                     import pdb;pdb.set_trace()
                     raise ValueError(f"Invalid coordinates: {lon}, {lat}, {alt} for sequence {seq}")
+                # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/STHEREO"),exist_ok=True)
+                # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/STHEREO",f"{seq}.npy"),np.array(temp_seq_coords))
         # if 'kaist_afternoon' in self.seq:
         #     np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc","sthereo_coords.npy"),np.array(self.db_coords))
 

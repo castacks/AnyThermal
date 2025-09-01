@@ -981,7 +981,7 @@ if __name__ == '__main__':
                     help='Path to the backbone model, if not using default backbone')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--eval_batch_size', type=int, default=-1)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--save_dir', type=str, default="checkpoints/vpr")
     parser.add_argument('--save_interval', type=int, default=1)
     parser.add_argument("--augment", action='store_true', help="Use data augmentation for training")
@@ -1040,7 +1040,7 @@ if __name__ == '__main__':
     parser.add_argument('--curriculum_mode', type=str, choices=['none','epoch','metric'], default='none',
                         help='How to adapt margin. "epoch" = linear ramp by epoch; "metric" = simple recall@1 policy.')
     
-    parser.add_argument('--hard_frac', type=float, default=0.5,
+    parser.add_argument('--hard_frac', type=float, default=1.0,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
 
     args = parser.parse_args()

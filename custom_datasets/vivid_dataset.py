@@ -1,6 +1,62 @@
 from base_dataset import *
 from pyproj import Transformer
 
+# def return_vivid_split(split):
+#     """
+#     Returns the sequence list for the VIVID++ dataset.
+
+#     Args:
+#         split (str): One of ["train", "val"]
+
+#     Returns:
+#         List[str]: List of relative sequence paths like 'driving_full/city_day1'
+#     """
+
+#     all_sequences = [
+#         "driving_full/campus_day2",
+#         "driving_full/city_day2",
+#         "driving_full/city_night",
+#         "driving_full/campus_day1",
+#         "driving_full/campus_evening",
+#         "driving_full/campus_night",
+#         "driving_full/city_evening",
+#         "driving_full/city_day1",
+#         "driving_vision/urban_night",
+#         "driving_vision/campus_night_2",
+#         "driving_vision/campus_morning_2",
+#         "driving_vision/campus_day2",
+#         "driving_vision/campus_day2_2",
+#         "driving_vision/city_day2",
+#         "driving_vision/city_night",
+#         "driving_vision/urban_day",
+#         "driving_vision/campus_evening",
+#         "driving_vision/campus_morning_manual_small",
+#         "driving_vision/urban_evening_road",
+#         "driving_vision/city_morning_manual",
+#         "driving_vision/campus_night",
+#         "driving_vision/urban_evening",
+#         "driving_vision/campus_morning_manual",
+#         "driving_vision/campus_morning",
+#         "driving_vision/urban_morning_manual",
+#         "driving_vision/city_evening",
+#         "driving_vision/city_day1"
+#     ]
+
+#     val_sequences = [
+#         "driving_vision/urban_night",
+#         "driving_vision/urban_day",
+#         "driving_vision/urban_evening",
+#         "driving_vision/urban_morning_manual",
+#     ]
+
+#     if split == "val":
+#         return val_sequences
+#     elif split == "train":
+#         return [s for s in all_sequences if not s in val_sequences]
+#     else:
+#         raise ValueError("Invalid split. Choose 'train' or 'val'.")
+
+
 def return_vivid_split(split):
     """
     Returns the sequence list for the VIVID++ dataset.
@@ -42,12 +98,7 @@ def return_vivid_split(split):
         "driving_vision/city_day1"
     ]
 
-    val_sequences = [
-        "driving_vision/urban_night",
-        "driving_vision/urban_day",
-        "driving_vision/urban_evening",
-        "driving_vision/urban_morning_manual",
-    ]
+    val_sequences = [s for s in all_sequences if "campus" in s]
 
     if split == "val":
         return val_sequences
@@ -55,7 +106,6 @@ def return_vivid_split(split):
         return [s for s in all_sequences if not s in val_sequences]
     else:
         raise ValueError("Invalid split. Choose 'train' or 'val'.")
-
 
 
 class Vivid(BaseDataset):
@@ -188,6 +238,9 @@ class Vivid(BaseDataset):
                 coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
 
                 self.q_coords.extend(coord)
+            
+            # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/VIVID"),exist_ok=True)
+            # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/VIVID",f"{'_'.join(seq.split('/'))}.npy"),np.array(temp_coords))
     
     def check_seq_list(self,seq):
         """

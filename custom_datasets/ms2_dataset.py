@@ -38,25 +38,23 @@ def return_ms2_split(split):
     Returns the split for the ms2 dataset.
     """
     if split == "train":
-        # ms2_train_seq_list = [ '_2021-08-06-11-23-45', '_2021-08-06-16-45-28', '_2021-08-13-16-14-48','_2021-08-13-22-03-03', #resedential                                # '_2021-08-06-12-06-20', '_2021-08-06-17-10-27', '_2021-08-13-16-41-00', '_2021-08-13-22-27-31', #data is not provided even though it is in the list
-        #                         '_2021-08-13-22-36-41', #Road4
-        #                         '_2021-08-06-11-37-46', '_2021-08-06-16-19-00', '_2021-08-13-15-46-56', '_2021-08-13-21-36-10', #urban
-        #                         '_2021-08-13-16-08-46', '_2021-08-13-21-58-13',  #Road3
-
-        #                         ]
         ms2_train_seq_list = [ 
                                 '_2021-08-06-10-59-33', '_2021-08-06-17-44-55','_2021-08-13-17-06-04','_2021-08-13-21-18-04', #campus
-                                '_2021-08-06-17-21-04',  '_2021-08-13-16-50-57', #Road2
+                                # '_2021-08-06-17-21-04',  overlaps with VIVID city+urban
+                                '_2021-08-13-16-50-57', #Road2
                                 '_2021-08-06-16-59-13', '_2021-08-13-16-31-10', '_2021-08-13-22-16-02', #Road1
                                 '_2021-08-13-16-08-46', '_2021-08-13-21-58-13',  #Road3
                                 '_2021-08-13-22-36-41', #Road4
-                                '_2021-08-06-11-37-46', '_2021-08-06-16-19-00', '_2021-08-13-15-46-56', '_2021-08-13-21-36-10', #urban
+                                # '_2021-08-06-11-37-46', '_2021-08-06-16-19-00', '_2021-08-13-15-46-56', '_2021-08-13-21-36-10', #urban : overlaps with VIVID city+urban
                                 ]
         return ms2_train_seq_list
     elif split == "val":
         ms2_val_seq_list = ['_2021-08-06-11-23-45', '_2021-08-06-16-45-28', '_2021-08-13-16-14-48','_2021-08-13-22-03-03',#resedential
                             ]
         return ms2_val_seq_list
+    elif split == "all":
+        ms2_seq_list = return_ms2_split("train") + return_ms2_split("val")
+        return ms2_seq_list
     else:
         raise ValueError("Please provide a valid split name. Options are train or test")
 
@@ -84,7 +82,7 @@ class MS2(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=25, neg_ring_outer_radius = 40):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=25, neg_ring_outer_radius = 50):
         self.subsample =10
         self.zone = 52
         self.utm_transformer = self.get_utm_transformer(self.zone)
@@ -173,7 +171,11 @@ class MS2(BaseDataset):
 
                     self.db_coords.append(coord[:2])
                     self.q_coords.append(coord[:2]) # we only need the x,y coordinates for the knn search
-                    temp_seq_coords.append(coord[:2])    
+                    temp_seq_coords.append(coord[:2]) 
+            
+            # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/MS2"),exist_ok=True)
+            # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/MS2",f"{seq}.npy"),np.array(temp_seq_coords))
+
     def check_seq_list(self,seq):
         all_valid= True
         for s in seq:
