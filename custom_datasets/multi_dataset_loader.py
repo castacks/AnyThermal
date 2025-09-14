@@ -9,6 +9,7 @@ from boson_nightime_dataset import BosonNightimeBaseDataset
 from m2p2_dataset import M2P2, return_m2p2_split
 from mfnet_dataset import MFNet, return_mfnet_split
 from tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
+from odombeyondvision import OdomBeyondVision, return_odom_beyond_vision_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -464,6 +465,8 @@ def str_to_dataset(name):
         return M2P2
     elif name =="tartanrgbt":
         return TartanRGBT
+    elif name == "odombeyondvision":
+        return OdomBeyondVision
     else:
         raise ValueError(f"Unknown dataset name: {name}")
 
@@ -474,7 +477,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
         mode_list = ["train", "val"]
     else:
         mode_list = [args.dataset_split_for_eval]
-        if args.dataset_split_for_eval not in ["train", "val","test","all"]:
+        if args.dataset_split_for_eval not in ["train", "val","test","all","no_split"]:
             raise ValueError("ddataset_idataset_split_for_eval must be either 'train' or 'val'")
     
     if not return_dataloader and len(mode_list) > 1:
@@ -562,8 +565,15 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/MFNet"
             elif ds_name == "tartanrgbt":
                 print("Using TartanRGBT dataset")
-                seq_list = return_tartanrgbt_split(mode)
+                seq_list = return_tartanrgbt_split(mode, debug=args.debug)
                 data_root = "/ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/extracted_data"
+            elif ds_name == "odombeyondvision":
+                print("Using OdomBeyondVision dataset")
+                if hasattr(args, 'local_seq'):
+                    seq_list = [args.local_seq]
+                else:
+                    seq_list = return_odom_beyond_vision_split(mode)
+                data_root = "/ocean/projects/cis220039p/mdt2/datasets/OdomBeyondVision/ExtractedData"
             else:
                 raise ValueError(f"Unknown dataset name: {ds_name}")
             augment = False
@@ -599,7 +609,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
 
 
 
-            if hasattr(args, 'dist_thresh'):
+            if hasattr(args, 'dist_thresh') and args.dist_thresh >0:
                 dataset_init_dict["dist_thresh"] = args.dist_thresh
 
             print(f"For mode {mode} Dataset init dict:", dataset_init_dict)

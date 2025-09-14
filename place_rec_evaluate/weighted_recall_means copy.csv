@@ -1,0 +1,3 @@
+model,_total_frames,weighted_R@1,weighted_R@5,weighted_R@10
+salad,5971,0.38937730698375483,0.6585071512309496,0.7695537263439961
+vpr_mmdistill_salad_boson_freiburg_sthereo_vivid_hard_frac_0.5,5971,0.4262203316027465,0.7038999497571596,0.8194578462569085

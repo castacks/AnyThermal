@@ -13,6 +13,7 @@ from tqdm import tqdm
 import sys
 sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
 sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
+import os.path as osp
 
 from contextlib import nullcontext
 from itertools import chain
@@ -161,7 +162,7 @@ def viz_attention_pca(args,teacher_attention_maps,student_attention_maps,teacher
                 plt.savefig(file_name)
                 plt.close(fig)
 
-def init_model(args,modality,un_frozen_layer_index):
+def init_model(args,modality,un_frozen_layer_index,model_name):
     if un_frozen_layer_index != []:
         if args.unfreeze_patch_embed:
             un_frozen_layer_index = ["patch_embed"] + un_frozen_layer_index
@@ -177,7 +178,7 @@ def init_model(args,modality,un_frozen_layer_index):
     if args.proj_head:
         un_frozen_layer_index.append("proj_head")
 
-    model = MMDistillDinov2(args.model_name, modality=modality,un_frozen_layer_index= un_frozen_layer_index,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head,backbone_path= args.initial_backbone_path)
+    model = MMDistillDinov2(model_name, modality=modality,un_frozen_layer_index= un_frozen_layer_index,layers_to_hook=args.loss_object.layers,proj_head=args.proj_head,backbone_path= args.initial_backbone_path)
 
     return model, model.patch_size
 
@@ -561,8 +562,10 @@ def train():
         dataset_name = "_".join(args.dataset)
         if args.eval_dataset:
             dataset_name += "_eval_" + "_".join(args.eval_dataset)
-
-        wandb_name = args.model_name + "_" + dataset_name + "_" + args.student_modality + "_distill"
+        
+        wandb_name = args.student_model_name + "_" + dataset_name + "_" + args.student_modality + "_distill"
+        if args.teacher_model_name != args.student_model_name:
+            wandb_name = "teacher_"+args.teacher_model_name + "_to_student_" + wandb_name
         if args.wandb_name != "":
             wandb_name += "_" + args.wandb_name
         if args.equal_samples:
@@ -597,8 +600,8 @@ def train():
         args.student_modality_dual = args.student_modality+"_dual"
     else:
         args.student_modality_dual = None
-    teacher_model,teacher_patch_size = init_model(args,modality=args.teacher_modality,un_frozen_layer_index=[])
-    student_model,student_patch_size = init_model(args,modality=args.student_modality,un_frozen_layer_index=args.un_frozen_layer_index)
+    teacher_model,teacher_patch_size = init_model(args,modality=args.teacher_modality,un_frozen_layer_index=[],model_name = args.teacher_model_name)
+    student_model,student_patch_size = init_model(args,modality=args.student_modality,un_frozen_layer_index=args.un_frozen_layer_index,model_name = args.student_model_name)
     
     if args.resume:
         if teacher_weights is not None:
@@ -705,10 +708,12 @@ def train():
         if not args.dry_run and epoch!=0:
             save_dict = {
                 'epoch': epoch,
-                'student_model_type': args.model_name,
+                'student_model_type': args.student_model_name,
                 'student_model_state_dict': student_model.return_model_dict_for_saving(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
+            if args.teacher_model_name != args.student_model_name:
+                save_dict['teacher_model_type'] = args.teacher_model_name
             for name, loss in train_individual_losses.items():
                 save_dict[f"train_{name}"] = loss
             for name, loss in val_individual_losses.items():
@@ -740,7 +745,8 @@ parser.add_argument('--resume_epoch_num', default=0, type=int, help='Epoch numbe
 parser.add_argument('--loss_type', default="ce", type=str, help='Loss type: mse or similarity',action=StoreWithFlag)
 parser.add_argument('--loss_file', default="loss_config.yaml", type=str, help='Loss type: mse or similarity',action=StoreWithFlag)
 parser.add_argument('--wandb_use',nargs=0,default=True, help='Use wandb for logging',action=StoreWithFlag)
-parser.add_argument('--model_name', default='dinov2_vitb14', type=str, help='Name of the encoder model',action=StoreWithFlag)
+parser.add_argument('--teacher_model_name', default='dinov2_vitb14', type=str, help='Architecture of teacher model',action=StoreWithFlag)
+parser.add_argument('--student_model_name', default='dinov2_vitb14', type=str, help='Architecture of student model',action=StoreWithFlag)
 parser.add_argument('--viz_debug', nargs=0,default=False, help='Save train and val images for debugging',action=StoreWithFlag)
 parser.add_argument('--lr_scheduler', nargs=0,default=False, help='Save train and val images for debugging',action=StoreWithFlag)
 parser.add_argument('--augment', nargs=0,default=False, help='Add augmentation in training',action=StoreWithFlag)

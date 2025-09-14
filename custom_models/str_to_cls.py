@@ -61,9 +61,11 @@ def get_model_from_string(args,name: str,task,**kwargs):
             if modality == 'rgb':
                 from .imagebind_model import ImageBindRGBFeatureExtractor
                 return ImageBindRGBFeatureExtractor()
-            elif modality == 'thermal':
+            elif modality == 'thr':
                 from .imagebind_model import ImageBindThermalFeatureExtractor
                 return ImageBindThermalFeatureExtractor()
+            else:
+                raise ValueError(f"Unsupported ImageBind modality: {modality}")
 
         elif name == "salad":
             from .dinov2salad_model import DinoV2SALADFeatureExtractor
@@ -166,21 +168,23 @@ def get_model_from_string(args,name: str,task,**kwargs):
             #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_cart_freiburg_ms2_vivid/rgb_thr/2025-07-30_20-43-26_dinov2_vitb14_boson_cart_freiburg_ms2_vivid_thr_distill_all_layers_loss_global_contrastive_final_equal_samples/model30.pth"
             
 
-            elif model_name == "ms2":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-08-05_21-09-34_dinov2_vitb14_ms2_thr_distill_equal_samples/model10.pth"
-            elif model_name == "ms2_freiburg":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/freiburg_ms2/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_freiburg_ms2_thr_distill_equal_samples/model10.pth"
-            elif model_name == "ms2_freiburg_sthereo":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/freiburg_ms2_sthereo/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_freiburg_ms2_sthereo_thr_distill_equal_samples/model10.pth"
-            elif model_name == "ms2_freiburg_sthereo_boson":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_freiburg_ms2_sthereo/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_boson_freiburg_ms2_sthereo_thr_distill_equal_samples/model10.pth"
-            elif model_name == "ms2_freiburg_sthereo_boson_vivid":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_freiburg_ms2_sthereo_vivid/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_boson_freiburg_ms2_sthereo_vivid_thr_distill_equal_samples/model10.pth"
-            elif model_name == "boson":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson/rgb_thr/2025-08-05_21-09-49_dinov2_vitb14_boson_thr_distill_equal_samples/model10.pth"
-            elif model_name == "boson_ms2":
-                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_ms2/rgb_thr/2025-08-05_21-09-49_dinov2_vitb14_boson_ms2_thr_distill_equal_samples/model10.pth"
-            
+            # elif model_name == "ms2":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-08-05_21-09-34_dinov2_vitb14_ms2_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "ms2_freiburg":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/freiburg_ms2/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_freiburg_ms2_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "ms2_freiburg_sthereo":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/freiburg_ms2_sthereo/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_freiburg_ms2_sthereo_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_freiburg_ms2_sthereo/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_boson_freiburg_ms2_sthereo_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson_vivid":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_freiburg_ms2_sthereo_vivid/rgb_thr/2025-08-05_21-09-33_dinov2_vitb14_boson_freiburg_ms2_sthereo_vivid_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "boson":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson/rgb_thr/2025-08-05_21-09-49_dinov2_vitb14_boson_thr_distill_equal_samples/model10.pth"
+            # elif model_name == "boson_ms2":
+            #     thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_ms2/rgb_thr/2025-08-05_21-09-49_dinov2_vitb14_boson_ms2_thr_distill_equal_samples/model10.pth"
+            elif model_name == "thermal_dinov2_all_with_tartan_rgbt":
+                thermal_backbone = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/boson_freiburg_sthereo_tartanrgbt_vivid/rgb_thr/2025-09-05_22-53-44_dinov2_vitb14_boson_freiburg_sthereo_tartanrgbt_vivid_thr_distill_no_holes_correct_rectification_ffc_considered_equal_samples/model20.pth"
+                
             else:
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             
@@ -292,49 +296,85 @@ def get_model_from_string(args,name: str,task,**kwargs):
             #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_cart_freiburg_ms2_sthereo_vivid/2025-08-05_07-17-59frozen_backbone_all_boson_cart_freiburg_ms2_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_13.pth"
             
 
-            if model_name == "ms2":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/ms2/2025-08-06_00-17-48mmdistill_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "ms2_freiburg":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/freiburg_ms2/2025-08-06_00-17-48mmdistill_freiburg_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "ms2_freiburg_sthereo":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/freiburg_ms2_sthereo/2025-08-06_00-17-48mmdistill_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "ms2_freiburg_sthereo_boson":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03mmdistill_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "ms2_freiburg_sthereo_boson_vivid":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo_vivid/2025-08-06_08-45-03mmdistill_boson_freiburg_ms2_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_21.pth"
+            # if model_name == "ms2":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/ms2/2025-08-06_00-17-48mmdistill_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/freiburg_ms2/2025-08-06_00-17-48mmdistill_freiburg_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg_sthereo":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/freiburg_ms2_sthereo/2025-08-06_00-17-48mmdistill_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03mmdistill_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson_vivid":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo_vivid/2025-08-06_08-45-03mmdistill_boson_freiburg_ms2_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_21.pth"
             
-            elif model_name == "boson_freiburg_sthereo_vivid":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
-            elif model_name =="boson_freiburg_sthereo_vivid_hard_frac_0.5":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
-            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-16thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
-            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.5":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
-            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.75":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_50.pth"
-            elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.25":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.25/model_50.pth"
+            # elif model_name == "boson_freiburg_sthereo_vivid":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            # elif model_name =="boson_freiburg_sthereo_vivid_hard_frac_0.5":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
+            # elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-16thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            # elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.5":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-10thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_50.pth"
+            # elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.75":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_50.pth"
+            # elif model_name == "boson_freiburg_sthereo_vivid_margin_0.3_hard_frac_0.25":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_18-14-11thermal_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.25/model_50.pth"
 
             
-            elif model_name == "ms2_freiburg_sthereo_boson_margin_0.2":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-09_02-43-37mmdistill_boson_freiburg_ms2_sthereo_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson_margin_0.2":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-09_02-43-37mmdistill_boson_freiburg_ms2_sthereo_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
 
-            elif model_name == "boson":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson/2025-08-06_00-18-09mmdistill_boson_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "boson_ms2":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_ms2/2025-08-06_00-17-48mmdistill_boson_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_equal_samples/model_25.pth"
+            # elif model_name == "boson":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson/2025-08-06_00-18-09mmdistill_boson_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "boson_ms2":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_ms2/2025-08-06_00-17-48mmdistill_boson_ms2_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_equal_samples/model_25.pth"
             
-            elif model_name == "frozen_ms2_freiburg_sthereo_boson":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03frozen_backbone_no_cart_no_vivid_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
-            elif model_name == "ms2_freiburg_sthereo_boson_vpr_3_old":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-20_20-15-48thermal_dino_vpr_3_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_37.pth"
+            # elif model_name == "frozen_ms2_freiburg_sthereo_boson":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-06_08-45-03frozen_backbone_no_cart_no_vivid_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_25.pth"
+            # elif model_name == "ms2_freiburg_sthereo_boson_vpr_3_old":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_ms2_sthereo/2025-08-20_20-15-48thermal_dino_vpr_3_boson_freiburg_ms2_sthereo_salad_margin_0.3_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_37.pth"
             
-            elif model_name == "frozen_boson_freiburg_sthereo_vivid":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_21-55-16frozen_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            # elif model_name == "frozen_boson_freiburg_sthereo_vivid":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-08-22_21-55-16frozen_dino_new_splits_no_ms2_boson_freiburg_sthereo_vivid_salad_margin_0.2_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_50.pth"
+            
+            if model_name == "all_with_tartan_rgbt_frac_1":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-08_20-34-05thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet/model_40.pth"
+            elif model_name == "all_with_tartan_rgbt_frac_0.5":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-08_20-34-05thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_40.pth"
+            elif model_name == "all_with_tartan_rgbt_frac_0.75":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-08_20-34-05thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            
+            elif model_name == "frozen_with_all_for_vpr_head":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09frozen_dino_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
 
-            
-            else :
+
+            # equal samples in VPR training 
+
+            if model_name == "all_with_tartan_rgbt_frac_0.5_equal_samples":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-13_01-30-09thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_equal_samples_hard_frac_0.5/model_15.pth"
+            elif model_name == "frozen_with_all_for_vpr_head_0.5_equal_samples":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-13_01-30-29frozen_dino_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_equal_samples_hard_frac_0.5/model_15.pth"
+            #scaling - vpr and bn use same datasets
+            elif model_name == "bn_boson_vpr_same":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vpr_same_boson_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_vpr_same":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_vivid/2025-09-09_20-16-42thermal_dino_scaling_bn_boson_vivid_vpr_same_boson_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_freiburg_vpr_same":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_vivid/2025-09-09_20-25-01thermal_dino_scaling_bn_boson_vivid_freiburg_vpr_same_boson_freiburg_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_freiburg_sthereo_vpr_same":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_vivid/2025-09-09_20-41-07thermal_dino_scaling_bn_boson_vivid_freiburg_sthereo_vpr_same_boson_freiburg_sthereo_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+
+            #scaling - bn usees incremental datasets, vpr uses all
+
+            elif model_name == "bn_boson_vpr_all":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-10thermal_dino_scaling_bn_boson_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_vpr_all":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vivid_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_freiburg_vpr_all":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vivid_freiburg_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            elif model_name == "bn_boson_vivid_freiburg_sthereo_vpr_all":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vivid_freiburg_sthereo_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            else :  
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             model_dict = torch.load(model_path, map_location='cpu')
             thermal_model_dict = model_dict["thermal_state_dict"]
@@ -423,31 +463,85 @@ def get_model_from_string(args,name: str,task,**kwargs):
             #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250723-211549_cart_thr_linear_weighted_ce_bilinear_salad_initilisation_global_contrastive_dropout0.2/model20.pth"
             #     head_model = "linear"
 
-            if model_name == "non_linear_64_dropout_dice":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_thermal_dinov2_dropout0.2/model150.pth"
+            # if model_name == "non_linear_64_dropout_dice":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_thermal_dinov2_dropout0.2/model150.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_dropout_dice_frozen":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_frozen_dinov2_dropout0.2/model150.pth"
+            #     head_model = "non_linear_64"
+            #     backbone_model_type = "dinov2_vitb14"
+            from .dinov2_segmentation_model import MMDistillSegmentationModel
+
+            if model_name == "thermal_dinov2_with_tartan_rgbt":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250907-141327_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_with_tarratan_rgbt_without_holes_correct_rectification_ffc_considered_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
                 head_model = "non_linear_64"
-            elif model_name == "non_linear_64_dropout_dice_frozen":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart/20250811-101353_cart_thr_non_linear_64_dice_bilinear_frozen_dinov2_dropout0.2/model150.pth"
+            elif model_name == "thermal_dinov2_scaling_boson":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-035440_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083730_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083734_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083730_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_vivid_sthereo":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-085920_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid_sthereo":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083902_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "frozen_rgb_dinov2":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250907-141327_cart_random_thr_non_linear_64_weighted_ce_bilinear_rgb_frozen_dinov2_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
                 head_model = "non_linear_64"
                 backbone_model_type = "dinov2_vitb14"
-            from .dinov2_segmentation_model import MMDistillSegmentationModel
+            
             return MMDistillSegmentationModel(args=args,backbone_model_type=backbone_model_type,head_model=head_model,un_frozen_layer_index=[],frozen_head=True,device='cuda',modality="thr",model_path=model_path, **kwargs)
         elif name.startswith("mmdistill_mfnet"):
             model_name = "_".join(name.split('_')[2:])
             backbone_model_type = ""
-            if model_name == "non_linear_64":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
+            # if model_name == "non_linear_64":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_248":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model248.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_250":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model250.pth"
+            #     head_model = "non_linear_64"
+            # elif model_name == "non_linear_64_frozen":
+            #     model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234311_mfnet_thr_non_linear_64_dice_bilinear_frozen_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
+            #     head_model = "non_linear_64"
+            #     backbone_model_type = "dinov2_vitb14"
+            if model_name == "thermal_dinov2_with_tartan_rgbt":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250906-132022_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_with_tarratan_rgbt_without_holes_correct_rectification_ffc_considered_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
                 head_model = "non_linear_64"
-            elif model_name == "non_linear_64_248":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model248.pth"
+            elif model_name == "thermal_dinov2_scaling_boson":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-014737_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
                 head_model = "non_linear_64"
-            elif model_name == "non_linear_64_250":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234053_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model250.pth"
+            elif model_name == "thermal_dinov2_scaling_boson_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-063856_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
                 head_model = "non_linear_64"
-            elif model_name == "non_linear_64_frozen":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250816-234311_mfnet_thr_non_linear_64_dice_bilinear_frozen_dinov2_augmentedbrightness_contrast_crop_with_random_ratio_gamma/model249.pth"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-063857_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-063857_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid_sthereo":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-063857_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+            elif model_name == "thermal_dinov2_scaling_boson_vivid_sthereo":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250908-070205_mfnet_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+                head_model = "non_linear_64"
+
+            elif model_name == "frozen_rgb_dinov2":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/mfnet/20250817-034126_mfnet_thr_non_linear_64_dice_bilinear_frozen_dinov2_augmentedcrop_with_random_ratio_gamma/model100.pth"
                 head_model = "non_linear_64"
                 backbone_model_type = "dinov2_vitb14"
+            
             else:
                 raise ValueError(f"Unsupported mmdistill mfnet model name: {model_name}")
             

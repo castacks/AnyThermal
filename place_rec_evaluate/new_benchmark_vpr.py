@@ -125,13 +125,17 @@ class BenchmarkArgs:
     vpr_test: bool = True
     common_database: bool = False
     crop_images: bool = False
-    dist_thresh: int = 25
+    dist_thresh: float = -1
     cart_split: str = "vpr"
     debug: bool = False
     viz_clusters: bool = False
     rescale_during_crop: bool = False
     same_backbone: bool = False
     only_same_backbone: bool = False
+    local_odom: bool = False
+    sequences: str = ""
+    num_random: int = 5
+    num_failures: int = 5
 
 def extract_all_features(model, dataset, batch_size=1):
     features = []
@@ -170,7 +174,10 @@ def plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_qu, top_k_indices, sav
     all_indices = set(range(len(qu_dataset)))
     failure_cases = random.sample(failure_cases, min(num_failures, len(failure_cases)))
     remaining_indices = list(all_indices - set(failure_cases))
-    random_cases = random.sample(remaining_indices, min(num_random, len(remaining_indices)))
+    if num_random > 0:
+        random_cases = random.sample(remaining_indices, min(num_random, len(remaining_indices)))
+    else:
+        random_cases = remaining_indices
 
     selected_indices = random_cases + failure_cases
 
@@ -263,16 +270,16 @@ def evaluate_retrieval_faiss(no_positive_matches_for_queries,query_feats, db_fea
                 
             
 
-    total = np.sum(~no_positive_matches_for_queries)
-    return {f"R@{k}": recalls[k] / total for k in top_k_vals}, indices
+    total_queries_used_for_recall = np.sum(~no_positive_matches_for_queries)
+    return {f"R@{k}": recalls[k] / total_queries_used_for_recall for k in top_k_vals}, indices ,total_queries_used_for_recall
 
 def vpr(dataset_name,db_model,qu_model,args,split,save_dir,model_name, no_positive_matches_for_queries,db_dataset,db_feats, qu_dataset,qu_feats, pos_per_query, top_k_vals, db_coords, q_coords,use_gpu=True):
     # import pdb; pdb.set_trace()
     if db_model.own_recall_method == False:
-        recalls, top_k_indices = evaluate_retrieval_faiss(no_positive_matches_for_queries,
+        recalls, top_k_indices, total_queries_used_for_recall = evaluate_retrieval_faiss(no_positive_matches_for_queries,
             qu_feats, db_feats,db_coords,q_coords, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     else:
-        recalls, top_k_indices = db_model.evaluate_retrieval(qu_model,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
+        recalls, top_k_indices, total_queries_used_for_recall = db_model.evaluate_retrieval(qu_model,no_positive_matches_for_queries,db_dataset, qu_dataset, pos_per_query, top_k_vals, use_gpu=use_gpu,exclude_exact_query_in_db=args.exclude_exact_query_in_db)
     print(f"📊 Recalls:")
     for k, v in recalls.items():
         print(f"  - R@{k}: {v:.4f}")
@@ -286,9 +293,9 @@ def vpr(dataset_name,db_model,qu_model,args,split,save_dir,model_name, no_positi
         os.makedirs(qual_dir, exist_ok=True)
         print(f"Saving qualitative results to {qual_dir}")
         plot_top_k_retrievals(db_dataset, qu_dataset, pos_per_query,top_k_indices, qual_dir, db_coords, q_coords,
-                            qual_k=args.qual_k, log_to_wandb=args.use_wandb)
+                            qual_k=args.qual_k, log_to_wandb=args.use_wandb,num_random=args.num_random,num_failures=args.num_failures)
 
-    return recalls, top_k_indices
+    return recalls, top_k_indices, total_queries_used_for_recall
 
 def plot_pacmap_db_and_query(db_feats, qu_feats,
                               db_modality, qu_modality,
@@ -364,7 +371,60 @@ def plot_pacmap_db_and_query(db_feats, qu_feats,
     plt.close()
     print(f"📕 Saved Query-only PaCMAP: {qu_path}")
 
+def get_model(model_name,db_q_mode):
+    rgb_t_methods = ["mmdistill","imagebind"]
+    method_is_rgbt_method_flag = False 
+    for method in rgb_t_methods:
+        if method not in model_name:
+            continue
+        method_is_rgbt_method_flag = True
+        if db_q_mode == "RGB_THERMAL":
+            db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+            qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+        elif db_q_mode == "THERMAL_RGB":
+            db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+            qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+        elif db_q_mode == "THERMAL_THERMAL":
+            db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+            qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
+        elif db_q_mode == "RGB_RGB":
+            db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+            qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
+        else:
+            raise ValueError(f"Mode {db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
+        break
+    if not method_is_rgbt_method_flag:
+        print(f"initializing model {model_name}")
+        db_model = get_model_from_string(args,model_name,"vpr")
+        qu_model = db_model
+    return db_model, qu_model
 
+def verify_models_existence(args):
+    all_ok = True
+    for db_q_mode in args.db_q_mode:
+        for model_name in args.model_names:
+            try:
+                print(f"🏁 Testing: {model_name}")
+                db_model, qu_model = get_model(model_name,db_q_mode)
+            except Exception as e:
+                print(f"❌ Error initializing model {model_name}: {e}")
+                all_ok = False
+                continue
+
+    if not all_ok:
+        print("❗ Some models failed to initialize. Please check the model names and dataset splits.")
+        return
+
+    del model_name, db_model, qu_model
+
+def read_sequences_from_file(file_path):
+    sequences = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            seq = line.strip()
+            if seq:
+                sequences.append(seq)
+    return sequences
 
 @torch.no_grad()
 def run(args: BenchmarkArgs):
@@ -381,51 +441,13 @@ def run(args: BenchmarkArgs):
             f.write(f"{key}: {value}\n")
     csv_dir = os.path.join(save_dir, "csv_results")
 
-    dataset_splits = args.dataset_splits
+    if args.local_odom:
+        dataset_splits = read_sequences_from_file(args.sequences)
+    else:
+        dataset_splits = args.dataset_splits
     os.makedirs(csv_dir, exist_ok=True)
-    all_ok = True
-    for db_q_mode in args.db_q_mode:
-        for model_name in args.model_names:
-            try:
-                print(f"🏁 Testing: {model_name}")
-                rgb_t_methods = ["mmdistill","imagebind"]
-                method_is_rgbt_method_flag = False 
-                for method in rgb_t_methods:
-                    if method not in model_name:
-                        continue
-                    method_is_rgbt_method_flag = True
-                    if db_q_mode == "RGB_THERMAL":
-                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                    elif db_q_mode == "THERMAL_RGB":
-                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                    elif db_q_mode == "THERMAL_THERMAL":
-                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                    elif db_q_mode == "RGB_RGB":
-                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                    else:
-                        raise ValueError(f"Mode {db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
-                    break
-                if not method_is_rgbt_method_flag:
-                    print(f"initializing model {model_name}")
-                    db_model = get_model_from_string(args,model_name,"vpr")
-                    qu_model = db_model
-            except Exception as e:
-                print(f"❌ Error initializing model {model_name}: {e}")
-                all_ok = False
-                continue
 
-    
-    if not all_ok:
-        print("❗ Some models failed to initialize. Please check the model names and dataset splits.")
-        return
-
-        
-    
-    del model_name, rgb_t_methods, method_is_rgbt_method_flag, db_model, qu_model
+    verify_models_existence(args)
     
     
     if args.use_wandb:
@@ -448,7 +470,7 @@ def run(args: BenchmarkArgs):
         csv_file = open(master_csv_path, mode='w', newline='')
         csv_writer = csv.writer(csv_file)
 
-        header_row = ["dataset","dataset_splits","q/db","model"]
+        header_row = ["dataset_splits or sequence","q/db","model"]
         for k in args.top_k_vals:
             header_row.append(f"R@{k}")
         csv_writer.writerow(header_row)
@@ -470,10 +492,12 @@ def run(args: BenchmarkArgs):
             args.teacher_modality = db_modality
             args.student_modality = q_modality
 
-            args.dataset_split_for_eval = split
+            if args.local_odom:
+                args.dataset_split_for_eval = "no_split"
+                args.local_seq = split
+            else:
+                args.dataset_split_for_eval = split            
             
-
-            # import pdb; pdb.set_trace()
             dataset = build_dataset(args,return_dataloader=False)
 
             db_dataset = dataset.db_dataset
@@ -488,34 +512,8 @@ def run(args: BenchmarkArgs):
                     no_positive_matches_for_queries[i] = True
 
             for model_name in args.model_names:
-                rgb_t_methods = ["mmdistill","imagebind"]
-                method_is_rgbt_method_flag = False 
-                for method in rgb_t_methods:
-                    if method not in model_name:
-                        continue
-                    method_is_rgbt_method_flag = True
-                    if db_q_mode == "RGB_THERMAL":
-                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                    elif db_q_mode == "THERMAL_RGB":
-                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                    elif db_q_mode == "THERMAL_THERMAL":
-                        db_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_thr","vpr")
-                    elif db_q_mode == "RGB_RGB":
-                        db_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                        qu_model = get_model_from_string(args,f"{model_name}_rgb","vpr")
-                    else:
-                        raise ValueError(f"Mode {db_q_mode} not supported. Choose either RGB_THERMAL or THERMAL_RGB")
-                    break
-                if not method_is_rgbt_method_flag:
-                    print(f"initializing model {model_name}")
-                    db_model = get_model_from_string(args,model_name,"vpr")
-                    qu_model = db_model
-
+                db_model, qu_model = get_model(model_name,db_q_mode)
                 print(f"🏁 Benchmarking: {model_name}")
-
 
                 assert db_model is not None and qu_model is not None, f"Models for {model_name} not found. Check your model names and dataset split."
 
@@ -538,18 +536,19 @@ def run(args: BenchmarkArgs):
                             log_to_wandb=args.use_wandb)
 
         
-                if split not in recall_dict:
-                    recall_dict[split] = {}
-                    recall_dict[split]['q/db'] = f'{len(qu_dataset)}/{len(db_dataset)}'
                 
-                recalls, top_k_indices = vpr(dataset_name=dataset_name,db_model =db_model,qu_model =qu_model,
+                
+                recalls, top_k_indices, total_queries_used_for_recall = vpr(dataset_name=dataset_name,db_model =db_model,qu_model =qu_model,
                                                 args=args,split=split,save_dir=os.path.join(save_dir,db_q_mode),model_name=model_name,
                                                 no_positive_matches_for_queries=no_positive_matches_for_queries,
                                                 db_dataset=db_dataset, db_feats=db_feats,
                                                 qu_dataset=qu_dataset ,qu_feats=qu_feats, 
                                                 pos_per_query=pos_per_qu, top_k_vals=args.top_k_vals, 
                                                 db_coords =dataset.db_coords, q_coords=dataset.q_coords,use_gpu=args.use_faiss_gpu)
-                
+                if split not in recall_dict:
+                    recall_dict[split] = {}
+                    recall_dict[split]['q/db'] = f'{total_queries_used_for_recall}/{len(db_dataset)}'
+
                 recall_dict[split][model_name] =[]
                 for k, v in recalls.items():
                     recall_dict[split][model_name].append(round(v,4))

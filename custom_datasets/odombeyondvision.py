@@ -119,18 +119,18 @@ class OdomBeyondVision(BaseDataset):
     Returns dataset class with images from database and queries for the odombeyondvision dataset
     """
     def __init__(self, args, db_modality, q_modality, datasets_folder, seq, augment, crop_images, 
-                 vpr_test=False, vpr_train=False, dist_thresh=15, rescale_during_crop=False,
-                 crop_during_vpr_test=False, val_positive_dist_threshold=25, neg_ring_outer_radius=40,
-                 subsample=10):
+                 vpr_test=False, vpr_train=False, dist_thresh=3, rescale_during_crop=False,
+                 crop_during_vpr_test=False, val_positive_dist_threshold=-1, neg_ring_outer_radius=-1,
+                 subsample=1):
         
         self.subsample = subsample
-        self.thr_res_after_crop = (212, 578)
+        # self.thr_res_after_crop = (212, 578)
         self.thr_res = (256, 640)
         
-        self.crop_top = 9
-        self.crop_bottom = 35
-        self.crop_left = 28
-        self.crop_right = 34
+        self.crop_top = 0
+        self.crop_bottom = 0
+        self.crop_left = 0
+        self.crop_right = 0
         
         self.val_positive_dist_threshold = val_positive_dist_threshold
         self.neg_ring_outer_radius = neg_ring_outer_radius
@@ -234,8 +234,8 @@ class OdomBeyondVision(BaseDataset):
         
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert to RGB
         h, w = img.shape[:2]
-        img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right]
-        img = cv2.resize(img, (self.thr_res[1], self.thr_res[0]), interpolation=cv2.INTER_AREA)
+        # img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right]
+        # img = cv2.resize(img, (self.thr_res[1], self.thr_res[0]), interpolation=cv2.INTER_AREA)
         img = base_transform(img)
         return img
 
@@ -245,7 +245,7 @@ class OdomBeyondVision(BaseDataset):
         img = process_one_image(img,type="hist_99")
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         h,w = img.shape[:2]
-        img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right].copy()
+        # img = img[self.crop_top:h - self.crop_bottom, self.crop_left:w - self.crop_right].copy()
         img = base_transform(img)
         return img
 
