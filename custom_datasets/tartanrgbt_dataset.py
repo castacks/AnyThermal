@@ -17,7 +17,23 @@ def return_tartanrgbt_split(split,debug=False):
                     'outdoor_campus_NSH_TO_CUT',
                     'outdoor_resedential_SQH_block',
                     'outdoor_urban_road_campus_to_marget_morrison',
-                    'indoor_GATES_garage_1','indoor_GATES_garage_3','indoor_GATES_seq_1','indoor_GATES_seq_2',"indoor_GATES_seq_3"
+                    'indoor_GATES_garage_1','indoor_GATES_garage_3','indoor_GATES_seq_1','indoor_GATES_seq_2',
+                    'outdoor_urban_road_mill_19_seq_1','outdoor_urban_mill_19_circle_building_seq_1','outdoor_urban_road_mill_19_seq_2','outdoor_urban_mill_19_exterior',
+                    'park_frick_seq_1_riverview_trail','park_frick_seq_3_openarea_to_tranquil_trail','park_frick_seq_5_return_falls_ravine_to_riverview','park_frick_seq_6_return_reverview','park_frick_seq_8_nine_mile_run',
+                    'offroad_figure_eight_morning_1','offroad_figure_eight_morning_2','offroad_warehouse_loop_morning','offroad_warehouse_fence_morning','offroad_rough_rider_afternoon','offroad_figure_eight_morning_3','offroad_figure_eight_morning_4','offroad_figure_eight_rough_rider_start','offroad_warehouse_loop_evening','offroad_warehouse_to_garage','offroad_figure_eight_to_fence_to_garage']
+            #offroad_return_turnpike_rough_rider_figure_8_to_fence cannot be used since it covers all areas - turnpike, figure8, rough rider
+        elif split == "train_full":
+            #first five trajectories were not used in the paper for training. For recreating paper, use train split. 
+            return ['indoor_library', 
+                    'urban_park_schenley', 
+                    'urban_campus_outdoor_1',
+                    "indoor_GATES_seq_3",
+                    'outdoor_campus_GATES_to_cut_and_loop_around_cut',
+                    'indoor_NSH_third_floor','indoor_NSH_fourth_floor','indoor_NSH_first_floor','indoor_SQH_office',
+                    'outdoor_campus_NSH_TO_CUT',
+                    'outdoor_resedential_SQH_block',
+                    'outdoor_urban_road_campus_to_marget_morrison',
+                    'indoor_GATES_garage_1','indoor_GATES_garage_3','indoor_GATES_seq_1','indoor_GATES_seq_2',"indoor_GATES_seq_3",
                     'outdoor_campus_GATES_to_cut_and_loop_around_cut',
                     'outdoor_urban_road_mill_19_seq_1','outdoor_urban_mill_19_circle_building_seq_1','outdoor_urban_road_mill_19_seq_2','outdoor_urban_mill_19_exterior',
                     'park_frick_seq_1_riverview_trail','park_frick_seq_3_openarea_to_tranquil_trail','park_frick_seq_5_return_falls_ravine_to_riverview','park_frick_seq_6_return_reverview','park_frick_seq_8_nine_mile_run',

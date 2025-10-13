@@ -84,17 +84,21 @@ def save_viz_outputs(images, labels, preds, out_dir, model_name, label_to_rgb_di
     os.makedirs(out_dir, exist_ok=True)
     # indices = np.linspace(0, len(images)-1, num=min(num_samples, len(images)), dtype=int)
     for idx in range(len(images)):
-        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+        fig, axs = plt.subplots(1, 4, figsize=(12, 4))
         axs[0].imshow(images[idx][0], cmap='gray')
         axs[0].set_title("Thermal")
         axs[1].imshow(label_to_rgb(labels[idx], label_to_rgb_dict))
         axs[1].set_title("Label")
         axs[2].imshow(label_to_rgb(preds[idx], label_to_rgb_dict))
         axs[2].set_title("Prediction")
+        mask = np.logical_not(preds[idx]==labels[idx])
+        incorrect_mean = mask.mean()
+        axs[3].imshow(mask)
+        axs[3].set_title(f"Incorrect mask {np.round(incorrect_mean,3)}")
         for ax in axs:
             ax.axis('off')
         plt.tight_layout()
-        plt.savefig(os.path.join(out_dir, f"sample_{idx:04d}.png"))
+        plt.savefig(os.path.join(out_dir, f"sample_{idx:04d}_incorrect_mean_{incorrect_mean}.png"))
         plt.close()
 
 def main(args: BenchmarkSegArgs):

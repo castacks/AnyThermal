@@ -666,7 +666,7 @@ def train():
     if args.lr_scheduler:
         raise ValueError("LR scheduler is not supported yet since resuming from checkpoint is not implemented yet. Please disable the lr_scheduler argument.")
 
-    train_dataloader, val_dataloader = build_dataset(args,m2p2_rgb_only=True) #PARV_DEBUG using only M2P2 RGB
+    train_dataloader, val_dataloader = build_dataset(args,m2p2_rgb_only=False) #PARV_DEBUG using only M2P2 RGB
     print("Train dataset size: ", len(train_dataloader.dataset))
     print("Val dataset size: ", len(val_dataloader.dataset))
     val_hard_positives_per_query = getattr(val_dataloader.dataset, 'soft_positives', None)

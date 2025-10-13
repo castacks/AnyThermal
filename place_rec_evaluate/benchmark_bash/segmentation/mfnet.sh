@@ -2,7 +2,7 @@
     # --model_names mmdistill_mfnet_thermal_dinov2_scaling_boson mmdistill_mfnet_thermal_dinov2_scaling_boson_vivid mmdistill_mfnet_thermal_dinov2_scaling_boson_freiburg mmdistill_mfnet_thermal_dinov2_scaling_boson_freiburg_vivid mmdistill_mfnet_thermal_dinov2_scaling_boson_vivid_sthereo mmdistill_mfnet_thermal_dinov2_scaling_boson_freiburg_vivid_sthereo mmdistill_mfnet_thermal_dinov2_with_tartan_rgbt\
 
 python3 benchmark_segmentation.py \
-    --model_names mmdistill_mfnet_frozen_rgb_dinov2 \
+    --model_names mmdistill_mfnet_frozen_rgb_dinov2 mmdistill_mfnet_thermal_dinov2_with_tartan_rgbt \
     --dataset_name mfnet \
     --batch_size 128 \
     --use_wandb \
