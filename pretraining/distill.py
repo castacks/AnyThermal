@@ -38,6 +38,22 @@ teacher_patch_size = None
 optimizer = None
 scheduler = None
 
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # If you want PyTorch to error on nondeterministic ops:
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+    # cuBLAS determinism: set this in the shell ideally:
+    #   export CUBLAS_WORKSPACE_CONFIG=:4096:8
+    # Doing it here is still OK as long as it runs before first CUDA matmul:
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 def save_viz_debug_images(images_dict, index, epoch, batch_num, split, save_root):
     """
     Save RGB and thermal images to disk for visualization/debugging.
@@ -523,6 +539,8 @@ def train():
     save_path = all_args['save_path']
     resume = all_args['resume']
 
+    set_global_seed(all_args['seed'])
+
     # Load the checkpoint if resuming training
     loss_file = None
     if resume:
@@ -736,7 +754,7 @@ parser.add_argument('--batch_size', default=64, type=int, help='Batch size for t
 parser.add_argument('--eval_batch_size', default=64, type=int, help='Batch size for training',action=StoreWithFlag)
 parser.add_argument('--train_num_workers', type=int, default=8, help='Number of workers for training dataloader',action=StoreWithFlag)
 parser.add_argument('--eval_num_workers', type=int, default=8, help='Number of workers for evaluation dataloader',action=StoreWithFlag)
-parser.add_argument('--epochs', default=100, type=int, help='Number of epochs to train for',action=StoreWithFlag)
+parser.add_argument('--epochs', default=20, type=int, help='Number of epochs to train for',action=StoreWithFlag)
 parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate',action=StoreWithFlag)
 parser.add_argument('--weight_decay', default=0.001, type=float, help='Weight decay',action=StoreWithFlag)
 parser.add_argument('--save_path', default='./checkpoints', type=str, help='Path to save the checkpoints',action=StoreWithFlag)
@@ -780,9 +798,11 @@ parser.add_argument('--unfreeze_register_tokens', nargs=0,default=False, help='U
 parser.add_argument('--optimizer', default='sgd', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
 parser.add_argument('--sampling_weight', default='equal', type=str, help='Sampling weight for the dataset',action=StoreWithFlag)
 parser.add_argument('--sampling_temperature', default=1., type=float, help='Sampling temperature for the dataset',action=StoreWithFlag)
-parser.add_argument('--equal_samples', nargs=0,default=False, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
+parser.add_argument('--equal_samples', nargs=0,default=True, help='Unfreeze the patch embedding layer of the student model',action=StoreWithFlag)
 parser.add_argument('--patch_embed_lr_factor', default=0.1, type=float, help='Learning rate factor for patch embedding layer',action=StoreWithFlag)
 parser.add_argument('--initial_backbone_path', default='', type=str, help='modality which will be frozen unless "unfreeze teacher" is true',action=StoreWithFlag)
+parser.add_argument('--seed', type=int, default=42,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
 
 if __name__ == "__main__":
     train()

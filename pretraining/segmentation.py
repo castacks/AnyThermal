@@ -25,8 +25,33 @@ from custom_models.dinov2_segmentation_model import MMDistillSegmentationModel ,
 from segment_utils import label_to_rgb
 from contextlib import nullcontext
 import math
-from utilities import seed_everything
-seed_everything()
+
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # If you want PyTorch to error on nondeterministic ops:
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+    # cuBLAS determinism: set this in the shell ideally:
+    #   export CUBLAS_WORKSPACE_CONFIG=:4096:8
+    # Doing it here is still OK as long as it runs before first CUDA matmul:
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
+def seed_worker(worker_id: int):
+    # PyTorch already seeds torch’s RNG for each worker.
+    # Sync numpy & python.random to that same seed so your augmentations match.
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    # Optional: re-assert torch seed if you want (not required):
+    # torch.manual_seed(worker_seed)
+
+
 db_modality = None
 def viz_pred_masks(imgs, preds, masks, epoch, save_vis_dir, semantic_id_to_rgb,test, index):
     pred_classes = preds.argmax(dim=1)
@@ -195,13 +220,13 @@ def dataloader_loop(args, optimizer, model, dataloader, test, epoch, semantic_id
             import gc; gc.collect()
         loss_str = "train_loss" if not test else "val_loss"
 
-        log_dict = {"epoch": epoch+1, "lr": optimizer.param_groups[0]['lr']}
+        log_dict = {"epoch": epoch, "lr": optimizer.param_groups[0]['lr']}
         total_loss /= len(dataloader)
         for loss_type, individual_loss in total_individual_loss.items():
             total_individual_loss[loss_type] /= len(dataloader)
             log_dict[f"{loss_str}/{loss_type}"] = total_individual_loss[loss_type]
     
-        print(f"Epoch {epoch+1}/{args.epochs}  - {loss_str}: {total_loss:.4f}")
+        print(f"Epoch {epoch}/{args.epochs}  - {loss_str}: {total_loss:.4f}")
         log_dict[f"{loss_str}/total_loss"] = total_loss
         if args.wandb_use:
             wandb.log(log_dict)
@@ -278,7 +303,7 @@ def train_segmentation_pipeline(args):
     elif args.dataset == "mfnet":
         print("Using MFNet dataset")
         train_seq_list = return_mfnet_split("train")
-        val_seq_list = return_mfnet_split("test")
+        val_seq_list = return_mfnet_split("test") #PARV_TODO use val when releaseing the code
         db_modality = "thr"
         train_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
         val_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
@@ -296,12 +321,14 @@ def train_segmentation_pipeline(args):
     print("Train dataset size:", len(train_dataset))
     print("Validation dataset size:", len(val_dataset))
     semantic_id_to_rgb = val_dataset.semantic_id_to_rgb
+    g = torch.Generator()
+    g.manual_seed(args.seed)
     if args.num_workers > 0:
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, persistent_workers=True)
-        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, persistent_workers=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, persistent_workers=True,worker_init_fn=seed_worker,generator=g)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, persistent_workers=True,worker_init_fn=seed_worker,generator=g)
     else:
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,generator=g)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,generator=g)
     class_weights = calculate_class_weights(train_loader).to(device)
 
     start_epoch = 0
@@ -379,8 +406,8 @@ def train_segmentation_pipeline(args):
     # scheduler.step()
     print(f"Initial learning rate: {optimizer.param_groups[0]['lr']:.6f}")
 
-    for epoch in range(start_epoch, args.epochs):
-        print(f"Epoch {epoch+1}/{args.epochs}")
+    for epoch in range(start_epoch, args.epochs+1):
+        print(f"Epoch {epoch}/{args.epochs}")
         print("Training...")
         dataloader_loop(args, optimizer, model, train_loader, test=False, epoch=epoch, semantic_id_to_rgb=semantic_id_to_rgb, save_vis_dir=save_vis_dir, class_weights=class_weights)
         print("Validation ...")
@@ -400,7 +427,8 @@ def train_segmentation_pipeline(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train segmentation head on DINOv2 features')
-    parser.add_argument('--epochs', default=350, type=int)
+    parser.add_argument('--seed', default=85, type=int)
+    parser.add_argument('--epochs', default=25, type=int)
     parser.add_argument('--dataset', default='cart', type=str,choices=['cart_geographic', 'cart_random', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
@@ -411,12 +439,12 @@ if __name__ == "__main__":
     parser.add_argument('--resume_path', default='', type=str)
     parser.add_argument('--resume_epoch_num', default=0, type=int)
     parser.add_argument('--wandb_use', default = True, type=bool, help='Use wandb for logging')
-    parser.add_argument('--head_name', default='linear', type=str)
+    parser.add_argument('--head_name', default='non_linear_64', type=str)
     parser.add_argument('--model_path', default="", type=str)
     parser.add_argument('--wandb_name', required=True, type=str)
     parser.add_argument('--save_visualizations', action='store_true')
     parser.add_argument('--crop_images', default=False, help='Rescale images during cropping')
-    parser.add_argument('--loss_type', type=str, nargs='+', default=['weighted_ce'], choices=['ce', 'weighted_ce', 'dice'],help='Loss function to use')
+    parser.add_argument('--loss_type', type=str, nargs='+', default=['dice'], choices=['ce', 'weighted_ce', 'dice'],help='Loss function to use')
     parser.add_argument('--un_frozen_layer_index', type=int, nargs='+', default=[],
                 help='List of layer indices to unfreeze')
     parser.add_argument('--unfreeze_last_norm', action='store_true')
@@ -424,10 +452,13 @@ if __name__ == "__main__":
     parser.add_argument('--upscale_method', default='bilinear', type=str, choices=['bilinear', 'loftup','pre_bilinear'], help='Loss function to use')
     parser.add_argument('--augment', action='store_true')
     parser.add_argument('--model_type',default="dinov2_vitb14", type=str, choices=['dinov2_vitb14', 'dinov2_vitb14_reg'], help='Loss function to use')
-    parser.add_argument('--dropout_prob', default=0., type=float)
-    parser.add_argument('--thermal_segmentation_augmentation', type=str, nargs='+', default=['hflip'], choices=['hflip', 'vflip', 'brightness_contrast',"noise","gamma","crop_with_random_ratio","crop_with_fixed_ratio"],help='Loss function to use')
+    parser.add_argument('--dropout_prob', default=0.05, type=float)
+    parser.add_argument('--thermal_segmentation_augmentation', type=str, nargs='+', default=['brightness_contrast','gamma'], choices=['hflip', 'vflip', 'brightness_contrast',"noise","gamma","crop_with_random_ratio","crop_with_fixed_ratio"],help='Loss function to use')
     parser.add_argument('--skip_classes', action='store_true')
     args = parser.parse_args()
+
+    # Call this ONCE at startup, before building models/loaders
+    set_global_seed(args.seed)
 
     assert args.model_type or args.model_path, "Please provide a model type or a model path to load the backbone."
 

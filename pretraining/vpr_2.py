@@ -34,6 +34,33 @@ from utilities import *
 import yaml
 import pandas as pd
 
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # If you want PyTorch to error on nondeterministic ops:
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+    # cuBLAS determinism: set this in the shell ideally:
+    #   export CUBLAS_WORKSPACE_CONFIG=:4096:8
+    # Doing it here is still OK as long as it runs before first CUDA matmul:
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
+def seed_worker(worker_id: int):
+    # PyTorch already seeds torch’s RNG for each worker.
+    # Sync numpy & python.random to that same seed so your augmentations match.
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    # Optional: re-assert torch seed if you want (not required):
+    # torch.manual_seed(worker_seed)
+
+
+
 def batched_dot_similarity(embeddings, a_idx, b_idx, chunk_size=100000):
     """
     Compute dot products (cosine similarity) between normalized embeddings[a_idx] and embeddings[b_idx] in chunks.
@@ -601,7 +628,9 @@ def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, curre
             remaining_dataset = Subset(dataloader.dataset, remaining_indices)
             remaining_dataset.idx_to_dataset = dataloader.dataset.idx_to_dataset[remaining_indices]
             sampler = IntraDatasetBatchSampler(remaining_dataset.idx_to_dataset,batch_size=args.eval_batch_size)
-            remaining_dataloader = DataLoader(remaining_dataset, num_workers=args.eval_num_workers,batch_sampler = sampler)
+            g = torch.Generator()
+            g.manual_seed(args.seed)
+            remaining_dataloader = DataLoader(remaining_dataset, num_workers=args.eval_num_workers,batch_sampler = sampler,worker_init_fn=seed_worker,generator=g)
             for batch_item in tqdm(remaining_dataloader, desc=f"{mode.capitalize()} Remaining Epoch {epoch}"):
                 batch, _ = batch_item["item"]
                 indices = batch_item["batch_id"].tolist()
@@ -981,7 +1010,7 @@ if __name__ == '__main__':
                     help='Path to the backbone model, if not using default backbone')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--eval_batch_size', type=int, default=-1)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=35)
     parser.add_argument('--save_dir', type=str, default="checkpoints/vpr")
     parser.add_argument('--save_interval', type=int, default=1)
     parser.add_argument("--augment", action='store_true', help="Use data augmentation for training")
@@ -1007,7 +1036,7 @@ if __name__ == '__main__':
                     default='salad', help='Aggregation head architecture')
     parser.add_argument('--debug_viz', action='store_true', help='Enable Top-K retrieval visualization')
     parser.add_argument('--intra_dataset_batch', type=bool, default=True, help='Enable Top-K retrieval visualization')
-    parser.add_argument('--margin', type=float, default=0.3, help='[legacy] Fixed margin for triplet/pair loss (used if not curriculum)')
+    parser.add_argument('--margin', type=float, default=0.1, help='Fixed margin for triplet/pair loss (used if not curriculum)')
     parser.add_argument('--crop_images', action='store_true', help='Disable image cropping')
     parser.add_argument('--no_shuffle', action='store_true', help='Disable shuffling of dataset')
     parser.add_argument('--conv_output_dim', type=int, default=-1, help='Disable shuffling of dataset')
@@ -1040,10 +1069,14 @@ if __name__ == '__main__':
     parser.add_argument('--curriculum_mode', type=str, choices=['none','epoch','metric'], default='none',
                         help='How to adapt margin. "epoch" = linear ramp by epoch; "metric" = simple recall@1 policy.')
     
-    parser.add_argument('--hard_frac', type=float, default=1.0,
+    parser.add_argument('--hard_frac', type=float, default=0.75,
+                        help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
+    parser.add_argument('--seed', type=int, default=42,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
 
     args = parser.parse_args()
+
+    set_global_seed(args.seed)
 
     args.eval_batch_size = args.batch_size if args.eval_batch_size == -1 else args.eval_batch_size
 

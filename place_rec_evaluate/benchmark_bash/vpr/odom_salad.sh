@@ -8,7 +8,7 @@
     # --model_names salad vpr_mmdistill_salad_frozen_with_all_for_vpr_head  salad vpr_mmdistill_salad_all_with_tartan_rgbt_frac_0.75\
 
 python3 new_benchmark_vpr.py \
-    --model_names salad vpr_mmdistill_salad_all_with_tartan_rgbt_frac_0.75 \
+    --model_names vpr_mmdistill_salad_anythermal_m0.1_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.85 vpr_mmdistill_salad_anythermal_m0.15_hard_frac_0.85\
     --dataset odombeyondvision\
     --top_k_vals 1 5 10 \
     --batch_size 16 \

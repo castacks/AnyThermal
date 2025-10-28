@@ -143,7 +143,8 @@ def get_model_from_string(args,name: str,task,**kwargs):
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-08_20-34-05thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.5/model_40.pth"
             elif model_name == "all_with_tartan_rgbt_frac_0.75":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-08_20-34-05thermal_dino_with_correct_tartanrgbt_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
-            
+            elif model_name == "anythermal_salad_icra_recrete":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-18_18-18-14anythermal_salad_icra_recreate_mach2_scaling_full_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
             elif model_name == "frozen_with_all_for_vpr_head":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09frozen_dino_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
 
@@ -174,6 +175,27 @@ def get_model_from_string(args,name: str,task,**kwargs):
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vivid_freiburg_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
             elif model_name == "bn_boson_vivid_freiburg_sthereo_vpr_all":
                 model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-09-09_18-44-09thermal_dino_scaling_bn_boson_vivid_freiburg_sthereo_vpr_all_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.75/model_35.pth"
+            
+            
+            elif model_name == "anythermal_m0.1_hard_frac_0.6":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-19_21-58-31anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.6/model_35.pth"
+            elif model_name == "anythermal_m0.1_hard_frac_0.7":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-19_21-58-31anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.7/model_35.pth"
+            elif model_name == "anythermal_m0.1_hard_frac_0.85":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-19_21-58-31anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.1_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.85/model_35.pth"
+            elif model_name == "anythermal_m0.05_hard_frac_0.6":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-19_22-35-18anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.05_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.6/model_35.pth"
+            elif model_name == "anythermal_m0.05_hard_frac_0.7":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-20_00-35-24anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.05_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.7/model_35.pth"
+            elif model_name == "anythermal_m0.05_hard_frac_0.85":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-20_12-20-08anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.05_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.85/model_35.pth"
+            elif model_name == "anythermal_m0.15_hard_frac_0.6":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-20_12-47-37anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.15_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.6/model_35.pth"
+            elif model_name == "anythermal_m0.15_hard_frac_0.7":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-20_14-28-04anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.15_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.7/model_35.pth"
+            elif model_name == "anythermal_m0.15_hard_frac_0.85":
+                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/vpr/boson_freiburg_sthereo_tartanrgbt_vivid/2025-10-20_14-28-04anythermal_salad_icra_recreate_mach3_boson_freiburg_sthereo_tartanrgbt_vivid_salad_margin_0.15_same_backboneTrue_frozen_backbone_True_un_frozen_layer_index_hard_triplet_hard_frac_0.85/model_35.pth"
+            
             else :  
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             model_dict = torch.load(model_path, map_location='cpu')

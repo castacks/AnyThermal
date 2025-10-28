@@ -12,9 +12,11 @@
 #scaling - bn and vpr same 
 # --model_names vpr_mmdistill_salad_bn_boson_vpr_same vpr_mmdistill_salad_bn_boson_vivid_vpr_same vpr_mmdistill_salad_bn_boson_vivid_freiburg_vpr_same vpr_mmdistill_salad_bn_boson_vivid_freiburg_sthereo_vpr_same\
 
+# --model_names vpr_mmdistill_salad_anythermal_m0.1_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.1_hard_frac_0.7 vpr_mmdistill_salad_anythermal_m0.1_hard_frac_0.85 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.7 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.85 vpr_mmdistill_salad_anythermal_m0.15_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.15_hard_frac_0.7 vpr_mmdistill_salad_anythermal_m0.15_hard_frac_0.85\
+
 
 python3 new_benchmark_vpr.py \
-    --model_names vpr_mmdistill_salad_all_with_tartan_rgbt_frac_0.5_equal_samples vpr_mmdistill_salad_frozen_with_all_for_vpr_head_0.5_equal_samples\
+    --model_names vpr_mmdistill_salad_anythermal_m0.1_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.6 vpr_mmdistill_salad_anythermal_m0.05_hard_frac_0.85 vpr_mmdistill_salad_anythermal_m0.15_hard_frac_0.85\
     --dataset ms2\
     --top_k_vals 1 5 10 \
     --batch_size 16 \

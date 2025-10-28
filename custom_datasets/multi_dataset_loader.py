@@ -32,6 +32,16 @@ from functools import partial
 
 from torchvision import transforms
 import time
+
+def seed_worker(worker_id: int):
+    # PyTorch already seeds torch’s RNG for each worker.
+    # Sync numpy & python.random to that same seed so your augmentations match.
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    # Optional: re-assert torch seed if you want (not required):
+    # torch.manual_seed(worker_seed)
+
 class IdentityTransform:
     def __call__(self, x):
         return x
@@ -651,7 +661,8 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
 
         num_workers = args.train_num_workers if mode == 'train' else args.eval_num_workers
         batch_size = args.batch_size if mode == 'train' else args.eval_batch_size
-
+        g = torch.Generator()
+        g.manual_seed(args.seed)
         if getattr(args, 'intra_dataset_batch', False):
             # Group indices by dataset
             dataset_to_indices = defaultdict(list)
@@ -661,18 +672,18 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using IntraDatasetBatchSampler for {mode} mode")
                 batch_sampler = IntraDatasetBatchSampler(dataset_to_indices, batch_size,subsample=subsample,equal_samples=getattr(args, 'equal_samples', False))
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_sampler=batch_sampler, num_workers=num_workers)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_sampler=batch_sampler, num_workers=num_workers,worker_init_fn=seed_worker,generator=g)
             else:
                 print(f"Using no shuffle for {mode} mode")
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers,worker_init_fn=seed_worker,generator=g)
         else:
             if not getattr(args, 'no_shuffle', False):
                 print(f"Using WeightedRandomSampler for {mode} mode")
                 sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights)//subsample, replacement=False)
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, sampler=sampler, num_workers=num_workers,drop_last=False)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, sampler=sampler, num_workers=num_workers,drop_last=False,worker_init_fn=seed_worker,generator=g)
             else:
                 print(f"Using no shuffle for {mode} mode")
-                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers,drop_last=False)
+                combined_dataloader[mode] = DataLoader(wrapped_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers,drop_last=False,worker_init_fn=seed_worker,generator=g)
     if args.train:
         return combined_dataloader["train"], combined_dataloader["val"]
     else:

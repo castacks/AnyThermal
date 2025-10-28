@@ -174,17 +174,17 @@ class BaseDataset(Dataset):
 
         _, h, w = img1.shape
 
-        if "hflip" in aug_list and random.random() > 0.5:
+        if "hflip" in aug_list and torch.rand(()) > 0.5:
             img1 = F.hflip(img1)
             img2 = F.hflip(img2)
 
 
         if "brightness_contrast" in aug_list:
-            brightness_factor = random.uniform(0.8, 1.2)
-            contrast_factor = random.uniform(0.8, 1.2)
+            brightness_factor = torch.empty(1).uniform_(0.8, 1.2).item()
+            contrast_factor = torch.empty(1).uniform_(0.8, 1.2).item()
             img1 = torch.clamp(img1 * brightness_factor * contrast_factor, 0, 1)
 
-        if "noise" in aug_list and random.random() < 0.3:
+        if "noise" in aug_list and torch.rand(()) < 0.3:
             noise = torch.randn_like(img1) * 0.02
             img1 = torch.clamp(img1 + noise, 0, 1)
 
@@ -192,15 +192,15 @@ class BaseDataset(Dataset):
             gamma = random.uniform(0.9, 1.1)
             img1 = torch.pow(img1, gamma)
 
-        if "crop_with_random_ratio" in aug_list and random.random() < 0.5:
+        if "crop_with_random_ratio" in aug_list and torch.rand(()) < 0.5:
             crop_scale = random.uniform(*crop_scale_range)
             crop_h = int(h * crop_scale)
             crop_w = int(w * crop_scale)
             min_crop = min(crop_h, crop_w)
             crop_h, crop_w = min_crop, min_crop
             if crop_h < h and crop_w < w:
-                top = random.randint(0, h - crop_h)
-                left = random.randint(0, w - crop_w)
+                top  = int(torch.randint(0, (original_height - target_height) + 1, (1,)).item())
+                left = int(torch.randint(0, (original_width  - target_width ) + 1, (1,)).item())
                 img1 = img1[:, top:top+crop_h, left:left+crop_w]
                 img2 = img2[:, top:top+crop_h, left:left+crop_w]
 
@@ -282,7 +282,7 @@ class BaseDataset(Dataset):
         max_left = W - crop_size
 
         # Randomly choose horizontal crop start
-        left = random.randint(0, max_left)
+        left = int(torch.randint(0, max_left + 1, (1,)).item())
         top = 0  # no vertical crop
 
         # Apply the crop
@@ -300,17 +300,17 @@ class BaseDataset(Dataset):
         aug_list = self.args.aug_list
 
         # ----- Random Parameters -----
-        rgb_brightness_factor = random.uniform(0.7, 1.3)
-        rgb_contrast_factor = random.uniform(0.8, 1.2)
-        rgb_gamma = random.uniform(0.7, 1.5)
+        rgb_brightness_factor = torch.empty(1).uniform_(0.7, 1.3).item()
+        rgb_contrast_factor   = torch.empty(1).uniform_(0.8, 1.2).item()
+        rgb_gamma             = torch.empty(1).uniform_(0.7, 1.5).item()
 
-        thermal_brightness_factor = random.uniform(0.7, 1.3)
-        thermal_contrast_factor = random.uniform(0.8, 1.2)
-        thermal_gamma = random.uniform(0.7, 1.5)
+        thermal_brightness_factor = torch.empty(1).uniform_(0.7, 1.3).item()
+        thermal_contrast_factor   = torch.empty(1).uniform_(0.8, 1.2).item()
+        thermal_gamma             = torch.empty(1).uniform_(0.7, 1.5).item()
 
-        saturation_factor = random.uniform(0.2, 1.2)
-        hue_factor = random.uniform(-0.05, 0.05)
-        do_flip = random.random() > 0.5
+        saturation_factor = torch.empty(1).uniform_(0.2, 1.2).item()
+        hue_factor        = torch.empty(1).uniform_(-0.05, 0.05).item()
+        do_flip           = (torch.rand(()) > 0.5)
 
         rgb_shape = rgb.shape[-2:]
 
@@ -365,8 +365,8 @@ class BaseDataset(Dataset):
         if "cutout" in aug_list:
             _, H, W = rgb.shape
             cutout_size = int(0.1 * min(H, W))
-            x0 = random.randint(0, W - cutout_size)
-            y0 = random.randint(0, H - cutout_size)
+            x0 = int(torch.randint(0, W - cutout_size + 1, (1,)).item())
+            y0 = int(torch.randint(0, H - cutout_size + 1, (1,)).item())
             rgb[:, y0:y0+cutout_size, x0:x0+cutout_size] = 0.0
             thermal[:, y0:y0+cutout_size, x0:x0+cutout_size] = 0.0
 
