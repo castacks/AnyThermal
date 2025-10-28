@@ -1,4 +1,4 @@
-pretraining/*checkpoints*/**
+*checkpoints*
 
 **/multiloc_cache/**
 **/wandb/**
@@ -10,3 +10,7 @@ place_rec_evaluate/.checkpoints
 
 **/GPS_coords/**
 **/wrong_ms2_split_old_checkpoints/**
+
+*.png
+*.csv
+**/qualitative_outputs/**

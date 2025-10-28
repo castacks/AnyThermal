@@ -1,2 +1,0 @@
-model,_total_frames,weighted_R@1,weighted_R@5,weighted_R@10
-vpr_mmdistill_salad_frozen_with_all_for_vpr_head,5971,0.5427876570088763,0.7898178194607268,0.8780698375481494
