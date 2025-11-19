@@ -1,0 +1,13 @@
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176678.857889.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176679.357984.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176681.857863.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176682.857862.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176683.857866.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176684.857862.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176684.357890.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176686.857866.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176687.857864.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176688.357876.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176688.857862.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176691.357914.png
+handheld_indoor/dark_aggresive/img/thermal_fieldscale_clahe/1556176693.357881.png

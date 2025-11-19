@@ -1,0 +1,72 @@
+traj_list:
+  #day1
+  day1/undistorted_images_all_cameras_20250822_115703: indoor_SQH_office #1717
+  day1/undistorted_images_all_cameras_20250822_115932: outdoor_campus_NSH_TO_CUT #1618
+  day1/undistorted_images_all_cameras_20250822_120029: indoor_NSH_third_floor #2058
+  day1/undistorted_images_all_cameras_20250822_120654: outdoor_urban_road_campus_to_marget_morrison #2941
+  day1/undistorted_images_all_cameras_20250822_120927: outdoor_resedential_SQH_block #4174
+  day1/undistorted_images_all_cameras_20250822_121239: indoor_NSH_fourth_floor #1758
+  day1/undistorted_images_all_cameras_20250822_122326: indoor_NSH_second_floor #120 #discard
+  day1/undistorted_images_all_cameras_20250822_123725: indoor_NSH_first_floor #1443
+
+  #day2
+  day2/undistorted_images_all_cameras_20250824_083850: indoor_outdoor_mill19_building_interior_exterior #7245
+  day2/undistorted_images_all_cameras_20250824_083928: indoor_GATES_garage_1 #1931
+  # day2/undistorted_images_all_cameras_20250824_084412: indoor_outdoor_mill19_building_interior_exterior #237 #DISCARD
+  day2/undistorted_images_all_cameras_20250824_084455: indoor_GATES_planetary_robot #332 #DISCARD
+  day2/undistorted_images_all_cameras_20250824_084614: indoor_GATES_seq_1 #7096
+  day2/undistorted_images_all_cameras_20250824_084635: indoor_GATES_garage_3 #2178
+  day2/undistorted_images_all_cameras_20250824_085347: outdoor_campus_GATES_to_cut_and_loop_around_cut #2696
+  day2/undistorted_images_all_cameras_20250824_090314: indoor_GATES_seq_2 #1810
+  day2/undistorted_images_all_cameras_20250824_090559: indoor_CFA_seq_1 #discard since short and repetetive seq
+  day2/undistorted_images_all_cameras_20250824_090828: indoor_CFA_seq_2 #3628
+  day2/undistorted_images_all_cameras_20250824_090957: indoor_GATES_seq_3 #10503
+  day2/undistorted_images_all_cameras_20250824_091457: outdoor_urban_road_mill_19_seq_1 #8097
+  day2/undistorted_images_all_cameras_20250824_093256: outdoor_urban_mill_19_circle_building_seq_1 #2425
+  day2/undistorted_images_all_cameras_20250824_093823: outdoor_urban_road_mill_19_seq_2 #3315
+  day2/undistorted_images_all_cameras_20250824_094534: outdoor_urban_mill_19_exterior #302
+
+  #day3
+  day3/undistorted_images_all_cameras_20250824_162554: debug_seq_1 #discard
+  day3/undistorted_images_all_cameras_20250826_124839: debug_seq_2 #discard
+  day3/undistorted_images_all_cameras_20250826_125143: debug_seq_3 #discard
+  day3/undistorted_images_all_cameras_20250826_125213: park_frick_seq_1_riverview_trail #17184
+  day3/undistorted_images_all_cameras_20250826_125340: park_frick_seq_2 #discard since short and a static segment
+  day3/undistorted_images_all_cameras_20250826_130312: park_frick_seq_3_openarea_to_tranquil_trail #529
+  day3/undistorted_images_all_cameras_20250826_130422: park_frick_seq_4_return_tranquil_trail_start_to_falls_ravine #1289
+  day3/undistorted_images_all_cameras_20250826_130714: park_frick_seq_5_return_falls_ravine_to_riverview  #11821
+  day3/undistorted_images_all_cameras_20250826_133143: park_frick_seq_6_return_reverview  #2208
+  day3/undistorted_images_all_cameras_20250826_133151: park_frick_seq_7_deer_creek_trail_and_nine_mile_start #747
+  day3/undistorted_images_all_cameras_20250826_133347: debug_seq #discard
+  day3/undistorted_images_all_cameras_20250826_133622: park_frick_seq_8_nine_mile_run  #9893
+  day3/undistorted_images_all_cameras_20250826_140031: urban_resedential_frick_park #5660
+
+  #day4
+  day4/undistorted_images_all_cameras_20250828_000158: debug_seq_1 #discard
+  day4/undistorted_images_all_cameras_20250828_000502: offroad_figure_eight_morning_1 #6648
+  day4/undistorted_images_all_cameras_20250828_001327: debug_seq_2 #discard
+  day4/undistorted_images_all_cameras_20250828_001845: offroad_figure_eight_morning_2 #1242
+  day4/undistorted_images_all_cameras_20250828_002343: debug_seq_3 # discard - small and static
+  day4/undistorted_images_all_cameras_20250828_002829: offroad_rough_rider_afternoon #2240
+  day4/undistorted_images_all_cameras_20250828_003451: offroad_turnpike_seq_1 #5687
+  day4/undistorted_images_all_cameras_20250828_003512: debug_seq_4 # discard - small and static
+  day4/undistorted_images_all_cameras_20250828_004657: offroad_turnpike_seq_2 #1703
+  day4/undistorted_images_all_cameras_20250828_004755: offroad_warehouse_loop_morning #1267
+  day4/undistorted_images_all_cameras_20250828_005106: offroad_warehouse_fence_morning #2314
+  day4/undistorted_images_all_cameras_20250828_005405: offroad_turnpike_seq_3 #1093
+  day4/undistorted_images_all_cameras_20250828_005758: offroad_turnpike_seq_4 #1613
+  day4/undistorted_images_all_cameras_20250828_010222: offroad_return_turnpike_rough_rider_figure_8_to_fence #8463
+  day4/undistorted_images_all_cameras_20250828_010257: debug_seq_5 #discard since very short
+  day4/undistorted_images_all_cameras_20250828_010559: offroad_figure_eight_morning_3 #3109
+  day4/undistorted_images_all_cameras_20250828_011259: offroad_figure_eight_morning_4 #1762
+  day4/undistorted_images_all_cameras_20250828_011657: offroad_figure_eight_rough_rider_start #7104
+  day4/undistorted_images_all_cameras_20250828_012214: offroad_warehouse_loop_evening #745
+  day4/undistorted_images_all_cameras_20250828_012400: offroad_warehouse_to_garage #634
+  day4/undistorted_images_all_cameras_20250828_013220: offroad_figure_eight_to_fence_to_garage #1269
+
+  #day5
+  day5/undistorted_images_all_cameras_20250828_194850: debug_seq_1 #discard
+  day5/undistorted_images_all_cameras_20250828_194934: indoor_library #4047
+  day5/undistorted_images_all_cameras_20250828_200532: urban_park_schenley #2227
+  day5/undistorted_images_all_cameras_20250828_201013: urban_campus_outdoor_1 #2392
+  

@@ -1,15 +1,15 @@
 from torch.utils.data import Dataset, ConcatDataset, WeightedRandomSampler, DataLoader, Subset, RandomSampler, BatchSampler
 from collections import defaultdict
-from ms2_dataset import MS2, return_ms2_split, return_ms2_split_debug
-from cart_dataset import CART, HandheldCART,return_cart_split_segmentation_geographic,return_cart_split, return_cart_split_debug,return_handheld_cart_split
-from freiburg_dataset import Freiburg, return_freiburg_split
-from vivid_dataset import Vivid, return_vivid_split
-from sthereo_dataset import STHEREO, return_sthereo_split
-from boson_nightime_dataset import BosonNightimeBaseDataset
-from m2p2_dataset import M2P2, return_m2p2_split
-from mfnet_dataset import MFNet, return_mfnet_split
-from tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
-from odombeyondvision import OdomBeyondVision, return_odom_beyond_vision_split
+from .ms2_dataset import MS2, return_ms2_split, return_ms2_split_debug
+from .cart_dataset import CART, HandheldCART,return_cart_split, return_cart_split_debug,return_handheld_cart_split
+from .freiburg_dataset import Freiburg, return_freiburg_split
+from .vivid_dataset import Vivid, return_vivid_split
+from .sthereo_dataset import STHEREO, return_sthereo_split
+from .boson_nightime_dataset import BosonNightimeBaseDataset
+from .m2p2_dataset import M2P2, return_m2p2_split
+from .mfnet_dataset import MFNet, return_mfnet_split
+from .tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
+from .odombeyondvision import OdomBeyondVision, return_odom_beyond_vision_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -519,71 +519,63 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                     seq_list = return_ms2_split_debug(mode)
                 else:
                     seq_list = return_ms2_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/MS2_full"
+                data_root = os.environ["ANYTHERMAL_MS2_DATA_ROOT"]
             elif ds_name == "cart" or ds_name == "handheld_cart":
                 print("Using CART dataset")
-                if args.cart_split =='segmentation':
-                    raise ValueError("CART segmentation split is not supported yet. tio support see which mode to use - thermal or rgbt")
-                    if mode == "train":
-                        seq_list = return_cart_split_segmentation_geographic(split=mode,area="socal",mode="rgbt")
-                    else:
-                        seq_list = return_cart_split_segmentation_geographic(split=mode,area="northcarolina",mode="rgbt") + return_cart_split_segmentation_geographic(split=mode,area="kentucky",mode="rgbt")
-                    dataset_init_dict["seq_as_txt"]="rgbt"
-                    data_root = None
-                    root_frame_dir = None
-
-                    print("Using CART dataset for segmentation task")
+                if args.debug:
+                    print("Using CART dataset for debugging")
+                    seq_list = return_cart_split_debug(mode)
                 else:
-                    if args.debug:
-                        print("Using CART dataset for debugging")
-                        seq_list = return_cart_split_debug(mode)
+                    if ds_name == "handheld_cart":
+                        seq_list = return_handheld_cart_split(mode)
+                    elif ds_name == "cart":
+                        seq_list = return_cart_split(mode)
                     else:
-                        if ds_name == "handheld_cart":
-                            seq_list = return_handheld_cart_split(mode)
-                        elif ds_name == "cart":
-                            seq_list = return_cart_split(mode)
-                        else:
-                            raise ValueError(f"Unknown CART dataset name: {ds_name}")
-                    data_root = "/ocean/projects/cis220039p/mdt2/shared/CART/bag_files"
-                    root_frame_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
+                        raise ValueError(f"Unknown CART dataset name: {ds_name}")
+                data_root = os.environ["ANYTHERMAL_CART_DATA_ROOT"]
+                root_frame_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
                 
                 dataset_init_dict["root_frame_dir"]= root_frame_dir
                 dataset_init_dict["cart_split"] = args.cart_split
             elif ds_name == "freiburg":
                 print("Using Freiburg dataset")
                 seq_list = return_freiburg_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/freiburg"
+                data_root = os.environ["ANYTHERMAL_FREIBURG_DATA_ROOT"]
             elif ds_name == "vivid":
                 print("Using VIVID++ dataset")
                 seq_list = return_vivid_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/extracted_data"
+                data_root = os.environ["ANYTHERMAL_VIVID++_DATA_ROOT"]
+                dataset_init_dict["root_frame_dir"] = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/VIVID++/frame_lists"
+
             elif ds_name == "sthereo":
                 print("Using STHEREO dataset")
                 seq_list = return_sthereo_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/sequences"
+                data_root = os.environ["ANYTHERMAL_STHEREO_DATA_ROOT"]
+                dataset_init_dict["root_frame_dir"]= "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/sthereo/frame_lists"
             elif ds_name == "boson":
                 print("Using Boson Nightime dataset")
                 seq_list = [mode]
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/boson_nightime"
+                data_root = os.environ["ANYTHERMAL_BOSON_DATA_ROOT"]
             elif ds_name == "m2p2":
                 print("Using M2P2 dataset")
-                seq_list = return_m2p2_split(mode, rgb_only=m2p2_rgb_only)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/M2P2/extracted_data_new"
+                data_root = os.environ["ANYTHERMAL_M2P2_DATA_ROOT"]
+                seq_list = return_m2p2_split(data_root,mode, rgb_only=m2p2_rgb_only)
+                
             elif ds_name == "mfnet":
                 print("Using MFNet dataset")
                 seq_list = return_mfnet_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/MFNet"
+                data_root = os.environ["ANYTHERMAL_MFNET_DATA_ROOT"]
             elif ds_name == "tartanrgbt":
                 print("Using TartanRGBT dataset")
                 seq_list = return_tartanrgbt_split(mode, debug=args.debug)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/extracted_data"
+                data_root = os.environ["ANYTHERMAL_TARTANRGBT_DATA_ROOT"]
             elif ds_name == "odombeyondvision":
                 print("Using OdomBeyondVision dataset")
                 if hasattr(args, 'local_seq'):
                     seq_list = [args.local_seq]
                 else:
                     seq_list = return_odom_beyond_vision_split(mode)
-                data_root = "/ocean/projects/cis220039p/mdt2/datasets/OdomBeyondVision/ExtractedData"
+                data_root = os.environ["ANYTHERMAL_ODOMBEYONDVISION_DATA_ROOT"]
             else:
                 raise ValueError(f"Unknown dataset name: {ds_name}")
             augment = False

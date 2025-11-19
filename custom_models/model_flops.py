@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 
-# ---- Optional FLOPs dependency (MACs + Params). Install with: pip install thop
 try:
     from thop import profile as thop_profile
     HAVE_THOP = True
@@ -16,8 +15,6 @@ except Exception:
 from typing import Tuple
 from torchvision import models as tvm
 import sys
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
 from custom_models.str_to_cls import get_model_from_string
 
 @dataclass

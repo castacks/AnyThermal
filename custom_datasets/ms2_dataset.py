@@ -1,5 +1,5 @@
-from base_dataset import *
-from ms2_utils import *
+from .base_dataset import *
+from .ms2_utils import *
 from pyproj import Transformer
 
 def sparse_to_dense(sparse, max_depth=100.):

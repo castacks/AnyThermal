@@ -1,0 +1,13 @@
+data_root: 
+  freiburg: /ocean/projects/cis220039p/mdt2/datasets/freiburg
+  mfnet: /ocean/projects/cis220039p/mdt2/datasets/MFNet
+  pst900: /ocean/projects/cis220039p/mdt2/datasets/PST900_RGBT_Dataset
+  cart: /ocean/projects/cis220039p/mdt2/shared/CART/bag_files
+  ms2: /ocean/projects/cis220039p/mdt2/datasets/MS2_full
+  vivid++: /ocean/projects/cis220039p/mdt2/datasets/VIVID++/extracted_data
+  sthereo: /ocean/projects/cis220039p/mdt2/datasets/STHEREO/sequences
+  boson: /ocean/projects/cis220039p/mdt2/datasets/boson_nightime
+  M2P2: /ocean/projects/cis220039p/mdt2/datasets/M2P2/extracted_data_new
+  TartanRGBT: /ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/extracted_data
+  odombeyondvision: /ocean/projects/cis220039p/mdt2/datasets/OdomBeyondVision/ExtractedData
+

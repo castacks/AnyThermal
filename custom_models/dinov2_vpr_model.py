@@ -9,7 +9,6 @@ from tqdm import tqdm
 import logging
 
 import sys 
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets")
 from multi_dataset_loader import IntraDatasetBatchSampler
 from .mmdistill_dinov2_model import MMDistillDinov2
 from .base_model import *

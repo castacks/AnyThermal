@@ -1,0 +1,6 @@
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176298.815570.png
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176299.315859.png
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176299.815573.png
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176309.315560.png
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176310.815561.png
+handheld_indoor/local_aggressive/img/thermal_fieldscale_clahe/1556176311.315561.png

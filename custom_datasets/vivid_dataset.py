@@ -1,4 +1,4 @@
-from base_dataset import *
+from .base_dataset import *
 from pyproj import Transformer
 
 # def return_vivid_split(split):
@@ -112,9 +112,9 @@ class Vivid(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False, val_positive_dist_threshold=25, neg_ring_outer_radius = 40):
+    def __init__(self,root_frame_dir,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=True, crop_during_vpr_test=False, val_positive_dist_threshold=25, neg_ring_outer_radius = 40):
 
-        self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/VIVID++/frame_lists"
+        self.root_frame_dir = root_frame_dir
         self.thr_res = (512, 640)
 
         self.crop_top = 122
@@ -140,24 +140,26 @@ class Vivid(BaseDataset):
         return os.path.join(self.datasets_folder,seq)
 
  
-    def frame_list_dir_from_seq(self,seq):
-        return os.path.join(self.frame_list_dir,seq)
+    def root_frame_dir_from_seq(self,seq):
+        return os.path.join(self.root_frame_dir,seq)
 
-    def read_frame_lists(self,frame_list_dir,frame_list):
+    def read_frame_lists(self,root_frame_dir,frame_list):
         """
-        Reads frame list from the frame_list_dir.
+        Reads frame list from the root_frame_dir.
         """
-        frame_list_path = os.path.join(frame_list_dir,frame_list)
+        frame_list_path = os.path.join(root_frame_dir,frame_list)
         if not os.path.exists(frame_list_path):
             raise ValueError(f"Sequence {seq_path} does not exist. Please check the sequence name.")
         
         with open(frame_list_path, 'r') as f:
             lines = f.readlines()
-            return [line.strip() for line in lines if line.strip()]
-    
+            output = [line.strip() for line in lines if line.strip()]
+            output = [os.path.join(self.datasets_folder,x) for x in output]
+        return output
+            
     def generate_image_paths(self,db_abs_paths,q_abs_paths):
         for seq in self.seq:
-            frame_list_dir = self.frame_list_dir_from_seq(seq)
+            root_frame_dir = self.root_frame_dir_from_seq(seq)
             if self.db_modality == "rgb":
                 db_file_name = "rgb_framelist.txt"
             elif self.db_modality == "thr":
@@ -168,9 +170,8 @@ class Vivid(BaseDataset):
             elif self.q_modality == "thr":
                 q_file_name = "thermal_framelist.txt"
 
-
-            db_abs_paths.extend(self.read_frame_lists(frame_list_dir,db_file_name))
-            q_abs_paths.extend(self.read_frame_lists(frame_list_dir,q_file_name))
+            db_abs_paths.extend(self.read_frame_lists(root_frame_dir,db_file_name))
+            q_abs_paths.extend(self.read_frame_lists(root_frame_dir,q_file_name))
         return db_abs_paths,q_abs_paths
     
     def semantic_classes_num_and_map_to_rgb(self):
@@ -207,7 +208,7 @@ class Vivid(BaseDataset):
         for seq in self.seq:
 
             temp_coords = []
-            frame_list_dir = self.frame_list_dir_from_seq(seq)
+            root_frame_dir = self.root_frame_dir_from_seq(seq)
 
             if self.db_modality == "rgb":
                 db_file_name = "rgb_gps_framelist.txt"
@@ -219,8 +220,8 @@ class Vivid(BaseDataset):
             elif self.q_modality == "thr":
                 q_file_name = "thermal_gps_framelist.txt"
 
-            db_gps_frame_list = os.path.join(frame_list_dir, db_file_name)
-            q_gps_frame_list = os.path.join(frame_list_dir, q_file_name)
+            db_gps_frame_list = os.path.join(root_frame_dir, db_file_name)
+            q_gps_frame_list = os.path.join(root_frame_dir, q_file_name)
 
             if not os.path.exists(db_gps_frame_list):
                 raise ValueError(f"GPS frame list {db_gps_frame_list} does not exist. Please check the sequence name.")

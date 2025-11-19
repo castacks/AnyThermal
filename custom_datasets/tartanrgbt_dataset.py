@@ -1,4 +1,4 @@
-from base_dataset import *
+from .base_dataset import *
 import torchvision.transforms.functional as torch_F
 import torchvision
 from copy import copy
@@ -58,8 +58,7 @@ class TartanRGBT(BaseDataset):
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
     def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 25, rescale_during_crop=False,crop_during_vpr_test=False, val_positive_dist_threshold=-1):
-        self.aligned_RGB_root = "/ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/extracted_depth_and_rgb_in_thermal_without_holes"
-        self.sequence_map_yaml = "/ocean/projects/cis220039p/mdt2/datasets/tartanRGBT/sequence.yaml"
+        self.sequence_map_yaml = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/tartanRGBT/sequence.yaml"
         self.sequence_map = yaml.load(open(self.sequence_map_yaml,'r'), Loader=yaml.FullLoader)
         assert len(self.sequence_map.keys()) > 0, "Sequence map is empty. Please check the sequence_map_yaml path."
         actual_seq = []

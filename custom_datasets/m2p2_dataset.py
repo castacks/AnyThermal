@@ -1,12 +1,12 @@
-from base_dataset import *
+from .base_dataset import *
 from pyproj import Transformer
 from natsort import natsorted
 
-def return_m2p2_split(split,rgb_only=False):
+def return_m2p2_split(data_root,split,rgb_only=False):
     """
     Returns the split for the sthereo dataset.
     """
-    seq_list = os.listdir("/ocean/projects/cis220039p/mdt2/datasets/M2P2/extracted_data_new")
+    seq_list = os.listdir(data_root)
     train_seq_list = natsorted([x for x in seq_list if ("LBR" not in x) and ("MC" not in x)])
     val_seq_list = natsorted([x for x in seq_list if ("LBR" in x) or ("MC" in x)])
     if rgb_only:

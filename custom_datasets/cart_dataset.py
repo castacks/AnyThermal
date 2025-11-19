@@ -1,43 +1,12 @@
-from base_dataset import *
+from .base_dataset import *
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from typing import Tuple
-
-def return_cart_split_segmentation_geographic(split,area,mode):
-    """
-    Returns the split for the ms2 dataset.
-    """
-
-    assert mode in ["thermal","rgbt"], "Please provide a valid mode. Currently only thermal are supported"
-
-
-    root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/geographic_splits"
-    if area =="socal":
-        train_seq_list = [f"socal_train_{mode}.txt"]
-        val_seq_list = [f"socal_val_{mode}.txt"]
-        test_seq_list = [f"socal_test_{mode}.txt"]
-    elif area == "northcarolina":
-        train_seq_list = [f"northcarolina_train_{mode}.txt"]
-        val_seq_list = [f"northcarolina_val_{mode}.txt"]
-        test_seq_list = [f"northcarolina_test_{mode}.txt"]
-    elif area == "kentucky":
-        train_seq_list = [f"kentucky_train_{mode}.txt"]
-        val_seq_list = [f"kentucky_val_{mode}.txt"]
-        test_seq_list = [f"kentucky_test_{mode}.txt"]
-
-    if split =="train":
-        return [os.path.join(root_dir,x) for x in train_seq_list]
-    elif split == "val":
-        return [os.path.join(root_dir,x) for x in val_seq_list]
-    elif split == "test":
-        return [os.path.join(root_dir,x) for x in test_seq_list]
     
-def return_cart_split_segmentation_random(split):
+def return_cart_split_segmentation_random(root_dir,split):
     """
     Returns the split for the ms2 dataset.
     """
-    root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/random_splits"
-
     if split =="train":
         return [os.path.join(root_dir,"train.txt")]
     elif split == "val":

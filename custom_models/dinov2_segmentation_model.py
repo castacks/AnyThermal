@@ -4,11 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as torch_F
 
 import sys
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/loftup/upsamplers')
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/loftup')
-from upsamplers import load_loftup_checkpoint
-from safetensors.torch import load_file
-from huggingface_hub import hf_hub_download
 from .base_model import *
 from .mmdistill_dinov2_model import MMDistillDinov2
 def transform_images(images,patch_size=14):
@@ -176,11 +171,6 @@ class BaseDinov2SegmentationModel(nn.Module):
         self.upscale_method = upscale_method
         if "bilinear" in self.upscale_method:
             self.upscale_fn = self.upscale_bilinear
-        elif self.upscale_method == "loftup":
-            model_path = hf_hub_download(repo_id="haiwen/loftup-dinov2b", filename="pytorch_model.bin")
-            self.upscale_model = load_loftup_checkpoint(model_path, n_dim=768, lr_pe_type="sine", lr_size=14)
-            self.upscale_model.eval()
-            self.upscale_fn = self.loft_upscale
         else:
             raise ValueError(f"Unsupported upscale method: {self.upscale_method}")
     
@@ -199,12 +189,7 @@ class BaseDinov2SegmentationModel(nn.Module):
         features = self.backbone_forward(x_padded)
         del x
 
-        if self.upscale_method =="loftup":
-            with torch.no_grad() if self.backbone.un_frozen_layer_index == [] else contextlib.nullcontext():
-                features_scaled = self.upscale_fn(features,x_padded, size=(w_new,h_new))
-                del x_padded
-            out_upscaled = self.head(features_scaled)
-        elif "bilinear" in self.upscale_method:
+        if "bilinear" in self.upscale_method:
             del x_padded
             if self.head.upscale:
                 if self.upscale_method == "pre_bilinear":
@@ -218,10 +203,6 @@ class BaseDinov2SegmentationModel(nn.Module):
                 out_upscaled = self.head(features)
         else:
             raise ValueError(f"Unsupported upscale method: {self.upscale_method}")
-        # if self.head.upscale:
-        #     out_upscaled = self.upscale_fn(out,x, size=(w_new,h_new))
-        # else:
-        #     out_upscaled = out
 
         final_scale = crop_to_shape(out_upscaled, x_shape[0],x_shape[1])  # Crop to original size
         return final_scale
@@ -232,13 +213,6 @@ class BaseDinov2SegmentationModel(nn.Module):
             img = out[i:i+1]
             img = torch_F.interpolate(img, size=size, mode='bilinear', align_corners=False)
             output.append(img)
-        return torch.cat(output, dim=0)
-
-    def loft_upscale(self,out,img,size):
-        output = []
-        for i in range(out.shape[0]):
-            upscaled_img = self.upscale_model(out[i:i+1], img[i:i+1])
-            output.append(upscaled_img)
         return torch.cat(output, dim=0)
     
     def backbone_forward(self, imgs):

@@ -1,4 +1,4 @@
-from base_dataset import *
+from .base_dataset import *
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from typing import Tuple
@@ -21,10 +21,9 @@ class MFNet(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = -1,rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=-1):
+    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = -1,rescale_during_crop=False,crop_during_vpr_test=False,val_positive_dist_threshold=-1):
         
-        self.root_frame_dir = "/ocean/projects/cis220039p/mdt2/datasets/MFNet"
-        seq = [os.path.join(self.root_frame_dir, x) for x in seq]
+        seq = [os.path.join(datasets_folder, x) for x in seq]
         self.val_positive_dist_threshold = -1
         dist_thresh = -1
         self.dataset_shape = (480,640) # (w,h)
@@ -47,9 +46,9 @@ class MFNet(BaseDataset):
         frame_list = [x.strip() for x in frame_list]
         frame_list = [x+".png" for x in frame_list]
 
-        rgb_frame_list = [os.path.join(self.root_frame_dir, "images",x) for x in frame_list]
-        thr_frame_list = [os.path.join(self.root_frame_dir, "images",x) for x in frame_list]
-        seg_mask_frame_list = [os.path.join(self.root_frame_dir, "labels",x) for x in frame_list]
+        rgb_frame_list = [os.path.join(self.datasets_folder, "images",x) for x in frame_list]
+        thr_frame_list = [os.path.join(self.datasets_folder, "images",x) for x in frame_list]
+        seg_mask_frame_list = [os.path.join(self.datasets_folder, "labels",x) for x in frame_list]
 
         return rgb_frame_list, thr_frame_list, seg_mask_frame_list
 

@@ -15,8 +15,6 @@ from torchvision.utils import save_image
 from PIL import Image
 import torchvision.transforms as T
 from itertools import chain
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
 from custom_datasets.cart_dataset import *
 from custom_datasets.freiburg_dataset import *
 from custom_datasets.mfnet_dataset import *
@@ -281,14 +279,12 @@ def train_segmentation_pipeline(args):
         print("Using CART dataset")
 
         type_of_split = args.dataset.split("_")[-1]
+        root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/random_splits"
         if type_of_split == "random":
-            train_seq_list = return_cart_split_segmentation_random("train")
-            val_seq_list = return_cart_split_segmentation_random("val")
-        elif type_of_split == "geographic":
-            train_seq_list = return_cart_split_segmentation_geographic("train", "socal", "thermal") + return_cart_split_segmentation_geographic("val", "socal", "thermal")
-            val_seq_list = return_cart_split_segmentation_geographic(split="val",area="northcarolina",mode="thermal") + return_cart_split_segmentation_geographic(split="val",area="kentucky",mode="thermal")
+            train_seq_list = return_cart_split_segmentation_random(root_dir,"train")
+            val_seq_list = return_cart_split_segmentation_random(root_dir,"val")
         else:
-            raise ValueError("Unsupported CART split type. Use 'random' or 'geographic'.")
+            raise ValueError("Unsupported CART split type. Use 'random'")
         db_modality = "thr_seg"
         train_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
         val_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
@@ -296,24 +292,26 @@ def train_segmentation_pipeline(args):
         print("Using FREIBURG dataset")
         train_seq_list = return_freiburg_split("train",segmentation=True)
         val_seq_list = return_freiburg_split("val",segmentation=True)
-        data_root = "/ocean/projects/cis220039p/mdt2/datasets/freiburg"
+        data_root = os.environ["ANYTHERMAL_FREIBURG_DATA_ROOT"]
         db_modality = "thr_seg"
         train_dataset = Freiburg(args=args,db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=train_seq_list, augment=args.augment, crop_images=False)
         val_dataset = Freiburg(args=args,db_modality=db_modality, q_modality="seg_mask", datasets_folder=data_root, seq=val_seq_list, augment=False, crop_images=False)
     elif args.dataset == "mfnet":
         print("Using MFNet dataset")
         train_seq_list = return_mfnet_split("train")
-        val_seq_list = return_mfnet_split("test") #PARV_TODO use val when releaseing the code
+        val_seq_list = return_mfnet_split("val")
         db_modality = "thr"
-        train_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
-        val_dataset = MFNet(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
+        root_dir = os.environ["ANYTHERMAL_MFNET_DATA_ROOT"]
+        train_dataset = MFNet(args=args, db_modality=db_modality, q_modality="seg_mask", datasets_folder=root_dir, seq=train_seq_list, augment=args.augment, crop_images=False)
+        val_dataset = MFNet(args=args, db_modality=db_modality, q_modality="seg_mask", datasets_folder=root_dir, seq=val_seq_list, augment=False, crop_images=False)
     elif args.dataset == "pst900":
         print("Using PST900 dataset")
         train_seq_list = return_pst900_split("train")
         val_seq_list = return_pst900_split("test")
         db_modality = "thr"
-        train_dataset = PST900(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, crop_images=False)
-        val_dataset = PST900(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, crop_images=False)
+        root_dir =  os.environ["ANYTHERMAL_PST900_DATA_ROOT"]
+        train_dataset = PST900(args=args, db_modality=db_modality, q_modality="seg_mask", datasets_folder=root_dir, seq=train_seq_list, augment=args.augment, crop_images=False)
+        val_dataset = PST900(args=args, db_modality=db_modality, q_modality="seg_mask", datasets_folder=root_dir, seq=val_seq_list, augment=False, crop_images=False)
 
     else:
         raise ValueError("Unsupported dataset")

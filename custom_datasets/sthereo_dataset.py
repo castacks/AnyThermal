@@ -1,5 +1,5 @@
-from base_dataset import *
-from ms2_utils import *
+from .base_dataset import *
+from .ms2_utils import *
 from pyproj import Transformer
 
 # def return_sthereo_split(split):
@@ -36,9 +36,9 @@ class STHEREO(BaseDataset):
     """
     Returns dataset class with images from database and queries for the vpair dataset. 
     """
-    def __init__(self,args,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25,neg_ring_outer_radius = 50):
+    def __init__(self,args,root_frame_dir,db_modality,q_modality,datasets_folder,seq,augment,crop_images,vpr_test=False,vpr_train=False,dist_thresh = 15, rescale_during_crop=False,use_clahe=True, crop_during_vpr_test=False, val_positive_dist_threshold=25,neg_ring_outer_radius = 50):
         self.subsample =10
-        self.frame_list_dir = "/ocean/projects/cis220039p/mdt2/datasets/STHEREO/frame_lists"
+        self.root_frame_dir = root_frame_dir
         self.use_clahe = use_clahe
         self.thr_res = (284,558)
         self.crop_top = 121
@@ -58,9 +58,9 @@ class STHEREO(BaseDataset):
 
     def read_frame_lists(self,seq,idx,):
         """
-        Reads frame list from the frame_list_dir.
+        Reads frame list from the root_frame_dir.
         """
-        frame_list_path = os.path.join(self.frame_list_dir,seq+"_frame_pairs.txt")
+        frame_list_path = os.path.join(self.root_frame_dir,seq+"_frame_pairs.txt")
         if not os.path.exists(frame_list_path):
             raise ValueError(f"Sequence {seq} does not exist. Please check the sequence name.")
         

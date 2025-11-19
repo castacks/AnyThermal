@@ -11,22 +11,19 @@ import argparse
 import wandb
 from tqdm import tqdm
 import sys
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
 import os.path as osp
 
 from contextlib import nullcontext
 from itertools import chain
 from custom_datasets.multi_dataset_loader import *
 import gc
-from utilities import DinoV2ExtractFeatures
 from torchvision.utils import save_image
 from custom_models.mmdistill_dinov2_model import MMDistillDinov2
 from sklearn.decomposition import PCA
 import yaml
 import cv2
 import uuid
-from losses.loss_combiner import LossManager
+from .losses.loss_combiner import LossManager
 viz_freq = 10
 torch.backends.cudnn.benchmark = True  # Provides a speedup
 global_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

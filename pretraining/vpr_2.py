@@ -7,9 +7,6 @@ import os
 import wandb
 import time
 import sys
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc')
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
-
 from custom_models.dinov2_vpr_model import MMDistillVPRModel
 from torch.optim import Adam
 from contextlib import nullcontext
@@ -30,7 +27,6 @@ import matplotlib.pyplot as plt
 from torch.nn import TripletMarginLoss
 import faiss
 import faiss.contrib.torch_utils
-from utilities import *
 import yaml
 import pandas as pd
 

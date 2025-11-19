@@ -1,20 +1,6 @@
 import os
 import sys
 from pathlib import Path
-# Set the './../' from the script folder
-dir_name = None
-try:
-    dir_name = os.path.dirname(os.path.realpath(__file__))
-except NameError:
-    print('WARN: __file__ not found, trying local')
-    dir_name = os.path.abspath('')
-lib_path = os.path.realpath(f'{Path(dir_name).parent}')
-# Add to path
-if lib_path not in sys.path:
-    print(f'Adding library path: {lib_path} to PYTHONPATH')
-    sys.path.append(lib_path)
-else:
-    print(f'Library path {lib_path} already in PYTHONPATH')
 
 import os
 import numpy as np
