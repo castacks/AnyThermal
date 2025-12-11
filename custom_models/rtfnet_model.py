@@ -1,10 +1,4 @@
 import sys
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/model/MCNet/scut.mcnet.R101")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/furnace")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/furnace/utils")
-from network import MCNet
-
 from .base_model import *
 import torch
 import torch.nn as nn 

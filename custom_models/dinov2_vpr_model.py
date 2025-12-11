@@ -9,14 +9,20 @@ from tqdm import tqdm
 import logging
 
 import sys 
-from multi_dataset_loader import IntraDatasetBatchSampler
+from custom_datasets.multi_dataset_loader import IntraDatasetBatchSampler
 from .mmdistill_dinov2_model import MMDistillDinov2
 from .base_model import *
 import contextlib
 import sys
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition")
-from salad.models.helper import get_aggregator
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(HERE)
+SALAD_DIR = os.path.join(PROJECT_ROOT, "baselines", "VPR", "salad")
+
+if SALAD_DIR not in sys.path:
+    sys.path.insert(0, SALAD_DIR)
+from baselines.VPR.salad.models.helper import get_aggregator
 class L2Norm(nn.Module):
     def __init__(self, dim=1):
         super().__init__()
@@ -386,6 +392,8 @@ class MMDistillVPRModel(BaseFeatureExtractor):
             head = NetVLAD(clusters_num=self.head_config['agg_config']['num_clusters'],dim=self.args.features_dim).to(self.device)
         else:
             head = get_aggregator(**self.head_config).to(self.device)
+            head.output_dim = head.num_clusters * head.cluster_dim + head.token_dim
+
         
         self.backbone = MMDistillDinov2(self.backbone_model_type, self.modality, un_frozen_layer_index = self.un_frozen_layer_index, backbone_path=backbone_path, layers_to_hook=['final'])
         self.head = head

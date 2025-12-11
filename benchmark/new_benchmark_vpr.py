@@ -9,8 +9,6 @@ from PIL import Image
 from dataclasses import dataclass, field
 from typing import List, Literal
 import sys 
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
 from torch.utils.data import DataLoader
 import faiss
 import faiss.contrib.torch_utils

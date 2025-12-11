@@ -11,9 +11,6 @@ import contextlib
 from abc import ABC, abstractmethod
 import inspect
 import sys
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition")
-from salad.models.helper import get_aggregator
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from tqdm import tqdm
 import logging
@@ -31,7 +28,7 @@ class MMDistillDinov2():
         self.un_frozen_layer_index = un_frozen_layer_index
         self.proj_head = proj_head
 
-        self.model = torch.hub.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/dinov2", self.model_type,source="local").to(global_device)
+        self.model = torch.hub.load("facebookresearch/dinov2", self.model_type).to(global_device)
         self.num_register_tokens = getattr(self.model, "num_register_tokens", 0)
         self.patch_size = self.model.patch_size
         assert self.patch_size == 14, f"Expected patch size to be 14, but got {self.patch_size}. Please check the model architecture."

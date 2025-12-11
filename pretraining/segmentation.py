@@ -20,7 +20,7 @@ from custom_datasets.freiburg_dataset import *
 from custom_datasets.mfnet_dataset import *
 from custom_datasets.pst900_dataset import *
 from custom_models.dinov2_segmentation_model import MMDistillSegmentationModel ,seg_head_str_to_dict
-from segment_utils import label_to_rgb
+from .segment_utils import label_to_rgb
 from contextlib import nullcontext
 import math
 
@@ -279,7 +279,7 @@ def train_segmentation_pipeline(args):
         print("Using CART dataset")
 
         type_of_split = args.dataset.split("_")[-1]
-        root_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/random_splits"
+        root_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/CART/random_splits")
         if type_of_split == "random":
             train_seq_list = return_cart_split_segmentation_random(root_dir,"train")
             val_seq_list = return_cart_split_segmentation_random(root_dir,"val")

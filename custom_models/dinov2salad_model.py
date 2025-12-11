@@ -4,10 +4,14 @@ from .base_model import *
 from .utils import default_preprocess_tensor
 
 # Add MixVPR repo to path
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad")
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(HERE)
+SALAD_DIR = os.path.join(PROJECT_ROOT, "baselines", "VPR", "salad")
 
-from salad.vpr_model import VPRModel as SaladVPRModel
+if SALAD_DIR not in sys.path:
+    sys.path.insert(0, SALAD_DIR)
+from baselines.VPR.salad.vpr_model import VPRModel as SaladVPRModel
 
 class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
     def __init__(self,use_head=True,**kwargs):
@@ -17,23 +21,9 @@ class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
 
     def build_model(self):
         # Load backbone (ResNet50) and MixVPR head
-        model = SaladVPRModel(
-            backbone_arch='dinov2_vitb14',
-            backbone_config={
-                'num_trainable_blocks': 4,
-                'return_token': True,
-                'norm_layer': True,
-            },
-            agg_arch='SALAD',
-            agg_config={
-                'num_channels': 768,
-                'num_clusters': 64,
-                'cluster_dim': 128,
-                'token_dim': 256,
-            },
-        )
+        model = torch.hub.load("serizba/salad", "dinov2_salad")
         # Load pretrained weights
-        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt",weights_only=True))
+        model.output_dim = model.agg_config["num_clusters"] * model.agg_config["cluster_dim"] + model.agg_config["token_dim"]
         model = model.eval()
         return model
 
@@ -44,57 +34,3 @@ class DinoV2SALADFeatureExtractor(BaseFeatureExtractor):
     def forward(self, images):
         """Forward pass through the model."""
         return self.model(images)
-
-class ThermalMMDistillDinoV2SALADFeatureExtractor(DinoV2SALADFeatureExtractor):
-    def build_model(self):
-        # Load backbone (ResNet50) and MixVPR head
-        model = SaladVPRModel(
-            backbone_arch='dinov2_vitb14',
-            backbone_config={
-                'num_trainable_blocks': 4,
-                'return_token': True,
-                'norm_layer': True,
-            },
-            agg_arch='SALAD',
-            agg_config={
-                'num_channels': 768,
-                'num_clusters': 64,
-                'cluster_dim': 128,
-                'token_dim': 256,
-            },
-        )
-        # Load pretrained weights
-        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt",weights_only=True))
-        mmdistill_state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-05-17_15-50-49/model9.pth", map_location=self.device,weights_only=True)["student_model_state_dict"]
-        # import pdb; pdb.set_trace()
-        model.backbone.model.load_state_dict(mmdistill_state_dict)
-        model = model.eval()
-        return model
-
-class RGBMMDistillDinoV2SALADFeatureExtractor(DinoV2SALADFeatureExtractor):
-    def build_model(self):
-        # Load backbone (ResNet50) and MixVPR head
-        model = SaladVPRModel(
-            backbone_arch='dinov2_vitb14',
-            backbone_config={
-                'num_trainable_blocks': 4,
-                'return_token': True,
-                'norm_layer': True,
-            },
-            agg_arch='SALAD',
-            agg_config={
-                'num_channels': 768,
-                'num_clusters': 64,
-                'cluster_dim': 128,
-                'token_dim': 256,
-            },
-        )
-        # Load pretrained weights
-        model.load_state_dict(torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/salad/pretrained_models/dino_salad.ckpt"))
-        # mmdistill_state_dict = torch.load("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/ms2/rgb_thr/2025-05-17_15-50-49/model9.pth", map_location=self.device)["student_model_state_dict"]
-        # import pdb; pdb.set_trace()
-        rgb_model = torch.hub.load("facebookresearch/dinov2", 'dinov2_vitb14')
-
-        model.backbone.model.load_state_dict(rgb_model.state_dict())
-        model = model.eval()
-        return model

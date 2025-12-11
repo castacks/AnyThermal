@@ -41,8 +41,8 @@ class Freiburg(BaseDataset):
 
 
         assert crop_during_vpr_test == False, "Crop during VPR test is not supported for Freiburg dataset. Please set it to False."
-        self.frame_list_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/freiburg/frame_list"
-        self.metadata = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/freiburg/crop_box_metadata.txt"
+        self.frame_list_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/freiburg/frame_list")
+        self.metadata = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/freiburg/crop_box_metadata.txt")
         self.read_metadata()
         dist_thresh = -1
         self.positive_radius_index = 1

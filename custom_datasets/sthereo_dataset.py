@@ -129,11 +129,6 @@ class STHEREO(BaseDataset):
                 else:
                     import pdb;pdb.set_trace()
                     raise ValueError(f"Invalid coordinates: {lon}, {lat}, {alt} for sequence {seq}")
-                # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/STHEREO"),exist_ok=True)
-                # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/STHEREO",f"{seq}.npy"),np.array(temp_seq_coords))
-        # if 'kaist_afternoon' in self.seq:
-        #     np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc","sthereo_coords.npy"),np.array(self.db_coords))
-
      
     def check_seq_list(self,seq):
         for s in seq:

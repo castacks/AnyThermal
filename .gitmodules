@@ -1,0 +1,12 @@
+[submodule "baselines/VPR/STHN"]
+	path = baselines/VPR/STHN
+	url = https://github.com/arplaboratory/STHN.git
+[submodule "baselines/VPR/salad"]
+	path = baselines/VPR/salad
+	url = https://github.com/serizba/salad.git
+[submodule "baselines/VPR/ImageBind"]
+	path = baselines/VPR/ImageBind
+	url = https://github.com/facebookresearch/ImageBind.git
+[submodule "baselines/segmentation/MCNet"]
+	path = baselines/segmentation/MCNet
+	url = https://github.com/haitaobiyao/MCNet.git

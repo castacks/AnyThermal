@@ -45,7 +45,7 @@ class BaseFeatureExtractor(ABC):
         return feature / feature.norm(p=2, dim=1, keepdim=True)  # Normalize the feature vector
 
 class BaseSegmentationModel(ABC):
-    def __init__(self, device, num_classes=2, **kwargs):
+    def __init__(self, device, num_classes, **kwargs):
         self.device = device
         self.num_classes = num_classes
         self.model = self.build_model()

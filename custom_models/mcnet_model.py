@@ -1,10 +1,12 @@
 import sys
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/model/MCNet/scut.mcnet.R101")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/furnace")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet")
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MCNet/TorchSeg-MCNet/furnace/utils")
-from network import MCNet
+import os
+MCNET_DIR = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"], "baselines", "segmentation", "MCNet")
 
+sys.path.append(os.path.join(MCNET_DIR,"TorchSeg-MCNet/model/MCNet/scut.mcnet.R101"))
+sys.path.append(os.path.join(MCNET_DIR,"TorchSeg-MCNet/furnace"))
+sys.path.append(os.path.join(MCNET_DIR,"TorchSeg-MCNet"))
+sys.path.append(os.path.join(MCNET_DIR,"TorchSeg-MCNet/furnace/utils"))
+from network import MCNet
 from .base_model import *
 
 

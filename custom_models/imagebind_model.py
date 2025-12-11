@@ -2,10 +2,16 @@ import sys
 import torch
 from .base_model import *
 from .utils import default_preprocess_tensor
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/ImageBind")
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(HERE)
+ImageBind_DIR = os.path.join(PROJECT_ROOT, "baselines", "VPR", "ImageBind")
+
+# Add it to sys.path if not already there
+if ImageBind_DIR not in sys.path:
+    sys.path.insert(0, ImageBind_DIR)
 
 from imagebind import data
-import torch
 from imagebind.models import imagebind_model
 from imagebind.models.imagebind_model import ModalityType
 

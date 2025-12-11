@@ -11,10 +11,8 @@ def get_model_from_string(args,name: str,task,**kwargs):
     - 'vgg16'
     - 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
     - 'squeezenet1_0', 'squeezenet1_1'
-    - 'netvlad'
     - 'dinov2_vits14' 
     - 'imagebind'
-    - 'mixvpr'
     """
     name = name.lower()
 
@@ -23,9 +21,6 @@ def get_model_from_string(args,name: str,task,**kwargs):
         if name == 'alexnet':
             return AlexNetFeatureExtractor()
         
-        elif name == 'r2former':
-            from .r2former_model import R2FormerFeatureExtractor
-            return R2FormerFeatureExtractor()
         elif name=='sgm':
             from .sgm_model import SGMFeatureExtractor
             return SGMFeatureExtractor()
@@ -45,14 +40,6 @@ def get_model_from_string(args,name: str,task,**kwargs):
                 raise ValueError(f"Unsupported SqueezeNet version: {name}")
             version = name.split('squeezenet')[-1]
             return SqueezeNetFeatureExtractor(version=version)
-        
-        elif name == 'netvlad':
-            from .netvlad_model import NetVLADFeatureExtractor
-            return NetVLADFeatureExtractor()
-        
-        elif name=='mixvpr':
-            from .mixvpr_model import MixVPRFeatureExtractor
-            return MixVPRFeatureExtractor()
 
         elif name.startswith('imagebind'):
             modality = name.split('_')[-1]
@@ -316,7 +303,7 @@ def get_model_from_string(args,name: str,task,**kwargs):
             if num_resnet_layers not in [18, 34, 50, 101, 152]:
                 raise ValueError(f"Unsupported ResNet type: {num_resnet_layers}")
             from .rtfnet_model import RTFNetModel
-            return RTFNetModel(device='cuda', num_resnet_layers=num_resnet_layers, num_classes=int(args.num_classes))
+            return RTFNetModel(device='cuda', num_resnet_layers=num_resnet_layers, **kwargs)
         elif name == "mcnet":
             from .mcnet_model import MCNetModel
-            return MCNetModel(device = 'cuda',num_classes = args.num_classes)
+            return MCNetModel(device = 'cuda',**kwargs)

@@ -240,9 +240,6 @@ class Vivid(BaseDataset):
 
                 self.q_coords.extend(coord)
             
-            # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/VIVID"),exist_ok=True)
-            # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/VIVID",f"{'_'.join(seq.split('/'))}.npy"),np.array(temp_coords))
-    
     def check_seq_list(self,seq):
         """
         Checks if the sequence list is valid.

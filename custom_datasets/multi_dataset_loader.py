@@ -533,7 +533,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                     else:
                         raise ValueError(f"Unknown CART dataset name: {ds_name}")
                 data_root = os.environ["ANYTHERMAL_CART_DATA_ROOT"]
-                root_frame_dir = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/caltech-aerial-rgbt-dataset/splits/parv/filter/static_segments_output/frames"
+                root_frame_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/CART/static_segments_output/frames")
                 
                 dataset_init_dict["root_frame_dir"]= root_frame_dir
                 dataset_init_dict["cart_split"] = args.cart_split
@@ -545,13 +545,13 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 print("Using VIVID++ dataset")
                 seq_list = return_vivid_split(mode)
                 data_root = os.environ["ANYTHERMAL_VIVID++_DATA_ROOT"]
-                dataset_init_dict["root_frame_dir"] = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/VIVID++/frame_lists"
+                dataset_init_dict["root_frame_dir"] = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/VIVID++/frame_lists")
 
             elif ds_name == "sthereo":
                 print("Using STHEREO dataset")
                 seq_list = return_sthereo_split(mode)
                 data_root = os.environ["ANYTHERMAL_STHEREO_DATA_ROOT"]
-                dataset_init_dict["root_frame_dir"]= "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/splits/sthereo/frame_lists"
+                dataset_init_dict["root_frame_dir"]= os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/sthereo/frame_lists")
             elif ds_name == "boson":
                 print("Using Boson Nightime dataset")
                 seq_list = [mode]

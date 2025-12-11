@@ -172,9 +172,6 @@ class MS2(BaseDataset):
                     self.db_coords.append(coord[:2])
                     self.q_coords.append(coord[:2]) # we only need the x,y coordinates for the knn search
                     temp_seq_coords.append(coord[:2]) 
-            
-            # os.makedirs(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/MS2"),exist_ok=True)
-            # np.save(os.path.join("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/GPS_coords/MS2",f"{seq}.npy"),np.array(temp_seq_coords))
 
     def check_seq_list(self,seq):
         all_valid= True

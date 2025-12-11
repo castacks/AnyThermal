@@ -13,10 +13,8 @@ from typing import List, Literal, Optional
 from datetime import datetime
 import matplotlib.pyplot as plt
 import sys 
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc") # Add the parent directory to the path
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets") # Add the custom models directory to the path
 
-from utils.segment_utils import label_to_rgb
+from anythermal_utils.segment_utils import label_to_rgb
 
 from custom_datasets.cart_dataset import *
 from custom_datasets.mfnet_dataset import *
@@ -132,7 +130,7 @@ def main(args: BenchmarkSegArgs):
             if split not in ['train','val', 'test']:
                 raise ValueError("MFNet only has 'val' and 'test' splits.")
             seq_list = return_mfnet_split(split)
-            dataset = MFNet(args=args,root_frame_dir=None, db_modality="thr", q_modality="seg_mask", datasets_folder=None, seq=seq_list, augment=False,crop_images=False)
+            dataset = MFNet(args=args, db_modality="thr", q_modality="seg_mask", datasets_folder=os.environ["ANYTHERMAL_MFNET_DATA_ROOT"], seq=seq_list, augment=False,crop_images=False)
         else:
             raise ValueError(f"{args.dataset_name} is not supported currently")
 

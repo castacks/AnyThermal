@@ -3,13 +3,56 @@ import torch.nn as nn
 from .base_model import *
 from .utils import default_preprocess_tensor
 import sys
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition')
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/STHN')
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/STHN/global_pipeline')
-sys.path.append('/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/STHN/global_pipeline/model')
+import types
+import os
+import zipfile
+import gdown
 
-from STHN.global_pipeline.model import network
-from STHN.global_pipeline.util import resume_model
+# # Create a fake module object
+shim = types.ModuleType("google_drive_downloader")
+
+
+class GoogleDriveDownloader:
+    @staticmethod
+    def download_file_from_google_drive(
+        file_id,
+        dest_path,
+        unzip=False,
+        showsize=True,
+        overwrite=False,
+    ):
+        url = f"https://drive.google.com/uc?id={file_id}"
+        os.makedirs(os.path.dirname(os.path.abspath(dest_path)), exist_ok=True)
+
+        if os.path.exists(dest_path) and not overwrite:
+            print(f"[shim] File exists, skipping: {dest_path}")
+        else:
+            gdown.download(url, dest_path, quiet=not showsize, fuzzy=True)
+
+        if unzip and dest_path.lower().endswith(".zip"):
+            with zipfile.ZipFile(dest_path, "r") as zf:
+                zf.extractall(os.path.dirname(os.path.abspath(dest_path)))
+
+
+# Attach class to the shim module
+shim.GoogleDriveDownloader = GoogleDriveDownloader
+
+# Register shim so future imports see it
+sys.modules["google_drive_downloader"] = shim
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(HERE)
+STHN_DIR = os.path.join(PROJECT_ROOT, "baselines", "VPR", "STHN")
+
+# Add it to sys.path if not already there
+if STHN_DIR not in sys.path:
+    sys.path.insert(0, STHN_DIR)
+    sys.path.insert(0, os.path.join(STHN_DIR, "global_pipeline"))
+    sys.path.insert(0, os.path.join(STHN_DIR, "global_pipeline", "model"))
+
+
+from baselines.VPR.STHN.global_pipeline.model import network
+from baselines.VPR.STHN.global_pipeline.util import resume_model
 
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -113,7 +156,7 @@ class SGMFeatureExtractor(BaseFeatureExtractor):
     def build_model(self):
         # import pdb; pdb.set_trace()
         args = Args()
-        args.resume='/ocean/projects/cis220039p/pmaheshw/code/multi-modal/place_recognition/STHN/logs/global_retrieval/satellite_0_thermalmapping_135_contrast_dense_exclusion-2024-02-14_23-02-31-91400d55-5881-48e5-b6cb-cecff4f47a3f/best_model.pth'
+        args.resume=os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"baselines/VPR/STHN/pretrained_models/satellite_0_thermalmapping_135_contrast_dense_exclusion-2024-02-14_23-02-31-91400d55-5881-48e5-b6cb-cecff4f47a3f/best_model.pth")
         args.aggregation ='gem'
         args.backbone = 'resnet50conv4'
         args.fc_output_dim =4096
