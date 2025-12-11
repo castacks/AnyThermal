@@ -1,0 +1,2 @@
+start_idx,end_idx,start_time,end_time
+image-00000.tiff,image-05040.tiff,1652034840.713358,1652034924.958207

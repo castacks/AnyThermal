@@ -286,8 +286,9 @@ def train_segmentation_pipeline(args):
         else:
             raise ValueError("Unsupported CART split type. Use 'random'")
         db_modality = "thr_seg"
-        train_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
-        val_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=None, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
+        datasets_folder = os.path.join(os.environ["ANYTHERMAL_CART_DATA_ROOT"],"labeled_thermal_singles")
+        train_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=datasets_folder, seq=train_seq_list, augment=args.augment, seq_as_txt="thermal", crop_images=False)
+        val_dataset = CART(args=args,root_frame_dir=None, db_modality=db_modality, q_modality="seg_mask", datasets_folder=datasets_folder, seq=val_seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
     elif args.dataset == "freiburg":
         print("Using FREIBURG dataset")
         train_seq_list = return_freiburg_split("train",segmentation=True)

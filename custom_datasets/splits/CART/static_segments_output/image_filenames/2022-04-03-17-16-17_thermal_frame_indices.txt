@@ -1,0 +1,2 @@
+start_idx,end_idx,start_time,end_time
+image-00000.tiff,image-09300.tiff,1649031378.025890,1649031533.408541

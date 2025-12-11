@@ -128,14 +128,14 @@ class CART(BaseDataset):
             "thr_seg": self.read_thermal,
             "seg_mask" : self.read_segmentation_mask
         }
-    def read_frame_list(self, frame_list_path):
+    def read_frame_list(self, frame_list_path, root_dir):
         """
         Reads a list of frames from the given path.
         """
         with open(frame_list_path, 'r') as f:
             frame_list = f.readlines()
         frame_list = [x.strip() for x in frame_list]
-        frame_list = [x for x in frame_list if x.endswith('.png')]
+        frame_list = [os.path.join(root_dir,x) for x in frame_list if x.endswith('.png')]
         return frame_list
 
     def read_segmentation_frame_list(self, seq,mode):
@@ -147,6 +147,10 @@ class CART(BaseDataset):
         frame_list = [x.strip() for x in frame_list]
         frame_list = [x.split(",") for x in frame_list]
 
+        for frame in frame_list:
+            for i in range(len(frame)):
+                frame[i] = os.path.join(self.datasets_folder, frame[i])            
+
         if mode == "thermal":
             thermal_frames = [x[0] for x in frame_list]
             seg_frames = [x[1] for x in frame_list]
@@ -156,9 +160,9 @@ class CART(BaseDataset):
             thermal_frames = [x[1] for x in frame_list]
             seg_frames = [x[2] for x in frame_list]
             return rgb_frames,thermal_frames,seg_frames
-    def generate_seq_as_txt_paths(self,db_abs_paths,q_abs_paths,mode):
+    def generate_seq_as_txt_paths(self,mode):
         """
-        Generates image paths for the dataset in segmentation mode. Return the updated db_abs_paths and q_abs_paths
+        Generates image paths for the dataset in segmentation mode.
         """
         all_rgb_frames = []
         all_thermal_frames = []
@@ -189,7 +193,7 @@ class CART(BaseDataset):
         """
 
         if self.seq_as_txt != "":
-            rgb_paths, thermal_paths, mask_paths = self.generate_seq_as_txt_paths(db_abs_paths, q_abs_paths,self.seq_as_txt)
+            rgb_paths, thermal_paths, mask_paths = self.generate_seq_as_txt_paths(self.seq_as_txt)
             if self.db_modality == "rgb":
                 db_abs_paths.extend(rgb_paths)
             elif self.db_modality == "thr" or self.db_modality == "thr_seg":
@@ -218,19 +222,19 @@ class CART(BaseDataset):
 
                 if "thr" in [self.db_modality, self.q_modality]:
                     thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list.txt")
-                    thermal_frames = self.read_frame_list(thermal_file)
+                    thermal_frames = self.read_frame_list(thermal_file,os.path.join(self.datasets_folder,"bag_files"))
                 
                 if "thr_seg" in [self.db_modality, self.q_modality]:
                     thermal_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_frame_list_seg_pair.txt")
-                    thermal_frames = self.read_frame_list(thermal_file)
+                    thermal_frames = self.read_frame_list(thermal_file,os.path.join(self.datasets_folder,"labeled_thermal_singles"))
                 
                 if "rgb" in [self.db_modality, self.q_modality]:
                     rgb_file = os.path.join(self.root_frame_dir,f"{seq}_rgb_frame_list.txt")
-                    rgb_frames = self.read_frame_list(rgb_file)
+                    rgb_frames = self.read_frame_list(rgb_file,os.path.join(self.datasets_folder,"bag_files"))
                     len_frames = len(rgb_frames)
                 if "seg_mask" in [self.db_modality, self.q_modality]:
                     seg_mask_file = os.path.join(self.root_frame_dir,f"{seq}_thermal_segmentation_frame_list.txt")
-                    seg_mask_frames = self.read_frame_list(seg_mask_file)
+                    seg_mask_frames = self.read_frame_list(seg_mask_file , os.path.join(self.datasets_folder,"labeled_thermal_singles"))
                 if thermal_frames is None and rgb_frames is None:
                     raise ValueError(f"Please provide a valid sequence name. {seq} does not have any frames in the segmentation mode")
                 if rgb_frames is not None:
@@ -260,7 +264,7 @@ class CART(BaseDataset):
     def check_seq_list(self,seq):
         for s in seq:
             if not self.seq_as_txt:
-                if os.path.isdir(os.path.join(self.datasets_folder,s)) == False:
+                if os.path.isdir(os.path.join(self.datasets_folder,"bag_files",s)) == False:
                     import pdb; pdb.set_trace()  # Debugging line to inspect the sequence name
                     raise ValueError(f"Please provide a valid sequence name. {s} does not exist")
             else:

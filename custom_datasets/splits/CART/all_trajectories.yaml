@@ -1,0 +1,191 @@
+traj_list:
+    # 2021-07-21-09-27-15: # Thermal only - still imagery
+    #     thermal_only: True
+    #     gps: False
+    #     start_idx: -1
+    #     end_idx: -1
+    # 2021-07-21-09-33-49: # Thermal only - still imagery
+    #     thermal_only: True
+    #     gps: False
+    #     start_idx: -1
+    #     end_idx: -1
+    2021-09-09-14-11-10: # Thermal only - very small motion
+        thermal_only: True
+        gps: False
+        start_idx: -1
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2021-09-09-KentuckyRiver/flight1-1'
+
+    2021-09-09-14-31-14: # Thermal only - very small motion
+        thermal_only: True
+        gps: False
+        start_idx: -1
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2021-09-09-KentuckyRiver/flight2-1'
+
+    2021-09-09-14-42-06: # Thermal only - very small motion
+        thermal_only: True
+        gps: False
+        start_idx: -1
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2021-09-09-KentuckyRiver/flight3-1'
+
+    2022-04-03-12-16-33:  # Idyllwild - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 14
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-04-03_Idyllwild/2022-04-03-12-16-33'
+        zone: 11
+    2022-04-03-12-20-57:  # Idyllwild - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 7
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-04-03_Idyllwild/2022-04-03-12-20-57'
+        zone: 11
+    2022-04-03-17-12-07:  # JoshuaTree - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 12
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-04-03_JoshuaTree/2022-04-03-17-12-07'
+        zone: 11
+    2022-04-03-17-16-17:  # JoshuaTree - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 14
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-04-03_JoshuaTree/2022-04-03-17-16-17'
+        zone: 11
+    2022-05-08-11-23-59: # BigBear - no gps + very small motion - can be used for segmentation evaluation 
+      segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-23-59'
+    2022-05-08-11-27-13: # BigBear - no gps + very small motion - can be used for segmentation evaluation 
+      segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-27-13'
+    2022-05-08-11-30-40:  # BigBear - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 8
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-30-40'
+        zone: 11
+    2022-05-08-11-34-00:  # BigBear - small motion but good mist/fog data + no gps -> - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 7
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-34-00'
+        zone: 11 
+    2022-05-08-11-37-09:  # BigBear - no gps but good motion - segmentation labels exist for thermal at 180 Hz
+        gps: False
+        start_idx: 8
+        end_idx: -1
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-37-09'
+        zone: 11
+    2022-05-08-11-40-44: # BigBear - no gps + very small motion - can be used for segmentation evaluation 
+      segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-40-44'
+    2022-05-08-11-44-33: # BigBear - no gps + very small motion - can be used for segmentation evaluation 
+      segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-44-33'
+    2022-05-08-11-50-48: # BigBear - no gps + very small motion - can be used for segmentation evaluation 
+      segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-08_BigBear/ONR_2022-05-08-11-50-48'
+    2022-05-15-06-00-09:
+        gps: True  # ColoradoRiver
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-15_ColoradoRiver/flight1'
+        zone: 11
+    2022-05-15-06-14-42:
+        gps: True  # ColoradoRiver
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-15_ColoradoRiver/flight2'
+        zone: 11 
+    2022-05-15-06-26-50:
+        gps: True  # ColoradoRiver
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-15_ColoradoRiver/flight3'
+        zone: 11
+    2022-05-15-06-39-43:
+        gps: True  # ColoradoRiver
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-05-15_ColoradoRiver/flight4'
+        zone: 11
+    2022-07-26-10-39-11:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+    2022-07-26-10-50-52:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+    2022-07-26-11-00-21:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+    2022-07-26-11-05-36:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+    2022-07-26-11-22-00:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+    2022-10-06-12-23-29:
+        segmentation_path: ''        
+        gps: True  # NorthField - campus - no segmenattion labels
+        zone: 11
+        rotate_180: True  # NorthField data is rotated 180 degrees
+    2022-10-06-12-59-02:
+        gps: True  # NorthField - campus - no segmenattion labels
+        thermal_only: True
+        segmentation_path: ''
+        zone: 11
+        rotate_180: True  # NorthField data is rotated 180 degrees
+    2022-10-06-13-11-26:
+        gps: True  # NorthField - campus - no segmenattion labels
+        segmentation_path: ''
+        zone: 11
+        rotate_180: True  # NorthField data is rotated 180 degrees
+    2022-12-20-11-40-28:
+        gps: True  # CastaicLake
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-12-20_Castaic_Lake/flight1'
+        zone: 11
+        rotate_180: True  # CastaicLake data is rotated 180 degrees
+    2022-12-20-12-16-02:
+        gps: True  # CastaicLake
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-12-20_Castaic_Lake/flight2'
+        zone: 11
+        rotate_180: True  # CastaicLake data is rotated 180 degrees
+    2022-12-20-12-48-59:
+        gps: True  # CastaicLake
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-12-20_Castaic_Lake/flight3'
+        zone: 11
+        rotate_180: True  # CastaicLake data is rotated 180 degrees
+    2022-12-20-13-37-37:
+        gps: True  # CastaicLake
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2022-12-20_Castaic_Lake/flight4'
+        zone: 11
+        rotate_180: True  # CastaicLake data is rotated 180 degrees
+    2023-03-21-09-59-39:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-21-09-59-39'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-21-14-06-04:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-21-14-06-04'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-21-18-20-21:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-21-18-20-21'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-21-19-55-11:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-21-19-55-11'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-22-08-44-31:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-22-08-44-31'
+        zone: 18
+        # rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-22-14-31-06:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-22-14-31-06'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees
+    2023-03-22-14-41-46:
+        gps: True  # Duck
+        segmentation_path: '/ocean/projects/cis220039p/mdt2/shared/CART/labeled_thermal_singles/2023-03-XX_Duck/ONR_2023-03-22-14-41-46'
+        zone: 18
+        rotate_180: True  # Duck data is rotated 180 degrees

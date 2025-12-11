@@ -1,0 +1,13 @@
+2022-12-20_Castaic_Lake/flight2/masks/pair-00000.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-00120.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-00573.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-00753.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-00933.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-01113.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-01293.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-01473.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-01653.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-01833.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-02013.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-02193.png
+2022-12-20_Castaic_Lake/flight2/masks/pair-02373.png
