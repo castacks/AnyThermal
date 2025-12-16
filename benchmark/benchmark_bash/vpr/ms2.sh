@@ -1,10 +1,14 @@
 #!/bin/bash
-    # --model_names  mmdistill_cart_only_contrastive_all_final_vlad_64 mmdistill_cart_only_contrastive_all_final mmdistill_ms2_only_contrastive_all_final mmdistill_ms2_only_contrastive_all_final_vlad_64 mmdistill_combine_both_cosine_all_final_vlad_64 mmdistill_combine_both_cosine_all_final mmdistill_combine_contrastive_all_final mmdistill_combine_contrastive_all_final_vlad_64 \
-    # --model_names mmdistill_combine_global_contrastive_salad_backbone_50_final mmdistill_combine_global_contrastive_salad_backbone_50_final_vlad_64 mmdistill_combine_global_contrastive_salad_backbone_25_final mmdistill_combine_global_contrastive_salad_backbone_25_final_vlad_64 mmdistill_combine_global_contrastive_salad_backbone_10_final mmdistill_combine_global_contrastive_salad_backbone_10_final_vlad_64 \
-    # --model_names mmdistill_frozen_dinov2_final mmdistill_frozen_dinov2_final_vlad_64 mmdistill_frozen_dinov2_final_globalvlad_64 mmdistill_frozen_salad_final mmdistill_frozen_salad_final_vlad_64 salad mmdistill_frozen_salad_final_globalvlad_64  mmdistill_combine_global_contrastive_all_equal_10_final mmdistill_combine_global_contrastive_all_equal_10_final_vlad_64 mmdistill_combine_global_contrastive_all_equal_10_final_globalvlad_64  mmdistill_combine_global_contrastive_salad_backbone_50_final mmdistill_combine_global_contrastive_salad_backbone_50_final_vlad_64 vpr_mmdistill_salad_frozen_normal_backbone vpr_mmdistill_salad_normal_salad_backbone vpr_mmdistill_salad_frozen_normal_backbone_32 vpr_mmdistill_salad_normal_salad_backbone_32\
 
-python3 new_benchmark_vpr.py \
-    --model_names mmdistill_ms2_final_vlad_64 mmdistill_ms2_vivid_final_vlad_64 mmdistill_ms2_vivid_freiburg_final_vlad_64 mmdistill_ms2_vivid_freiburg_sthereo_final_vlad_64 mmdistill_ms2_vivid_freiburg_sthereo_boson_final_vlad_64  mmdistill_combine_global_contrastive_all_equal_10_final_vlad_64\
+# sgm: Long-range UAV Thermal Geo-localization with Satellite Imagery - https://xjh19971.github.io/STGL/
+# imagebind: ImageBind: One Embedding Space To Bind Them All - https://arxiv.org/abs/2305.05665
+# mmdistill_frozen_dinov2:  Pretrained DINOv2 ViT-b14 
+# mmdistill_anythermal: AnyThermal - without a VPR head
+# salad: Optimal Transport Aggregation for Visual Place Recognition - https://github.com/serizba/salad
+# vpr_mmdistill_salad_anythermal_full: SALAD VPR head + Anythermal backbone distilled and trained using all the datasets (Boson, VIVID++, STHEREO, FREIBURG, TartanRGBT)
+
+python3 -m benchmark.benchmark_vpr \
+    --model_names sgm imagebind mmdistill_frozen_dinov2 mmdistill_anythermal salad vpr_mmdistill_salad_anythermal_full \
     --dataset ms2\
     --top_k_vals 1 5 10 \
     --batch_size 16 \

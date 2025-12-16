@@ -332,11 +332,6 @@ class MMDistillVPRModel(BaseFeatureExtractor):
         if not hasattr(self.args, 'fc_output_dim'):
             self.args.fc_output_dim = None
 
-
-        # if self.backbone_path != "" or self.model_dict != "":
-        #     if backbone_model_type != "":
-        #         raise ValueError("backbone_model_type should not be set if backbone_path or model_dict is set. Please set only one of them.")
-
         self.frozen_backbone = frozen_backbone
         self.un_frozen_layer_index = un_frozen_layer_index
         self.backbone_model_type = backbone_model_type

@@ -457,32 +457,6 @@ def compute_recall_at_k(query_feats, db_feats, ground_truth, ks=[1, 5, 10], excl
     # import pdb; pdb.set_trace()  # Debugging line to inspect the recall values
     return {f"recall@{k}": recall[k] / total_valid if total_valid > 0 else 0.0 for k in ks}
 
-# -------------------------
-# Curriculum margin helper
-# -------------------------
-def compute_curriculum_margin(epoch: int, mode: str,
-                              margin_start: float, margin_end: float,
-                              ramp_epochs: int,
-                              last_val_metrics: dict = None) -> float:
-    """
-    Returns the margin to use this epoch.
-    mode='epoch': linear ramp for first `ramp_epochs` then clamp.
-    mode='metric': simple example policy based on recall@1 (customize as needed).
-    """
-    if mode == 'epoch':
-        if ramp_epochs <= 0:
-            return margin_end
-        t = min(max(epoch, 0), ramp_epochs)
-        alpha = t / float(ramp_epochs)
-        return margin_start + alpha * (margin_end - margin_start)
-    elif mode == 'metric':
-        r1 = (last_val_metrics or {}).get('recall@1', None)
-        if r1 is None:
-            return margin_start
-        return margin_end if r1 >= 0.6 else 0.5 * (margin_start + margin_end)
-    else:
-        return margin_end
-
 
 def run(args,model_dict, dataloader, optimizer, device, epoch, train=True, current_margin=None):
     mode = "train" if train else "val"
@@ -949,19 +923,7 @@ def main(args):
     last_val_metrics = None
 
     for epoch in range(args.start_epoch,args.epochs+1):
-
-        # --- curriculum margin for this epoch ---
-        if args.curriculum_mode != 'none':
-            current_margin = compute_curriculum_margin(
-                epoch=epoch,
-                mode=args.curriculum_mode,
-                margin_start=args.margin_start,
-                margin_end=args.margin_end,
-                ramp_epochs=args.margin_ramp_epochs,
-                last_val_metrics=last_val_metrics
-            )
-        else:
-            current_margin = args.margin
+        current_margin = args.margin
         wandb.log({"sched/current_margin": current_margin, "epoch": epoch})
 
         if epoch % args.save_interval == 0:
@@ -997,8 +959,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', type=str, default="mmdistill")
-    parser.add_argument('--dataset', type=str, nargs='+',
+    parser.add_argument('--name', type=str, default="anythermal_vpr")
+    parser.add_argument('--dataset',default=['boson', 'freiburg', 'sthereo', 'vivid', 'tartanrgbt'], type=str, nargs='+',
                     help='List of datasets to use in training and eval')
     parser.add_argument('--eval_dataset', default=[],type=str, nargs='+',
                     help='List of datasets to use in training and eval')    
@@ -1032,7 +994,7 @@ if __name__ == '__main__':
                     default='salad', help='Aggregation head architecture')
     parser.add_argument('--debug_viz', action='store_true', help='Enable Top-K retrieval visualization')
     parser.add_argument('--intra_dataset_batch', type=bool, default=True, help='Enable Top-K retrieval visualization')
-    parser.add_argument('--margin', type=float, default=0.1, help='Fixed margin for triplet/pair loss (used if not curriculum)')
+    parser.add_argument('--margin', type=float, default=0.15, help='Fixed margin for triplet/pair loss (used if not curriculum)')
     parser.add_argument('--crop_images', action='store_true', help='Disable image cropping')
     parser.add_argument('--no_shuffle', action='store_true', help='Disable shuffling of dataset')
     parser.add_argument('--conv_output_dim', type=int, default=-1, help='Disable shuffling of dataset')
@@ -1055,17 +1017,7 @@ if __name__ == '__main__':
     parser.add_argument('--val_positive_dist_threshold', type=float, default=-1., help='Distance threshold for positive pairs during validation. If -1, use the default threshold.')
     parser.add_argument('--num_negatives_per_positive', type=int, default=10, help='Number of negatives per positive for triplet loss')
 
-    # ------ NEW: curriculum controls ------
-    parser.add_argument('--margin_start', type=float, default=0.05,
-                        help='Starting margin for curriculum (triplet).')
-    parser.add_argument('--margin_end', type=float, default=0.5,
-                        help='Final (max) margin for curriculum (triplet).')
-    parser.add_argument('--margin_ramp_epochs', type=int, default=25,
-                        help='Epochs to linearly ramp margin from start to end.')
-    parser.add_argument('--curriculum_mode', type=str, choices=['none','epoch','metric'], default='none',
-                        help='How to adapt margin. "epoch" = linear ramp by epoch; "metric" = simple recall@1 policy.')
-    
-    parser.add_argument('--hard_frac', type=float, default=0.75,
+    parser.add_argument('--hard_frac', type=float, default=0.85,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')
     parser.add_argument('--seed', type=int, default=42,
                         help='Fraction of hard triplets to use in each batch. Only used if hard_triplet loss is selected.')

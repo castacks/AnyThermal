@@ -10,3 +10,6 @@
 [submodule "baselines/segmentation/MCNet"]
 	path = baselines/segmentation/MCNet
 	url = https://github.com/haitaobiyao/MCNet.git
+[submodule "baselines/depth/BridgeMultiSpectralDepth"]
+	path = baselines/depth/BridgeMultiSpectralDepth
+	url = git@github.com:castacks/BridgeMultiSpectralDepth.git

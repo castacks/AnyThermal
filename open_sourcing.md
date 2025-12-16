@@ -1,9 +1,40 @@
-# Benchmarking - Recreating ICRA 2025 Results and More
+# TODO 
 
-## Outline
-- VPR 
-    - SGM 
-## VPR
+## AnyThermal
 
-### SGM (model-name : "sgm")
-If you wan to use [SGM](https://xjh19971.github.io/STGL/), download the [pretrained model](https://xjh19971.github.io/STGL/) (STGL-Resnet50-GeM-4096.tar.gz) and unzip it to ```baselines/VPR/STHN/pretrained_models```. The final model path should be ```baselines/VPR/STHN/pretrained_models/satellite_0_thermalmapping_135_contrast_dense_exclusion-2024-02-14_23-02-31-91400d55-5881-48e5-b6cb-cecff4f47a3f/best_model.pth``` 
+[ ] Clean and finalize all checkpoints
+
+    [x] backbone
+    [ ] cart segmentation 
+    [x] mfnet segmentation
+    [x] VPR
+    [x] depth
+
+[ ] Segmentation Inference speed script
+
+[ ] Documentation of training and eval
+
+    [ ] Backbone Training
+    [ ] VPR
+    [ ] Segmentation
+    [ ] Depth
+
+[ ] Clean and document each of the dataset download, extraction, post processing and split generation
+
+    [ ] CART
+    [ ] Freiburg
+    [ ] VIVID++
+    [ ] STHEREO
+    [ ] TartanRGBT
+    [ ] MS2
+
+## TartanRGBT
+
+[ ] Widen the Port slit
+
+[ ] Take a new 3d print
+
+[ ] Have assembly instruction and simplify the wiring
+
+
+

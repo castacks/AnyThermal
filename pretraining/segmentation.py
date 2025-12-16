@@ -428,7 +428,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train segmentation head on DINOv2 features')
     parser.add_argument('--seed', default=85, type=int)
     parser.add_argument('--epochs', default=25, type=int)
-    parser.add_argument('--dataset', default='cart', type=str,choices=['cart_geographic', 'cart_random', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
+    parser.add_argument('--dataset', default='mfnet', type=str,choices=['cart_geographic', 'cart_random', 'freiburg', 'mfnet','pst900'], help='Dataset to use for training')
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--learning_rate', default=0.002, type=float)

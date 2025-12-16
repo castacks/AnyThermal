@@ -25,6 +25,91 @@ import pacmap  # Make sure you pip install pacmap
 import seaborn as sns
 from sklearn.metrics.pairwise import cosine_distances
 
+
+MODEL_CANDIDATES = ["model", "model_name", "checkpoint", "ckpt", "name"]
+WEIGHT_CANDIDATES = ["frames", "num_frames", "n_frames", "queries", "num_queries", "n_queries", "weight"]
+ID_CANDIDATES = [
+    "dataset", "dataset_split", "dataset_splits", "split", "sequence", "seq", "route",
+    "db_modality", "q_modality", "db_q_mode", "q/db", "db_q",
+]
+
+def _wr_find_first(columns, candidates):
+    for c in candidates:
+        if c in columns:
+            return c
+    return None
+
+def _wr_is_recall_col(name: str) -> bool:
+    s = str(name).strip().lower()
+    # Accept formats like R@1, r@5, recall@10, Recall_1, etc.
+    return (
+        s.startswith("r@")
+        or s.startswith("recall@")
+        or s.startswith("recall_")
+        or (s.startswith("r") and "@" in s)
+    )
+
+def _wr_weighted_mean(values: "pd.Series", weights: "pd.Series") -> float:
+    v = pd.to_numeric(values, errors="coerce")
+    w = pd.to_numeric(weights, errors="coerce")
+    m = (v.notna()) & (w.notna()) & (w > 0)
+    if not m.any():
+        return float("nan")
+    return float((v[m] * w[m]).sum() / w[m].sum())
+
+def compute_weighted_recall_means(recall_csv: str, out_csv: str = None) -> str:
+    """
+    Compute weighted mean recall per model and save to CSV.
+
+    - recall_csv: path to per-sequence recall results. Must include a model column and a weight column.
+    - out_csv: output path (default: sibling 'weighted_recall_means.csv').
+
+    Returns: the output CSV path.
+    """
+    recall_csv = str(recall_csv)
+    if out_csv is None:
+        out_csv = os.path.join(os.path.dirname(recall_csv), "weighted_recall_means.csv")
+
+    df = pd.read_csv(recall_csv)
+    columns = list(df.columns)
+
+    model_col = _wr_find_first(columns, MODEL_CANDIDATES)
+    if model_col is None:
+        raise ValueError(
+            f"Could not find a model column. Looked for: {MODEL_CANDIDATES}. Available: {columns}"
+        )
+
+    recall_cols = [c for c in columns if _wr_is_recall_col(c)]
+    for c in recall_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    recall_cols = [c for c in recall_cols if df[c].notna().any()]
+    if not recall_cols:
+        raise ValueError(f"Could not find any recall columns. Available columns: {columns}")
+
+    weight_col = _wr_find_first(columns, WEIGHT_CANDIDATES)
+    if weight_col is None:
+        raise ValueError(
+            f"No weight column found in recall CSV. Expected one of: {WEIGHT_CANDIDATES}. "
+            f"Available: {columns}"
+        )
+
+    # Handle cases like '123/456' by taking the first token.
+    df[weight_col] = pd.to_numeric(df[weight_col].astype(str).str.split('/').str[0], errors="coerce")
+    df = df[df[weight_col].fillna(0) > 0].copy()
+
+    grouped = df.groupby(model_col, dropna=False)
+    rows = []
+    for model_name, g in grouped:
+        row = {model_col: model_name, "_total_frames": g[weight_col].sum()}
+        for rc in recall_cols:
+            row[f"weighted_{rc}"] = _wr_weighted_mean(g[rc], g[weight_col])
+        rows.append(row)
+
+    out = pd.DataFrame(rows).set_index(model_col).sort_index()
+    out.to_csv(out_csv, index=True)
+    print(f"[weighted_recall] Saved weighted means to: {out_csv}")
+    return out_csv
+
 def plot_delta_d_cdf(
     db_features,
     query_features,
@@ -566,6 +651,16 @@ def run(args: BenchmarkArgs):
         wandb.finish()
     csv_file.close()
     print(f"✅ Combined CSV results saved to: {master_csv_path}")
+
+    # If evaluating local odometry sequences, also summarize with weighted recall
+    if args.local_odom:
+        try:
+            weighted_out = os.path.join(os.path.dirname(master_csv_path), "weighted_recall_means.csv")
+            compute_weighted_recall_means(master_csv_path, weighted_out)
+            print(f"✅ Weighted recall means saved to: {weighted_out}")
+        except Exception as e:
+            print(f"[warn] Weighted recall computation failed: {e}")
+
 
 
 if __name__ == "__main__":
