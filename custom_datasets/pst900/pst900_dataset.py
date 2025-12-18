@@ -1,4 +1,4 @@
-from .base_dataset import *
+from custom_datasets.base_dataset import *
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from typing import Tuple

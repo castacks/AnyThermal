@@ -19,7 +19,7 @@ import h5py
 import time
 import random
 
-from .base_dataset import *
+from custom_datasets.base_dataset import *
 
 class BosonNightimeBaseDataset(BaseDataset):
     """Dataset with images from database and queries, used for inference (testing and building cache)."""

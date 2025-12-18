@@ -5,7 +5,7 @@
 [ ] Clean and finalize all checkpoints
 
     [x] backbone
-    [ ] cart segmentation 
+    [x] cart segmentation 
     [x] mfnet segmentation
     [x] VPR
     [x] depth
@@ -14,9 +14,9 @@
 
 [ ] Documentation of training and eval
 
-    [ ] Backbone Training
-    [ ] VPR
-    [ ] Segmentation
+    [x] Backbone Training
+    [x] VPR
+    [x] Segmentation
     [ ] Depth
 
 [ ] Clean and document each of the dataset download, extraction, post processing and split generation
@@ -30,7 +30,7 @@
 
 ## TartanRGBT
 
-[ ] Widen the Port slit
+[x] Widen the Port slit
 
 [ ] Take a new 3d print
 

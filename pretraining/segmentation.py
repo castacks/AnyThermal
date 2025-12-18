@@ -15,10 +15,10 @@ from torchvision.utils import save_image
 from PIL import Image
 import torchvision.transforms as T
 from itertools import chain
-from custom_datasets.cart_dataset import *
-from custom_datasets.freiburg_dataset import *
-from custom_datasets.mfnet_dataset import *
-from custom_datasets.pst900_dataset import *
+from custom_datasets.cart.cart_dataset import *
+from custom_datasets.freiburg.freiburg_dataset import *
+from custom_datasets.mfnet.mfnet_dataset import *
+from custom_datasets.pst900.pst900_dataset import *
 from custom_models.dinov2_segmentation_model import MMDistillSegmentationModel ,seg_head_str_to_dict
 from .segment_utils import label_to_rgb
 from contextlib import nullcontext
@@ -279,7 +279,7 @@ def train_segmentation_pipeline(args):
         print("Using CART dataset")
 
         type_of_split = args.dataset.split("_")[-1]
-        root_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/CART/random_splits")
+        root_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/cart/splits/random_splits")
         if type_of_split == "random":
             train_seq_list = return_cart_split_segmentation_random(root_dir,"train")
             val_seq_list = return_cart_split_segmentation_random(root_dir,"val")

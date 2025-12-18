@@ -91,7 +91,7 @@ def get_model_from_string(args,name: str,task,**kwargs):
             if model_name == "frozen_dinov2":
                 thermal_backbone = ""
             elif model_name == "anythermal":
-                thermal_backbone = "icra_checkpoints/backbone/AnyThermal_full/model20.pth"
+                thermal_backbone = "pretrained_checkpoints/backbone/AnyThermal_full/model20.pth"
             else:
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             
@@ -113,7 +113,7 @@ def get_model_from_string(args,name: str,task,**kwargs):
             modality = name.split('_')[-1]
             model_name = "_".join(name.split('_')[3:-1])
             if model_name == "anythermal_full":
-                model_path = "icra_checkpoints/vpr/model_35.pth"
+                model_path = "pretrained_checkpoints/vpr/model_35.pth"
             else :  
                 raise ValueError(f"Unsupported new mmdistill model name: {model_name}")
             model_dict = torch.load(model_path, map_location='cpu')
@@ -143,38 +143,17 @@ def get_model_from_string(args,name: str,task,**kwargs):
             backbone_model_type = ""
             from .dinov2_segmentation_model import MMDistillSegmentationModel
 
-            if model_name == "thermal_dinov2_with_tartan_rgbt":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250907-141327_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_with_tarratan_rgbt_without_holes_correct_rectification_ffc_considered_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
+            if model_name == "anythermal":
+                model_path = "pretrained_checkpoints/segmentation/cart/model110.pth"
                 head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-035440_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson_freiburg":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083730_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson_vivid":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083734_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083730_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_freiburg_vivid_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson_vivid_sthereo":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-085920_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "thermal_dinov2_scaling_boson_freiburg_vivid_sthereo":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250908-083902_cart_random_thr_non_linear_64_dice_bilinear_thermal_dinov2_scaling_boson_vivid_stehreo_freiburg_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-            elif model_name == "frozen_rgb_dinov2":
-                model_path = "/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/pretraining/checkpoints/segmentation/cart_random/20250907-141327_cart_random_thr_non_linear_64_weighted_ce_bilinear_rgb_frozen_dinov2_augmentedbrightness_contrast_gamma_dropout0.1/model100.pth"
-                head_model = "non_linear_64"
-                backbone_model_type = "dinov2_vitb14"
-            
+            else:
+                raise ValueError(f"Unsupported mmdistill cart model name: {model_name}")
             return MMDistillSegmentationModel(args=args,backbone_model_type=backbone_model_type,head_model=head_model,un_frozen_layer_index=[],frozen_head=True,device='cuda',modality="thr",model_path=model_path, **kwargs)
         elif name.startswith("mmdistill_mfnet"):
             model_name = "_".join(name.split('_')[2:])
             backbone_model_type = ""
             if model_name == "anythermal":
-                model_path = "icra_checkpoints/segmentation/mfnet/model25.pth"
+                model_path = "pretrained_checkpoints/segmentation/mfnet/model25.pth"
                 head_model = "non_linear_64"
             else:
                 raise ValueError(f"Unsupported mmdistill mfnet model name: {model_name}")

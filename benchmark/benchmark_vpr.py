@@ -25,9 +25,11 @@ import pacmap  # Make sure you pip install pacmap
 import seaborn as sns
 from sklearn.metrics.pairwise import cosine_distances
 
+import pandas as pd
+
 
 MODEL_CANDIDATES = ["model", "model_name", "checkpoint", "ckpt", "name"]
-WEIGHT_CANDIDATES = ["frames", "num_frames", "n_frames", "queries", "num_queries", "n_queries", "weight"]
+WEIGHT_CANDIDATES = ["frames", "num_frames", "n_frames", "queries", "num_queries", "n_queries", "weight",'q/db']
 ID_CANDIDATES = [
     "dataset", "dataset_split", "dataset_splits", "split", "sequence", "seq", "route",
     "db_modality", "q_modality", "db_q_mode", "q/db", "db_q",

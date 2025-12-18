@@ -23,4 +23,4 @@ python3 -m benchmark.benchmark_vpr \
     --viz_clusters \
     --only_same_backbone \
     --local_odom \
-    --sequences benchmark_bash/vpr/odombeyondvision_seq.txt
+    --sequences benchmark/benchmark_bash/vpr/odombeyondvision_seq.txt

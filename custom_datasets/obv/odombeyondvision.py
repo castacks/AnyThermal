@@ -1,11 +1,11 @@
-from .base_dataset import *
+from custom_datasets.base_dataset import *
 import torchvision.transforms.functional as torch_F
 import torchvision
 import pandas as pd
 import os
 
 # For processing 8-bit thermal?
-from .ms2_utils import *
+from custom_datasets.ms2.ms2_utils import *
 
 def return_odom_beyond_vision_split(split):
     """

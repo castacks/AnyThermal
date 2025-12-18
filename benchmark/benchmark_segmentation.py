@@ -16,8 +16,8 @@ import sys
 
 from anythermal_utils.segment_utils import label_to_rgb
 
-from custom_datasets.cart_dataset import *
-from custom_datasets.mfnet_dataset import *
+from custom_datasets.cart.cart_dataset import *
+from custom_datasets.mfnet.mfnet_dataset import *
 from custom_models.str_to_cls import get_model_from_string
 import gc
 
@@ -119,12 +119,14 @@ def main(args: BenchmarkSegArgs):
 
             type_of_split = args.dataset_name.split("_")[-1]
             if type_of_split == "random":
-                seq_list = return_cart_split_segmentation_random(split)
+                root_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/cart/splits/random_splits")
+                datasets_folder = os.path.join(os.environ["ANYTHERMAL_CART_DATA_ROOT"],"labeled_thermal_singles")
+                seq_list = return_cart_split_segmentation_random(root_dir,split)
             elif type_of_split == "geographic":
                 raise NotImplementedError("Geographic split not implemented for segmentation yet.")
             else:
                 raise ValueError("Unsupported CART split type. Use 'random' or 'geographic'.")
-            dataset = CART(args=args,root_frame_dir=None, db_modality="thr", q_modality="seg_mask", datasets_folder=None, seq=seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
+            dataset = CART(args=args,root_frame_dir=None, db_modality="thr", q_modality="seg_mask", datasets_folder=datasets_folder, seq=seq_list, augment=False, seq_as_txt="thermal", crop_images=False)
 
         elif args.dataset_name == "mfnet":
             if split not in ['train','val', 'test']:

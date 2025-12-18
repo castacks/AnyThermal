@@ -1,15 +1,15 @@
 from torch.utils.data import Dataset, ConcatDataset, WeightedRandomSampler, DataLoader, Subset, RandomSampler, BatchSampler
 from collections import defaultdict
-from .ms2_dataset import MS2, return_ms2_split, return_ms2_split_debug
-from .cart_dataset import CART, HandheldCART,return_cart_split, return_cart_split_debug,return_handheld_cart_split
-from .freiburg_dataset import Freiburg, return_freiburg_split
-from .vivid_dataset import Vivid, return_vivid_split
-from .sthereo_dataset import STHEREO, return_sthereo_split
-from .boson_nightime_dataset import BosonNightimeBaseDataset
-from .m2p2_dataset import M2P2, return_m2p2_split
-from .mfnet_dataset import MFNet, return_mfnet_split
-from .tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
-from .odombeyondvision import OdomBeyondVision, return_odom_beyond_vision_split
+from custom_datasets.ms2.ms2_dataset import MS2, return_ms2_split, return_ms2_split_debug
+from custom_datasets.cart.cart_dataset import CART, HandheldCART,return_cart_split, return_cart_split_debug,return_handheld_cart_split
+from custom_datasets.freiburg.freiburg_dataset import Freiburg, return_freiburg_split
+from custom_datasets.vivid.vivid_dataset import Vivid, return_vivid_split
+from custom_datasets.sthereo.sthereo_dataset import STHEREO, return_sthereo_split
+from custom_datasets.boson.boson_nightime_dataset import BosonNightimeBaseDataset
+from custom_datasets.m2p2.m2p2_dataset import M2P2, return_m2p2_split
+from custom_datasets.mfnet.mfnet_dataset import MFNet, return_mfnet_split
+from custom_datasets.tartanRGBT.tartanrgbt_dataset import TartanRGBT, return_tartanrgbt_split
+from custom_datasets.obv.odombeyondvision import OdomBeyondVision, return_odom_beyond_vision_split
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import random
@@ -533,7 +533,7 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                     else:
                         raise ValueError(f"Unknown CART dataset name: {ds_name}")
                 data_root = os.environ["ANYTHERMAL_CART_DATA_ROOT"]
-                root_frame_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/CART/static_segments_output/frames")
+                root_frame_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/cart/splits/static_segments_output/frames")
                 
                 dataset_init_dict["root_frame_dir"]= root_frame_dir
                 dataset_init_dict["cart_split"] = args.cart_split
@@ -545,13 +545,13 @@ def build_dataset(args,return_dataloader=True,m2p2_rgb_only=False, build_triplet
                 print("Using VIVID++ dataset")
                 seq_list = return_vivid_split(mode)
                 data_root = os.environ["ANYTHERMAL_VIVID++_DATA_ROOT"]
-                dataset_init_dict["root_frame_dir"] = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/VIVID++/frame_lists")
+                dataset_init_dict["root_frame_dir"] = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/vivid/splits/frame_lists")
 
             elif ds_name == "sthereo":
                 print("Using STHEREO dataset")
                 seq_list = return_sthereo_split(mode)
                 data_root = os.environ["ANYTHERMAL_STHEREO_DATA_ROOT"]
-                dataset_init_dict["root_frame_dir"]= os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/sthereo/frame_lists")
+                dataset_init_dict["root_frame_dir"]= os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/sthereo/splits/frame_lists")
             elif ds_name == "boson":
                 print("Using Boson Nightime dataset")
                 seq_list = [mode]

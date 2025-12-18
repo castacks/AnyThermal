@@ -29,3 +29,7 @@ transformers==4.36.2
 timm
 einops
 easydict
+"mmcv==1.7.2"
+"git+https://github.com/facebookresearch/pytorch3d.git"
+path
+tensorboard

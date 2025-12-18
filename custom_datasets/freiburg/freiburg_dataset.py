@@ -1,4 +1,4 @@
-from .base_dataset import *
+from custom_datasets.base_dataset import *
 import torchvision.transforms.functional as torch_F
 import torchvision
 
@@ -41,8 +41,8 @@ class Freiburg(BaseDataset):
 
 
         assert crop_during_vpr_test == False, "Crop during VPR test is not supported for Freiburg dataset. Please set it to False."
-        self.frame_list_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/freiburg/frame_list")
-        self.metadata = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/splits/freiburg/crop_box_metadata.txt")
+        self.frame_list_dir = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/freiburg/splits/frame_list")
+        self.metadata = os.path.join(os.environ["ANYTHERMAL_PROJECT_ROOT"],"custom_datasets/freiburg/splits/crop_box_metadata.txt")
         self.read_metadata()
         dist_thresh = -1
         self.positive_radius_index = 1
