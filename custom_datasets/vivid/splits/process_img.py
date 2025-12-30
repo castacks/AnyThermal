@@ -2,22 +2,27 @@
 
 import rosbag
 import rospy
+import numpy as np
+if not hasattr(np, "float"):
+    np.float = float
 import ros_numpy
 import sys
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-import numpy as np
 import numpy.matlib
 import math
 import copy
 import cv2
 from PIL import Image
-from pyproj import Proj, transform
+from pyproj import Transformer
 import os
 import cv2
+
 # Add fieldscale path
-sys.path.append("/ocean/projects/cis220039p/pmaheshw/code/multi-modal/fieldscale/python")
-from fieldscale import Fieldscale
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+Fieldscale_DIR = os.path.join(PROJECT_ROOT, "baselines", "thermal_processing", "fieldscale","python")
+
+assert os.path.exists(Fieldscale_DIR), f"Fieldscale directory does not exist: {Fieldscale_DIR}"
 
 # Fieldscale parameter
 params_200_no_clahe = {
@@ -27,13 +32,14 @@ params_200_no_clahe = {
 
 
 ## global variables
-#f = open(folder+'imglist.txt','w')
 imgno = 0
 imglist = []
 cvbdg = CvBridge()
-proj_UTMK = Proj(init='epsg:5178')
-proj_WGS84 = Proj(init='epsg:4326')
-initpt = np.array([988118.672713562, 1818806.4875518726]) ## origin of campus, just for convenience.
+wgs84_to_utm52 = Transformer.from_crs(
+    "EPSG:4326",
+    "EPSG:32652",
+    always_xy=True
+)
 
 def apply_fieldscale(img, use_clahe=False, folder_name=None, seqname=None):
     params = params_200_no_clahe.copy()
@@ -46,12 +52,13 @@ def apply_fieldscale(img, use_clahe=False, folder_name=None, seqname=None):
     return rescaled
     
 def write_gps(msg, f_gps):
-    global proj_UTMK, proj_WGS84
+    global wgs84_to_utm52
     tnow = msg.header.stamp.to_sec()
     lat = msg.latitude
     lon = msg.longitude
-    x, y = transform(proj_WGS84,proj_UTMK,lon,lat)
-    f_gps.write('%.6f, %.6f, %.6f\n'%(x-initpt[0],y-initpt[1],tnow))
+    x, y = wgs84_to_utm52.transform(lon, lat)
+    f_gps.write('%.6f, %.6f, %.6f\n'%(x,y,tnow))
+    print('Wrote GPS: %.6f, %.6f, %.6f'%(x,y,tnow))
 
 
 def apply_clahe(image: np.ndarray) -> np.ndarray:
@@ -75,7 +82,6 @@ def write_images(msg, folder,modality,scenario,seqname=None):
     if cv_img is None:
         print("Image is None, skipping...")
         return
-    # import pdb; pdb.set_trace()
     if "driving" in scenario:
         if modality == "thermal":
             DIM = (640, 512)
@@ -119,18 +125,12 @@ def write_images(msg, folder,modality,scenario,seqname=None):
         cv2.imwrite(folder+f"/{modality}_8/"+'%.6f.png'%(tnow), cv_img_8bit)
         cv2.imwrite(folder+f"/{modality}_clahe/"+'%.6f.png'%(tnow), cv_img_8bit_clahe)
 
-#    imglist.append([str(imgno) + "%06i.png"%(imgno)])
-#    f.write("%12.12f, %06i\n"%(tnow,imgno))
-
-def raw_to_kelvin(val):
-    return ( 1428.0 / log( 408825.0 / ( val + 58.417 ) + 1.0 ) )
-
-def main(folder_name, seqname):
-    path_prefix = os.path.join("extracted_data", folder_name, seqname + '/')
+def main(folder_name, seqname,root_dir):
+    path_prefix = os.path.join(root_dir,"extracted_data", folder_name, seqname + '/')
     os.makedirs(path_prefix, exist_ok=True)
-    print("Extracting bag file: " + os.path.join(folder_name,seqname)+'.bag')
-    bag = rosbag.Bag(os.path.join(folder_name,seqname)+'.bag')
-    print("Loaded bag file: " + os.path.join(folder_name,seqname)+'.bag')
+    print("Extracting bag file: " + os.path.join(root_dir,folder_name,seqname)+'.bag')
+    bag = rosbag.Bag(os.path.join(root_dir,folder_name,seqname)+'.bag')
+    print("Loaded bag file: " + os.path.join(root_dir,folder_name,seqname)+'.bag')
     folder = path_prefix+'img'
     os.makedirs(folder, exist_ok=True)
     os.makedirs(folder+"/thermal_raw", exist_ok=True)
@@ -145,14 +145,14 @@ def main(folder_name, seqname):
     f_gps = open(path_prefix+'gpslist.txt','w')
 
     # write images with timestamp assignment
-    # for topic, msg, t in bag.read_messages(topics=['/gps']):
-    #     write_gps(msg, f_gps)
+    for topic, msg, t in bag.read_messages(topics=['/gps']):
+        print("Writing GPS data...")
+        write_gps(msg, f_gps)
+    
+    f_gps.close()
 
-#    for topic, msg, t in bag.read_messages(topics=['/camera/image_color']):
-#        if 'camera
-    print("PRocessing for scenario: " + folder_name)
-    # for topic, msg, t in bag.read_messages(topics=['/thermal/image_raw','/camera/image_color','/rgb/image']):
-    for topic, msg, t in bag.read_messages(topics=['/thermal/image_raw']):
+    print("Processing for scenario: " + folder_name)
+    for topic, msg, t in bag.read_messages(topics=['/thermal/image_raw','/camera/image_color','/rgb/image']):
         if 'thermal' in topic:
             write_images(msg, folder,"thermal",folder_name,seqname)
         elif 'color' in topic or "rgb" in topic:
@@ -166,4 +166,5 @@ def main(folder_name, seqname):
 if __name__ == '__main__':
     folder_name = sys.argv[1]
     seq_name = sys.argv[2][:-4]  # Remove the '.bag' extension
-    main(folder_name,seq_name)
+    root_dir = sys.argv[3]
+    main(folder_name,seq_name,root_dir)

@@ -10,14 +10,14 @@
     [x] VPR
     [x] depth
 
-[ ] Segmentation Inference speed script
-
 [ ] Documentation of training and eval
 
     [x] Backbone Training
     [x] VPR
     [x] Segmentation
     [ ] Depth
+
+[ ] Segmentation Inference speed script
 
 [ ] Clean and document each of the dataset download, extraction, post processing and split generation
 

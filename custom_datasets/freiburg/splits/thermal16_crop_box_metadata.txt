@@ -1,0 +1,4 @@
+row_start: 0
+row_end: 650
+col_start: 297
+col_end: 1717

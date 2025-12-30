@@ -33,3 +33,6 @@ easydict
 "git+https://github.com/facebookresearch/pytorch3d.git"
 path
 tensorboard
+pycryptodomex
+python-gnupg
+rospkg

@@ -1,4 +1,4 @@
-# rclone copy --drive-shared-with-me "gdrive:sthereo_01_kaist_morning" kaist_morning --progress --transfers 4 --fast-list --tpslimit 10 --checkers 8
+rclone copy --drive-shared-with-me "gdrive:sthereo_01_kaist_morning" kaist_morning --progress --transfers 4 --fast-list --tpslimit 10 --checkers 8
 rclone copy --drive-shared-with-me "gdrive:sthereo_02_kaist_afternoon" kaist_afternoon --progress --transfers 4 --fast-list --tpslimit 10 --checkers 8
 rclone copy --drive-shared-with-me "gdrive:sthereo_03_kaist_evening" kaist_evening --progress --transfers 4 --fast-list --tpslimit 10 --checkers 8
 rclone copy --drive-shared-with-me "gdrive:sthereo_04_snu_morning" snu_morning --progress --transfers 4 --fast-list --tpslimit 10 --checkers 8

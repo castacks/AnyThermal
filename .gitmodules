@@ -13,3 +13,6 @@
 [submodule "baselines/depth/BridgeMultiSpectralDepth"]
 	path = baselines/depth/BridgeMultiSpectralDepth
 	url = git@github.com:castacks/BridgeMultiSpectralDepth.git
+[submodule "baselines/thermal_processing/fieldscale"]
+	path = baselines/thermal_processing/fieldscale
+	url = https://github.com/HyeonJaeGil/fieldscale.git

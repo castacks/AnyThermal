@@ -1,37 +1,72 @@
 #!/bin/bash
+set -e
 
-log_file="extract_log.txt"
+# =========================
+# Usage check
+# =========================
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <ROOT_DATASET_PATH>"
+    exit 1
+fi
+
+ROOT_DIR="$1"
+
+if [ ! -d "$ROOT_DIR" ]; then
+    echo "❌ Root directory does not exist: $ROOT_DIR"
+    exit 1
+fi
+
+# =========================
+# Configuration
+# =========================
+log_file="$ROOT_DIR/extract_log.txt"
 echo "Extraction started at $(date)" > "$log_file"
 
-for dir in */; do
-    echo "Entering directory: $dir"
-    cd "$dir" || continue
+# Expected top-level folders
+DATASET_FOLDERS=(
+    kaist_morning
+    kaist_afternoon
+    kaist_evening
+    snu_afternoon
+    snu_evening
+    valley_morning
+    valley_afternoon
+    valley_evening
+)
 
-    for archive in *.tar.gz *.tar; do
-        [ -e "$archive" ] || continue  # Skip if no matching files
+# =========================
+# Extraction loop
+# =========================
+for dataset in "${DATASET_FOLDERS[@]}"; do
+    DATASET_PATH="$ROOT_DIR/$dataset"
 
-        echo "Processing: $archive"
+    if [ ! -d "$DATASET_PATH" ]; then
+        echo "⚠️ Skipping missing folder: $DATASET_PATH" | tee -a "$log_file"
+        continue
+    fi
+
+    echo "📂 Processing dataset: $DATASET_PATH" | tee -a "$log_file"
+
+    # Find tar / tar.gz files recursively
+    find "$DATASET_PATH" -type f \( -name "*.tar" -o -name "*.tar.gz" \) | while read -r archive; do
+        echo "📦 Found archive: $archive" | tee -a "$log_file"
+
         filetype=$(file "$archive")
 
         if [[ "$archive" == *.tar.gz ]] && echo "$filetype" | grep -q "gzip compressed"; then
-            echo "Extracting gzip-compressed tar: $archive"
-            if ! tar -xzvf "$archive" >> "../$log_file" 2>&1; then
-                echo "❌ Failed to extract $archive" >> "../$log_file"
-            fi
+            echo "➡️ Extracting gzip tar: $archive" | tee -a "$log_file"
+            tar -xzvf "$archive" -C "$(dirname "$archive")" >> "$log_file" 2>&1 \
+                || echo "❌ Failed to extract $archive" | tee -a "$log_file"
 
         elif [[ "$archive" == *.tar ]] && echo "$filetype" | grep -q "tar archive"; then
-            echo "Extracting plain tar: $archive"
-            if ! tar -xvf "$archive" >> "../$log_file" 2>&1; then
-                echo "❌ Failed to extract $archive" >> "../$log_file"
-            fi
+            echo "➡️ Extracting tar: $archive" | tee -a "$log_file"
+            tar -xvf "$archive" -C "$(dirname "$archive")" >> "$log_file" 2>&1 \
+                || echo "❌ Failed to extract $archive" | tee -a "$log_file"
 
         else
-            echo "❗ Skipping: $archive (unrecognized or invalid format)"
-            echo "⚠️ Skipped invalid archive: $archive ($filetype)" >> "../$log_file"
+            echo "⚠️ Skipping invalid archive: $archive ($filetype)" | tee -a "$log_file"
         fi
     done
-
-    cd ..
 done
 
-echo "Extraction completed at $(date)" >> "$log_file"
+echo "✅ Extraction completed at $(date)" | tee -a "$log_file"

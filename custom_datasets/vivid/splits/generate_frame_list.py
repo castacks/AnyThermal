@@ -121,7 +121,7 @@ def find_closest_gps(ts_rgb, gps_entries):
         print(f"[ERROR] No close GPS for RGB timestamp {ts_rgb:.3f}. Closest is {closest[0]:.3f} (diff {abs(closest[0] - ts_rgb):.3f}s)")
     return closest[1], closest[2], closest[0]
 
-def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, csv_records):
+def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, csv_records,root_dir_str):
     rgb_dir = traj_path / "img/color"
     thermal_dir = traj_path / "img/thermal_fieldscale_clahe"
 
@@ -140,7 +140,7 @@ def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, cs
         rgb_ts, thermal_ts, threshold, rgb_dir, thermal_dir
     )
 
-    gps_file_path = traj_path / "gpslist_absolute.txt"
+    gps_file_path = traj_path / "gpslist.txt"
     gps_entries = load_gps_file(gps_file_path) if gps_file_path.exists() else []
 
     rgb_gps_coords = []
@@ -150,6 +150,7 @@ def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, cs
             x, y, ts = find_closest_gps(ts_rgb, gps_entries)
             rgb_gps_coords.append((x, y, ts))
         else:
+            print(f"[WARNING] No GPS entries found for {traj_group}/{traj_name}.")
             rgb_gps_coords.append((None, None, None))
     
     thermal_gps_coords = []
@@ -159,6 +160,7 @@ def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, cs
             x, y, ts = find_closest_gps(ts_thermal, gps_entries)
             thermal_gps_coords.append((x, y, ts))
         else:
+            print(f"[WARNING] No GPS entries found for {traj_group}/{traj_name}.")
             thermal_gps_coords.append((None, None, None))
 
     out_dir = Path(out_root) / traj_group / traj_name
@@ -169,6 +171,8 @@ def process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, cs
          open(out_dir / "rgb_gps_framelist.txt", "w") as f_rgb_gps, \
          open(out_dir / "thermal_gps_framelist.txt", "w") as f_thermal_gps:
         for r, t, rgb_gps,thermal_gps in zip(rgb_list, thermal_list, rgb_gps_coords, thermal_gps_coords):
+            r = r.replace(root_dir_str+"/","")
+            t = t.replace(root_dir_str+"/","")
             f_rgb.write(f"{r}\n")
             f_thermal.write(f"{t}\n")
             f_rgb_gps.write(f"{rgb_gps[0]} {rgb_gps[1]} {rgb_gps[2]}\n")
@@ -203,7 +207,7 @@ def main():
     args = parser.parse_args()
 
     root_dir = Path(args.root_dir)
-    out_root = root_dir.parent / "frame_lists"
+    out_root = "frame_lists"
     script_dir = Path(__file__).parent
     csv_path = script_dir / f"pair_stats_thresholds_used.csv"
 
@@ -221,7 +225,7 @@ def main():
 
             traj_key = f"{traj_group}/{traj_name}"
             threshold = threshold_map.get(traj_key, args.threshold)
-            process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, csv_records)
+            process_trajectory(traj_path, out_root, traj_group, traj_name, threshold, csv_records,args.root_dir)
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=[

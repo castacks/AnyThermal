@@ -17,10 +17,10 @@ def normalize_14bit_to_8bit(image: np.ndarray, apply_clahe=False) -> np.ndarray:
 
 def process_single_trajectory(traj_tuple):
     traj, apply_clahe = traj_tuple
-    skip_list = ['valley_morning', 'kaist_evening', 'kaist_afternoon', 'valley_evening']
-    if traj.name in skip_list:
-        print(f"Skipping {traj.name}")
-        return
+    # skip_list = ['valley_morning', 'kaist_evening', 'kaist_afternoon', 'valley_evening']
+    # if traj.name in skip_list:
+    #     print(f"Skipping {traj.name}")
+    #     return
 
     thermal_dir = traj / "image" / "stereo_thermal_14_left"
     if not thermal_dir.exists():

@@ -125,9 +125,6 @@ class Vivid(BaseDataset):
         self.neg_ring_outer_radius = neg_ring_outer_radius
         self.location_type = 'gps'
 
-        self.utmk_to_global_utm_transformer = Transformer.from_crs("epsg:5178", "epsg:32652", always_xy=True)
-
-
         super().__init__(args=args,db_modality =db_modality,q_modality=q_modality,datasets_folder=datasets_folder,dist_thresh=dist_thresh,vpr_test=vpr_test,vpr_train=vpr_train,seq=seq,augment = augment, rescale_during_crop=rescale_during_crop, crop_during_vpr_test=crop_during_vpr_test,crop_images=crop_images)
     
     def generate_read_fn(self):
@@ -230,13 +227,13 @@ class Vivid(BaseDataset):
 
             with open(db_gps_frame_list) as f:
                 lines = f.readlines()
-                coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
+                coord = [[float(x[0]), float(x[1])] for x in (line.strip().split() for line in lines)]
                 temp_coords.extend(coord)
                 self.db_coords.extend(coord)
             
             with open(q_gps_frame_list) as f:
                 lines = f.readlines()
-                coord = [self.utmk_to_global_utm_transformer.transform(float(x[0]), float(x[1])) for x in (line.strip().split() for line in lines)]
+                coord = [[float(x[0]), float(x[1])] for x in (line.strip().split() for line in lines)]
 
                 self.q_coords.extend(coord)
             
