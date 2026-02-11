@@ -1,5 +1,8 @@
 # AnyThermal
 
+This code repository supports the training and evaluation of the AnyThermal model introduced in the paper "AnyThermal: Towards Learning Universal Representations for Thermal Perception," accepted at ICRA 2026.
+Please feel free to create issues if you need assistance with using the checkpoints or the codebase. Will try to resolve the issues as soon as possible.  
+
 ## Outline
 - Setting up the environment 
 - Downloading and postprocessing of datasets
