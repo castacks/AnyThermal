@@ -27,4 +27,4 @@ This will extract all the rosbags in the specified folder and save the extracted
 
 ## Setting the Dataset Path
 
-Finally, update the `<ANYTHERMAL_ROOT_DIR>/custom_datasets/dataset_path.yaml` file to point to the root location of the extracted data for the `vivid` dataset.
+Finally, update the `<ANYTHERMAL_ROOT_DIR>/custom_datasets/dataset_path.yaml` file to point to the root location of the extracted data for the `vivid` dataset so `<your_chosen_path_VIVID++>/extracted_data`

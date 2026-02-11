@@ -79,14 +79,13 @@ def read_trajectory_list(file_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root_dir", type=str, default="/ocean/projects/cis220039p/mdt2/shared/CART/bag_files", help="Root directory with trajectory folders.")
-    parser.add_argument("--trajectory_file", type=str, default="trajectories.yaml", help="YAML file listing trajectory names and UTM zones.")
+    parser.add_argument("--trajectory_file", type=str, default="all_trajectories.yaml", help="YAML file listing trajectory names and UTM zones.")
     args = parser.parse_args()
 
     trajs_dict = read_trajectory_list(args.trajectory_file)
 
     for traj_name in tqdm(trajs_dict.keys()):
         traj_meta = trajs_dict[traj_name]
-        # import pdb; pdb.set_trace()
         zone_number = traj_meta["zone"]
         gps_available = traj_meta["gps"]
         if not gps_available:

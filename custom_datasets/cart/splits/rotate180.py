@@ -7,7 +7,6 @@ from tqdm import tqdm
 from natsort import natsorted
 from multiprocessing import Pool, cpu_count
 
-already_rotated_images = natsorted(glob(os.path.join("/ocean/projects/cis220039p/mdt2/shared/CART/bag_files/2022-05-15-06-00-09/stereo_rectified/thermal_color/eo", "*.png")))
 def load_yaml(yaml_path):
     with open(yaml_path, 'r') as f:
         return yaml.safe_load(f)
@@ -20,9 +19,6 @@ def get_trajectories_to_rotate(traj_config):
     return rotate_trajs
 
 def rotate_image_180(img_path):
-    if img_path in already_rotated_images:
-        print(f"Skipping already rotated image: {img_path}")
-        return
     img = cv2.imread(img_path)
     if img is None:
         print(f"Warning: Unable to read image {img_path}")
@@ -61,7 +57,7 @@ def process_trajectory(root_dir, traj_name, traj_info, num_workers=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Rotate trajectory images by 180 degrees.")
-    parser.add_argument("--yaml_file", type=str, default="trajectories.yaml", help="Path to YAML file with trajectory config")
+    parser.add_argument("--yaml_file", type=str, default="all_trajectories.yaml", help="Path to YAML file with trajectory config")
     parser.add_argument("--root_dir", type=str, default="/ocean/projects/cis220039p/mdt2/shared/CART/bag_files", help="Root directory containing trajectories")
     parser.add_argument("--num_workers", type=int, default=None, help="Number of parallel workers for image rotation")
     args = parser.parse_args()
