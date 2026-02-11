@@ -1,9 +1,9 @@
 # AnyThermal
 
 ## Outline
-- Setting up environment 
+- Setting up the environment 
 - Downloading and postprocessing of datasets
-- (Optional) Downloading pretrianed checkpoints
+- (Optional) Downloading pre-trained checkpoints
 - Training backbone (AnyThermal)
 - Task training and eval
     - VPR
@@ -31,7 +31,7 @@ pip install -r requirements.txt -c constraints.txt .
 
 ## (Optional) Downloading pretrianed checkpoints
 
-TODO
+Download all the checkpoins using [this](https://huggingface.co/theairlabcmu/AnyThermal/blob/main/anythermal_checkpoints.zip) link and extract them in the root folder for the repo. 
 
 ## Training backbone
 
@@ -66,7 +66,7 @@ bash benchmark/benchmark_bash/vpr/cart.sh
 bash benchmark/benchmark_bash/vpr/obv.sh
 ```
 
-The outputs are saved in 
+All the evaluation outputs are saved in benchmark/qualitative_ouptuts
 
 ## Thermal Segmentation (MF-Net and CART)
 
@@ -92,15 +92,27 @@ bash benchmark/benchmark_bash/segmentation/mfnet.sh
 bash benchmark/benchmark_bash/segmentation/cart.sh
 ```
 
+All the evaluation outputs are saved in benchmark/qualitative_ouptuts
+
+
 ## Monocular Thermal Depth Estimation
 
-### Training
-```
-```
+Instructions for this will be added soon.
 
-### Evaluation
-```
-```
+## Citation 
 
+If you found this repo to be helpful, please give us a star and consider citing our work 
+
+```
+@misc{maheshwari2026anythermallearninguniversalrepresentations,
+      title={AnyThermal: Towards Learning Universal Representations for Thermal Perception}, 
+      author={Parv Maheshwari and Jay Karhade and Yogesh Chawla and Isaiah Adu and Florian Heisen and Andrew Porco and Andrew Jong and Yifei Liu and Santosh Pitla and Sebastian Scherer and Wenshan Wang},
+      year={2026},
+      eprint={2602.06203},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2602.06203}, 
+}
+```
 
 
