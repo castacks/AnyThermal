@@ -26,15 +26,34 @@ cd <PROJECT_ROOT>
 pip install -r requirements.txt -c constraints.txt .
 ```
 
+### Submodules
+
+VPR (`pretraining.vpr`, `benchmark.benchmark_vpr`) imports the SALAD aggregator from a submodule.  After cloning, pull at least the SALAD submodule:
+
+```
+git submodule update --init baselines/VPR/salad
+```
+
+The other submodules (`STHN`, `ImageBind`, `MCNet`, `BridgeMultiSpectralDepth`, `fieldscale`) are only needed if you run those specific baselines; init them on demand.
+
 ## Downloading and postprocessing of datasets
 
 - Change the dataset paths in the `/ocean/projects/cis220039p/pmaheshw/code/multi-modal/MultiLoc/custom_datasets/dataset_path.yaml` file to your local paths for root folders of each of the datasets.
 
 - Follow the instructions in the respective dataset folders to download and postprocess the datasets.
 
-## (Optional) Downloading pretrianed checkpoints
+## (Optional) Downloading pretrained checkpoints
 
-Download all the checkpoins using [this](https://huggingface.co/theairlabcmu/AnyThermal/blob/main/anythermal_checkpoints.zip) link and extract them in the root folder for the repo. 
+Download [`anythermal_checkpoints.zip`](https://huggingface.co/theairlabcmu/AnyThermal/blob/main/anythermal_checkpoints.zip) from HuggingFace. The zip's top-level directory is `pretrained_checkpoints/`, so extracting from the repo root would produce a nested `pretrained_checkpoints/pretrained_checkpoints/` tree that the code paths in [`custom_models/str_to_cls.py`](custom_models/str_to_cls.py) don't expect. Extract to a scratch dir and move the contents in instead:
+
+```bash
+cd <PROJECT_ROOT>
+unzip /path/to/anythermal_checkpoints.zip -d /tmp/anythermal_ckpt
+mv /tmp/anythermal_ckpt/pretrained_checkpoints ./
+rm -rf /tmp/anythermal_ckpt
+```
+
+The result is a flat `pretrained_checkpoints/{backbone,segmentation,vpr,depth}/...` under the repo root.
 
 ## Training backbone
 

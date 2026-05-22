@@ -80,11 +80,19 @@ def return_cart_split_debug(split):
 def seq_has_gps(args,seq, datasets_folder):
     """
     Checks if the sequence has GPS data.
+
+    Looks for `<datasets_folder>/bag_files/<seq>/csv/thermal_utm_coords.npy`
+    (the AWS S3 mount layout used by the data-access code paths in this file,
+    e.g. `os.path.join(self.datasets_folder, "bag_files", s)` on line 225/233/
+    237/267).  Falls back to the legacy flat layout
+    `<datasets_folder>/<seq>/csv/...` for compatibility with PSC, where
+    sequences live directly under the dataset root (no `bag_files/` wrapper).
     """
     if args.not_filter_on_gps:
         return True
-    gps_file = os.path.join(datasets_folder, seq, "csv/thermal_utm_coords.npy")
-    return os.path.exists(gps_file)
+    nested = os.path.join(datasets_folder, "bag_files", seq, "csv/thermal_utm_coords.npy")
+    flat   = os.path.join(datasets_folder, seq,              "csv/thermal_utm_coords.npy")
+    return os.path.exists(nested) or os.path.exists(flat)
 
 
 class CART(BaseDataset):
@@ -296,9 +304,18 @@ class CART(BaseDataset):
                     raise ValueError(f"Path {path} does not belong to sequence {seq}. Please check the paths.")
                 img_idx = int(self.extract_frame_number(path.split("/")[-1]))
                 img_idx_list.append(img_idx)
-            if os.path.exists(os.path.join(self.datasets_folder,seq,"csv/thermal_utm_coords.npy")) == False:
-                raise ValueError(f"Please provide a valid sequence name. {seq} does not have thermal_utm_coords.npy file")
-            all_gps_coords = np.load(os.path.join(self.datasets_folder,seq,"csv/thermal_utm_coords.npy"))
+            # Two possible layouts (see seq_has_gps):
+            #   nested: <root>/bag_files/<seq>/csv/...  (AWS S3 mount layout)
+            #   flat:   <root>/<seq>/csv/...            (PSC layout)
+            _nested = os.path.join(self.datasets_folder, "bag_files", seq, "csv/thermal_utm_coords.npy")
+            _flat   = os.path.join(self.datasets_folder, seq,              "csv/thermal_utm_coords.npy")
+            if os.path.exists(_nested):
+                gps_npy = _nested
+            elif os.path.exists(_flat):
+                gps_npy = _flat
+            else:
+                raise ValueError(f"Please provide a valid sequence name. {seq} does not have thermal_utm_coords.npy file at {_nested} or {_flat}")
+            all_gps_coords = np.load(gps_npy)
             for i in range(len(img_idx_list)):
                 img_idx = img_idx_list[i]
                 if img_idx >= len(all_gps_coords):
