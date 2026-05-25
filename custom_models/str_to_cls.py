@@ -104,9 +104,10 @@ def get_model_from_string(args,name: str,task,**kwargs):
                 raise ValueError(f"Unsupported mmdistill_dinov2 modality: {modality}")
 
             from .dinov2_vpr_model import MMDistillDinov2VLAD
-            return MMDistillDinov2VLAD(num_clusters = num_clusters, 
-                                       model_type="dinov2_vitb14", 
-                                       modality=modality, 
+            model_type = getattr(args, "backbone_model_type", "dinov2_vitb14")
+            return MMDistillDinov2VLAD(num_clusters = num_clusters,
+                                       model_type=model_type,
+                                       modality=modality,
                                        backbone_path=thermal_backbone if modality =='thr' else rgb_backbone,use_cls=use_cls,layer_to_hook=layer_to_hook)
 
         elif name.startswith("vpr_mmdistill_salad"):

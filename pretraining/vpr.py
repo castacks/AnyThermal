@@ -899,7 +899,7 @@ def main(args):
 
 
     if args.same_backbone:
-        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thr', device=device,head_config=agg_dict,backbone_model_type="dinov2_vitb14")
+        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thr', device=device,head_config=agg_dict,backbone_model_type=args.backbone_model_type)
         rgb_model = thr_model
         model_dict = {"rgb": rgb_model, "thr": thr_model}
 
@@ -907,8 +907,8 @@ def main(args):
             initialise_netvlad_head(model_dict,train_dataloader,device)
         trainable_params = thr_model.trainable_params()
     else:
-        rgb_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_model_type="dinov2_vitb14",head_config=agg_dict)
-        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thr', device=device,head_config=agg_dict)
+        rgb_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,modality='rgb', device=device,backbone_model_type=args.backbone_model_type,head_config=agg_dict)
+        thr_model = MMDistillVPRModel(args=args,frozen_backbone=args.frozen_backbone,un_frozen_layer_index=args.un_frozen_layer_index,frozen_head=False,backbone_path = args.backbone_path,modality='thr', device=device,head_config=agg_dict,backbone_model_type=args.backbone_model_type)
         model_dict = {"rgb": rgb_model, "thr": thr_model}
         if args.initialise_netvlad and args.head_arch == "netvlad":
             initialise_netvlad_head(model_dict,train_dataloader,device)
@@ -964,6 +964,9 @@ if __name__ == '__main__':
                     help='List of datasets to use in training and eval')
     parser.add_argument('--eval_dataset', default=[],type=str, nargs='+',
                     help='List of datasets to use in training and eval')    
+    parser.add_argument('--backbone_model_type', type=str, default='dinov2_vitb14',
+                        choices=['dinov2_vitb14', 'dinov2_vitb14_reg', 'dinov2_vitl14', 'dinov2_vitl14_reg'],
+                        help='DINOv2 backbone architecture (only used when backbone_path is empty; otherwise read from checkpoint)')
     parser.add_argument('--backbone_path', type=str, default = "",
                     help='Path to the backbone model, if not using default backbone')
     parser.add_argument('--batch_size', type=int, default=128)

@@ -245,28 +245,26 @@ class MMDistillSegmentationModel(BaseSegmentationModel):
     def build_model(self):
         assert self.head_model in seg_head_str_to_dict, f"Unsupported head model: {self.head_model}. Supported models are: {list(seg_head_str_to_dict.keys())}"
         head_type  = seg_head_str_to_dict[self.head_model]
-        head = head_type(in_channels=768, num_classes=self.num_classes,dropout_prob=self.dropout_prob).to(self.device)
         backbone_path = self.backbone_path
         backbone_model_type = self.backbone_model_type
+        head_state_dict = None
         if self.backbone_path!= "" and self.model_path != "":
             raise ValueError("Both backbone_path and model_path cannot be set at the same time. Please set only one of them.")
         if self.backbone_path!= "":
             print(f"Loading backbone from {self.backbone_path}")
             backbone_model_type = torch.load(backbone_path, map_location=self.device,weights_only=True)["student_model_type"]
-
-            # state_dict = torch.load(self.backbone_path, map_location=self.device)["student_model_state_dict"]
-            # backbone.load_state_dict(state_dict)
         elif self.model_path != "":
             print(f"Loading backbone and head model from {self.model_path}")
             head_state_dict = torch.load(self.model_path, map_location=self.device,weights_only=True)["seg_head"]
             backbone_path = torch.load(self.model_path, map_location=self.device,weights_only=True)["backbone_path"]
             if backbone_path != "":
                 backbone_model_type = torch.load(backbone_path, map_location=self.device,weights_only=True)["student_model_type"]
-            # backbone.load_state_dict(backbone_state_dict)
-            head.load_state_dict(head_state_dict)
 
-        
         backbone = MMDistillDinov2(backbone_model_type, self.modality, backbone_path=backbone_path,un_frozen_layer_index=self.un_frozen_layer_index,layers_to_hook=['final'])
+
+        head = head_type(in_channels=backbone.model.embed_dim, num_classes=self.num_classes,dropout_prob=self.dropout_prob).to(self.device)
+        if head_state_dict is not None:
+            head.load_state_dict(head_state_dict)
 
         model = BaseDinov2SegmentationModel(backbone, head,self.upscale_method).to(self.device)
         if self.frozen_head:

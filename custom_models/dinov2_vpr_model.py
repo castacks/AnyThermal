@@ -367,19 +367,22 @@ class MMDistillVPRModel(BaseFeatureExtractor):
             raise ValueError("Both backbone_path and model_path cannot be set at the same time. Please set only one of them.")
 
 
+        self.backbone = MMDistillDinov2(self.backbone_model_type, self.modality, un_frozen_layer_index = self.un_frozen_layer_index, backbone_path=backbone_path, layers_to_hook=['final'])
+        backbone_embed_dim = self.backbone.model.embed_dim
+
         self.conv_layer = None
-        
+
         if self.args.conv_output_dim != None and self.args.conv_output_dim > 0:
             # Concatenate conv layer to the aggregation layer
             actual_conv_output_dim = int(self.args.conv_output_dim / self.head_config['agg_config']['num_clusters'])
             if self.args.add_bn:
-                self.conv_layer = nn.Sequential(nn.Conv2d(768, actual_conv_output_dim, 1, bias=False),
+                self.conv_layer = nn.Sequential(nn.Conv2d(backbone_embed_dim, actual_conv_output_dim, 1, bias=False),
                                                 nn.BatchNorm2d(actual_conv_output_dim),)
             else:
-                self.conv_layer = nn.Conv2d(768, actual_conv_output_dim, 1)
+                self.conv_layer = nn.Conv2d(backbone_embed_dim, actual_conv_output_dim, 1)
             self.args.features_dim = actual_conv_output_dim
         else:
-            self.args.features_dim = 768  # Default feature dimension for DINOv2
+            self.args.features_dim = backbone_embed_dim  # Feature dimension from DINOv2 backbone
 
         if self.head_config == None:
             head = None
@@ -389,8 +392,6 @@ class MMDistillVPRModel(BaseFeatureExtractor):
             head = get_aggregator(**self.head_config).to(self.device)
             head.output_dim = head.num_clusters * head.cluster_dim + head.token_dim
 
-        
-        self.backbone = MMDistillDinov2(self.backbone_model_type, self.modality, un_frozen_layer_index = self.un_frozen_layer_index, backbone_path=backbone_path, layers_to_hook=['final'])
         self.head = head
         self.backbone_path = backbone_path
         if backbone_state_dict is not None:

@@ -450,7 +450,7 @@ if __name__ == "__main__":
     parser.add_argument('--modality', default='thr', type=str, choices=['thr', 'rgb'], help='Loss function to use')
     parser.add_argument('--upscale_method', default='bilinear', type=str, choices=['bilinear', 'loftup','pre_bilinear'], help='Loss function to use')
     parser.add_argument('--augment', action='store_true')
-    parser.add_argument('--model_type',default="dinov2_vitb14", type=str, choices=['dinov2_vitb14', 'dinov2_vitb14_reg'], help='Loss function to use')
+    parser.add_argument('--model_type',default="dinov2_vitb14", type=str, choices=['dinov2_vitb14', 'dinov2_vitb14_reg', 'dinov2_vitl14', 'dinov2_vitl14_reg'], help='Loss function to use')
     parser.add_argument('--dropout_prob', default=0.05, type=float)
     parser.add_argument('--thermal_segmentation_augmentation', type=str, nargs='+', default=['brightness_contrast','gamma'], choices=['hflip', 'vflip', 'brightness_contrast',"noise","gamma","crop_with_random_ratio","crop_with_fixed_ratio"],help='Loss function to use')
     parser.add_argument('--skip_classes', action='store_true')
