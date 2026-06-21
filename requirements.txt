@@ -1,5 +1,9 @@
 --extra-index-url https://download.pytorch.org/whl/cu121
 
+# setuptools>=70 removes pkg_resources.packaging, which torch 2.1.2's
+# torch.utils.cpp_extension (imported by mmcv) still relies on. Keep it <70.
+setuptools<70
+
 torch==2.1.2
 torchvision==0.16.2
 torchaudio==2.1.2
@@ -29,8 +33,15 @@ transformers==4.36.2
 timm
 einops
 easydict
-"mmcv==1.7.2"
-"git+https://github.com/facebookresearch/pytorch3d.git"
+mmcv==1.7.2
+# Runtime deps of pytorch3d (needed by the depth baseline). pytorch3d itself is
+# NOT listed here because it builds from source against the installed torch and
+# therefore must be installed AFTER torch with build isolation disabled:
+#   pip install --no-build-isolation git+https://github.com/facebookresearch/pytorch3d.git
+# See the "Monocular Thermal Depth Estimation" section of the README.
+fvcore
+iopath
+ninja
 path
 tensorboard
 pycryptodomex
